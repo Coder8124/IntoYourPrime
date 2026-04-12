@@ -273,7 +273,7 @@ export function SessionSummaryPage() {
     return (
       <div className="min-h-screen bg-[#0a0a0f] px-6 py-12 text-white">
         <div className="mx-auto max-w-lg">
-          <Link to="/home" className="text-xs font-bold uppercase tracking-[0.2em] text-blue-400 hover:text-blue-300 cursor-pointer">FormIQ</Link>
+          <Link to="/home" className="text-xs font-bold uppercase tracking-[0.2em] text-blue-400 hover:text-blue-300 cursor-pointer">IntoYourPrime</Link>
           <h1 className="mt-2 text-3xl font-black tracking-tight">Session summary</h1>
           <p className="mt-3 text-sm leading-relaxed text-gray-400">
             No finished session yet. Complete a live workout and tap{' '}
