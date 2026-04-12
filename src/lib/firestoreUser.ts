@@ -1,9 +1,10 @@
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth'
+import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from './firebase'
 import { getOrCreateLocalUserId } from './localUserId'
 
 /**
  * Wait until Firebase Auth has emitted the initial session state.
+ * Resolves quickly from cache — does NOT attempt any sign-in.
  */
 export function waitForAuthReady(): Promise<void> {
   return new Promise((resolve) => {
@@ -15,32 +16,28 @@ export function waitForAuthReady(): Promise<void> {
 }
 
 let cachedUid: string | null = null
-let inflight: Promise<string> | null = null
 
 /**
- * Stable user id for this app: Firebase Auth uid (anonymous) when possible,
- * otherwise the browser-local id. Does not throw — needed so logging still works offline.
+ * Returns the current user's Firebase uid, or a local fallback if offline / not signed in.
+ * Does NOT sign in — the user must authenticate via AuthPage first.
  */
 export function getOrSignInUserId(): Promise<string> {
   if (cachedUid) return Promise.resolve(cachedUid)
-  if (!inflight) {
-    inflight = (async () => {
-      await waitForAuthReady()
-      if (auth.currentUser?.uid) return auth.currentUser.uid
-      try {
-        const { user } = await signInAnonymously(auth)
-        return user.uid
-      } catch {
-        return getOrCreateLocalUserId()
-      }
-    })()
-      .then((uid) => {
-        cachedUid = uid
-        return uid
-      })
-      .finally(() => {
-        inflight = null
-      })
-  }
-  return inflight
+  return waitForAuthReady().then(() => {
+    const uid = auth.currentUser?.uid ?? getOrCreateLocalUserId()
+    cachedUid = uid
+    return uid
+  })
+}
+
+/** True when a real Firebase user is authenticated. */
+export function isFirebaseAuthed(): boolean {
+  return auth.currentUser !== null
+}
+
+/** Sign out and clear the uid cache. */
+export async function signOutUser(): Promise<void> {
+  const { signOut } = await import('firebase/auth')
+  await signOut(auth)
+  cachedUid = null
 }

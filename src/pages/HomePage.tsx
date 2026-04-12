@@ -5,15 +5,20 @@ import { hasApiKey } from '../lib/formAnalysis'
 import {
   getActivityFeed,
   getRecentLogs,
-  getTodayLocalDateString,
-  getTodayLog,
   getUserProfile,
   getUserSessions,
 } from '../lib/firebaseHelpers'
 import { generateRecoveryInsight } from '../lib/formAnalysis'
 import { getOrSignInUserId } from '../lib/firestoreUser'
-import { loadRecoveryLogLocal } from '../lib/recoveryLogLocal'
-import type { ActivityFeedItem, DailyLog, Session } from '../types'
+import { getOrCreateLocalUserId } from '../lib/localUserId'
+import type { ActivityFeedItem, Session } from '../types'
+
+function timeGreeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
+}
 
 function displayNameFromLocal(): string {
   try {
@@ -61,7 +66,6 @@ export function HomePage() {
   const welcomeName = useMemo(() => displayNameFromLocal(), [])
 
   const [loading, setLoading] = useState(true)
-  const [todayLog, setTodayLog] = useState<DailyLog | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [apiKeySet, setApiKeySet] = useState(hasApiKey)
   const [showKeyInput, setShowKeyInput] = useState(false)
@@ -70,39 +74,35 @@ export function HomePage() {
   const [feed, setFeed] = useState<ActivityFeedItem[]>([])
   const [insight, setInsight] = useState<string | null>(null)
   const [insightLoading, setInsightLoading] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
+
 
   const refresh = useCallback(async () => {
-    setLoadError(null)
-    const id = await getOrSignInUserId()
-
     try {
-      let log: DailyLog | null = null
-      try {
-        log = await getTodayLog(id)
-      } catch {
-        /* Firestore read denied / offline */
-      }
-      if (!log) {
-        log = loadRecoveryLogLocal(id, getTodayLocalDateString())
-      }
+      // Use local id immediately so the page never hangs waiting for Firebase auth
+      const localId = getOrCreateLocalUserId()
+      const id = await Promise.race([
+        getOrSignInUserId(),
+        new Promise<string>(resolve => setTimeout(() => resolve(localId), 3000)),
+      ])
 
-      const [sessAll, profile, activity] = await Promise.all([
+      const [sessAll, profile, activity] = await Promise.allSettled([
         getUserSessions(id, 50),
         getUserProfile(id),
         getActivityFeed(id),
       ])
-      setTodayLog(log)
-      setSessions(sessAll.slice(0, 5))
-      setStreak(profile?.streakCount ?? 0)
-      const friendsOnly = activity.filter((a) => a.userId !== id).slice(0, 10)
-      setFeed(friendsOnly)
+      const sessions = sessAll.status === 'fulfilled' ? sessAll.value : []
+      const prof     = profile.status === 'fulfilled' ? profile.value : null
+      const acts     = activity.status === 'fulfilled' ? activity.value : []
 
-      if (sessAll.length >= 5) {
+      setSessions(sessions.slice(0, 5))
+      setStreak(prof?.streakCount ?? 0)
+      setFeed(acts.filter((a) => a.userId !== id).slice(0, 10))
+
+      if (sessions.length >= 5) {
         setInsightLoading(true)
         try {
           const logs = await getRecentLogs(id, 30)
-          const text = await generateRecoveryInsight({ sessions: sessAll, logs })
+          const text = await generateRecoveryInsight({ sessions, logs })
           setInsight(text.trim() || null)
         } catch {
           setInsight(null)
@@ -113,9 +113,7 @@ export function HomePage() {
         setInsight(null)
         setInsightLoading(false)
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to load home data'
-      setLoadError(msg)
+    } catch {
       setInsightLoading(false)
     } finally {
       setLoading(false)
@@ -130,9 +128,7 @@ export function HomePage() {
     const trimmed = apiKeyInput.trim()
     if (!trimmed) return
     localStorage.setItem('formAI_openai_key', trimmed)
-    setApiKeySet(true)
-    setApiKeyInput('')
-    setShowKeyInput(false)
+    window.location.reload()
   }, [apiKeyInput])
 
   const sessionCountForInsight = useMemo(() => {
@@ -140,154 +136,140 @@ export function HomePage() {
   }, [sessions])
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] pb-16 text-white">
-      <div className="mx-auto max-w-lg px-5 pt-10">
-        {/* Top */}
-        <header className="text-center">
-          <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-blue-400">FormIQ</p>
-          <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
-            Welcome back, {welcomeName}
-          </h1>
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2">
-            <Flame className="h-5 w-5 text-amber-400" aria-hidden />
-            <span className="text-[13px] font-semibold text-amber-100">
-              <span className="font-mono text-lg font-black">{streak}</span>
-              <span className="ml-1.5 text-amber-200/80">day streak</span>
+    <div className="min-h-screen bg-[#07070e] pb-24 text-white">
+
+      {/* ── Top nav ── */}
+      <nav className="sticky top-0 z-30 flex items-center justify-between px-5 py-4"
+        style={{ background: 'rgba(7,7,14,0.85)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        <Link to="/home" className="text-[11px] font-black uppercase tracking-[0.28em] text-blue-400 hover:text-blue-300 transition-colors">
+          FormIQ
+        </Link>
+        <div className="flex items-center gap-3">
+          {!apiKeySet && (
+            <button
+              type="button"
+              onClick={() => setShowKeyInput(v => !v)}
+              className="rounded-full border border-amber-500/40 px-3 py-1 text-[11px] font-bold text-amber-300 hover:bg-amber-500/10 transition-colors"
+            >
+              {showKeyInput ? 'Cancel' : '⚡ Add AI key'}
+            </button>
+          )}
+          <Link to="/profile" className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-black text-white transition-opacity hover:opacity-70"
+            style={{ background: 'linear-gradient(135deg,#3b82f6,#7c3aed)' }}>
+            {welcomeName.slice(0, 1).toUpperCase()}
+          </Link>
+        </div>
+      </nav>
+
+      {/* ── API key input (dropdown from nav) ── */}
+      {showKeyInput && (
+        <div className="mx-auto max-w-lg px-5 pt-3">
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={apiKeyInput}
+              onChange={e => setApiKeyInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSaveApiKey()}
+              placeholder="sk-proj-…"
+              className="input-dark flex-1 font-mono text-[13px]"
+              autoComplete="off"
+              spellCheck={false}
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={handleSaveApiKey}
+              disabled={!apiKeyInput.trim()}
+              className="shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 px-4 py-2.5 text-[13px] font-bold text-white transition-colors"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="mx-auto max-w-lg px-5">
+
+        {/* ── Hero ── */}
+        <header className="pt-10 pb-2">
+          <p className="text-[13px] text-gray-500">{timeGreeting()}</p>
+          <h1 className="mt-1 text-4xl font-black tracking-tight">{welcomeName}</h1>
+
+          {/* Streak pill */}
+          <div className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2"
+            style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
+            <Flame className="h-4 w-4 text-amber-400" />
+            <span className="text-[13px] font-semibold text-amber-200">
+              <span className="font-mono text-[15px] font-black">{streak}</span>
+              <span className="ml-1 text-amber-300/70"> day streak</span>
             </span>
           </div>
+        </header>
+
+        {/* ── CTA ── */}
+        <div className="mt-8">
           <button
             type="button"
             onClick={() => navigate('/workout')}
-            className="mt-8 w-full max-w-sm rounded-2xl bg-blue-600 py-4 text-[16px] font-black tracking-tight text-white shadow-[0_0_40px_rgba(59,130,246,0.35)] transition hover:bg-blue-500"
+            className="relative w-full overflow-hidden rounded-2xl py-5 text-[17px] font-black tracking-tight text-white transition-all hover:scale-[1.01] active:scale-[0.99]"
+            style={{
+              background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+              boxShadow: '0 0 40px rgba(99,102,241,0.35), 0 2px 0 rgba(255,255,255,0.08) inset',
+            }}
           >
-            Start workout
+            <span className="relative z-10">Start Workout</span>
+            <div className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity"
+              style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' }} />
           </button>
-        </header>
 
-        {!apiKeySet && (
-          <div className="mt-5 rounded-2xl border border-amber-500/25 bg-amber-500/8 px-5 py-4"
-            style={{ background: 'rgba(245,158,11,0.07)' }}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-amber-200">AI coaching is off</p>
-                <p className="mt-0.5 text-[12px] text-amber-200/60 leading-snug">
-                  Add an OpenAI key to enable real-time form analysis &amp; injury risk scoring.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowKeyInput(v => !v)}
-                className="shrink-0 rounded-xl px-5 py-2.5 text-[14px] font-bold text-amber-300 border border-amber-500/40 hover:border-amber-400/70 hover:bg-amber-500/10 transition-colors"
-              >
-                {showKeyInput ? 'Cancel' : 'Add key'}
-              </button>
-            </div>
-            {showKeyInput && (
-              <div className="mt-3 flex gap-2">
-                <input
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={e => setApiKeyInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSaveApiKey()}
-                  placeholder="sk-proj-…"
-                  className="input-dark flex-1 font-mono text-[13px] py-2"
-                  autoComplete="off"
-                  spellCheck={false}
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveApiKey}
-                  disabled={!apiKeyInput.trim()}
-                  className="shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 px-4 py-2 text-[13px] font-bold text-white transition-colors"
-                >
-                  Save
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {loadError && (
-          <p className="mt-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-center text-[13px] text-red-300">
-            {loadError}
-            <span className="mt-1 block text-[11px] text-red-400/80">
-              Check <code className="text-red-200">VITE_FIREBASE_*</code> and Firestore rules.
-            </span>
-          </p>
-        )}
-
-        {/* Today's status */}
-        <section className="mt-10">
-          <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
-            Today&apos;s status
-          </h2>
-          {todayLog ? (
-            <div className="card-surface mt-3 space-y-3 p-5">
-              <p className="text-[13px] text-gray-400">
-                Sleep <span className="font-mono font-bold text-white">{todayLog.sleepHours}h</span>
-                <span className="text-gray-600"> · </span>
-                quality{' '}
-                <span className="font-mono font-bold text-amber-400">{todayLog.sleepQuality}/5</span>
-              </p>
-              <p className="text-[13px] text-gray-400">
-                Energy <span className="font-mono font-bold text-white">{todayLog.energyLevel}/5</span>
-                <span className="text-gray-600"> · </span>
-                soreness{' '}
-                <span className="font-mono font-bold text-white">{todayLog.overallSoreness}/5</span>
-              </p>
-              <Link
-                to="/recovery-log"
-                className="inline-block text-[12px] font-semibold text-blue-400 underline-offset-2 hover:underline"
-              >
-                Edit today&apos;s log
-              </Link>
-            </div>
-          ) : (
+          <div className="mt-3 grid grid-cols-2 gap-3">
             <Link
-              to="/recovery-log"
-              className="card-surface mt-3 block p-5 transition hover:border-blue-500/40"
+              to="/session-summary"
+              className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-semibold text-gray-400 transition-all hover:text-white"
+              style={{ background: '#111119', border: '1px solid #1e1e2e' }}
             >
-              <p className="text-[15px] font-bold text-white">Log how you&apos;re feeling today</p>
-              <p className="mt-1 text-[13px] text-gray-500">Sleep, energy, soreness →</p>
+              Last session →
             </Link>
-          )}
-        </section>
+            <Link
+              to="/friends"
+              className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-semibold text-gray-400 transition-all hover:text-white"
+              style={{ background: '#111119', border: '1px solid #1e1e2e' }}
+            >
+              Squad →
+            </Link>
+          </div>
+        </div>
 
-        {/* Recent sessions */}
+        {/* ── Recent sessions ── */}
         <section className="mt-10">
-          <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
+          <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-gray-600">
             Recent sessions
           </h2>
           {loading ? (
-            <p className="mt-3 text-[13px] text-gray-600">Loading…</p>
+            <div className="space-y-2">
+              {[1,2].map(i => (
+                <div key={i} className="h-20 rounded-xl animate-pulse" style={{ background: '#111119' }} />
+              ))}
+            </div>
           ) : sessions.length === 0 ? (
-            <p className="card-surface mt-3 p-5 text-[13px] text-gray-500">
-              No saved sessions yet. Finish a workout and sync to Firestore to see history here.
-            </p>
+            <div className="rounded-2xl p-6 text-center" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <p className="text-2xl mb-2">🏋️</p>
+              <p className="text-[13px] text-gray-500">No sessions yet — complete your first workout!</p>
+            </div>
           ) : (
-            <ul className="mt-3 space-y-2">
+            <ul className="space-y-2">
               {sessions.map((s) => (
-                <li key={s.id} className="card-surface p-4">
-                  <div className="flex items-start justify-between gap-2">
+                <li key={s.id} className="rounded-xl px-4 py-3.5 transition-all hover:border-blue-500/30"
+                  style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+                  <div className="flex items-center justify-between">
                     <span className="text-[13px] font-bold text-white">{formatSessionDate(s.date)}</span>
-                    <span className="shrink-0 text-[11px] text-gray-600">
-                      feel {s.feelRating != null ? `${s.feelRating}/5` : '—'}
-                    </span>
+                    <div className="flex items-center gap-3 text-[11px]">
+                      <span className="text-amber-400 font-mono font-semibold">warmup {Math.round(s.warmupScore)}</span>
+                      <span className="text-blue-400 font-mono font-semibold">risk {Math.round(s.avgRiskScore)}</span>
+                    </div>
                   </div>
-                  <p className="mt-1 text-[12px] capitalize text-gray-400">
-                    {s.exercises.length ? s.exercises.join(', ') : '—'}
-                  </p>
-                  <p className="mt-2 text-[12px] text-gray-500">
-                    Warmup{' '}
-                    <span className="font-mono font-semibold text-amber-400">
-                      {Math.round(s.warmupScore)}
-                    </span>
-                    <span className="mx-1.5 text-gray-700">·</span>
-                    Avg risk{' '}
-                    <span className="font-mono font-semibold text-blue-400">
-                      {Math.round(s.avgRiskScore)}
-                    </span>
+                  <p className="mt-1 text-[12px] capitalize text-gray-500">
+                    {s.exercises.length ? s.exercises.join(' · ') : '—'}
                   </p>
                 </li>
               ))}
@@ -295,85 +277,65 @@ export function HomePage() {
           )}
         </section>
 
-        {/* Recovery insight */}
-        <section className="mt-10">
-          <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
+        {/* ── Recovery insight ── */}
+        <section className="mt-8">
+          <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-gray-600">
             Recovery insight
           </h2>
-          <div className="card-surface mt-3 p-5">
+          <div className="rounded-2xl p-5" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
             {!sessionCountForInsight ? (
-              <p className="text-[13px] leading-relaxed text-gray-400">
-                Complete 5 sessions to unlock your personalized recovery insights.
-              </p>
+              <div className="flex items-start gap-3">
+                <span className="text-xl">🔒</span>
+                <p className="text-[13px] leading-relaxed text-gray-500">
+                  Complete 5 sessions to unlock personalized recovery insights.
+                </p>
+              </div>
             ) : insightLoading ? (
-              <p className="text-[13px] text-gray-500">Generating insight…</p>
+              <p className="text-[13px] text-gray-500 animate-pulse">Generating insight…</p>
             ) : insight ? (
               <p className="text-[14px] leading-relaxed text-gray-200">{insight}</p>
             ) : (
-              <p className="text-[13px] text-gray-500">
-                Run <code className="text-gray-400">vercel dev</code> with{' '}
-                <code className="text-gray-400">OPENAI_API_KEY</code> for AI insights.
-              </p>
+              <p className="text-[13px] text-gray-500">Add an OpenAI key to generate insights.</p>
             )}
           </div>
         </section>
 
-        {/* Friends feed */}
-        <section className="mt-10">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
-              Friends
-            </h2>
-            <Link to="/friends" className="text-[11px] font-semibold text-blue-400 hover:underline">
-              Manage
+        {/* ── Friends feed ── */}
+        <section className="mt-8">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-600">Friends</h2>
+            <Link to="/friends" className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition-colors">
+              Prime Intelligence →
             </Link>
           </div>
           {loading ? (
-            <p className="mt-3 text-[13px] text-gray-600">Loading…</p>
+            <div className="h-16 rounded-xl animate-pulse" style={{ background: '#111119' }} />
           ) : feed.length === 0 ? (
-            <p className="card-surface mt-3 p-5 text-[13px] text-gray-500">
-              No friend activity yet. Add friends to see their workouts here.
-            </p>
+            <div className="rounded-2xl p-5 text-center" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <p className="text-[13px] text-gray-500">No friend activity yet.</p>
+            </div>
           ) : (
-            <ul className="mt-3 space-y-2">
+            <ul className="space-y-2">
               {feed.map((item) => (
-                <li key={item.id} className="card-surface flex gap-3 p-3.5">
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[11px] font-black text-white"
-                    style={{ background: 'linear-gradient(135deg,#3b82f6,#7c3aed)' }}
-                  >
+                <li key={item.id} className="flex gap-3 items-center rounded-xl px-4 py-3"
+                  style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-black text-white"
+                    style={{ background: 'linear-gradient(135deg,#3b82f6,#7c3aed)' }}>
                     {initials(item.displayName)}
                   </div>
-                  <p className="min-w-0 flex-1 text-[13px] leading-snug text-gray-300">
-                    {feedLine(item)}
-                  </p>
+                  <p className="min-w-0 flex-1 text-[13px] leading-snug text-gray-300">{feedLine(item)}</p>
                 </li>
               ))}
             </ul>
           )}
         </section>
 
-        {/* Secondary links */}
-        <nav className="mt-12 flex flex-col gap-2 border-t border-[#1e1e2e] pt-8">
-          <Link
-            to="/session-summary"
-            className="text-[13px] font-semibold text-gray-500 hover:text-gray-300"
-          >
-            Last session summary →
-          </Link>
-          <Link
-            to="/pipeline-test"
-            className="text-[13px] font-semibold text-gray-500 hover:text-gray-300"
-          >
-            Image pipeline test →
-          </Link>
-          <Link
-            to="/profile"
-            className="text-[13px] font-semibold text-gray-500 hover:text-gray-300"
-          >
-            Edit profile / API key →
-          </Link>
-        </nav>
+        {/* ── Footer links ── */}
+        <div className="mt-12 flex justify-center gap-6 border-t border-[#111119] pt-6 pb-4">
+          <Link to="/profile" className="text-[12px] text-gray-600 hover:text-gray-400 transition-colors">Profile</Link>
+          <Link to="/pipeline-test" className="text-[12px] text-gray-600 hover:text-gray-400 transition-colors">Pipeline test</Link>
+          <Link to="/recovery-log" className="text-[12px] text-gray-600 hover:text-gray-400 transition-colors">Recovery log</Link>
+        </div>
       </div>
     </div>
   )

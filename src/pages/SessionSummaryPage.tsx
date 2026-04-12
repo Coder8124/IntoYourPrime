@@ -234,6 +234,15 @@ export function SessionSummaryPage() {
           totalRiskEvents: stats.highRiskEvents,
         })
 
+        // Cache streak locally so FriendsPage can read it without Firebase
+        updateStreak(userId).then(() => {
+          import('../lib/firebaseHelpers').then(({ getUserProfile }) =>
+            getUserProfile(userId).then(p => {
+              if (p?.streakCount != null) localStorage.setItem('formAI_streak', String(p.streakCount))
+            }).catch(() => {})
+          )
+        }).catch(() => {})
+
         await Promise.allSettled([
           updateStreak(userId),
           postActivityItem({
@@ -264,7 +273,7 @@ export function SessionSummaryPage() {
     return (
       <div className="min-h-screen bg-[#0a0a0f] px-6 py-12 text-white">
         <div className="mx-auto max-w-lg">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-400">FormIQ</p>
+          <Link to="/home" className="text-xs font-bold uppercase tracking-[0.2em] text-blue-400 hover:text-blue-300 cursor-pointer">FormIQ</Link>
           <h1 className="mt-2 text-3xl font-black tracking-tight">Session summary</h1>
           <p className="mt-3 text-sm leading-relaxed text-gray-400">
             No finished session yet. Complete a live workout and tap{' '}
@@ -489,6 +498,20 @@ export function SessionSummaryPage() {
               ))}
             </ul>
           )}
+        </section>
+
+        {/* How are you feeling? */}
+        <section className="card-surface p-5">
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
+            How are you feeling?
+          </h2>
+          <p className="mt-1 text-[13px] text-gray-500">Log sleep, energy &amp; soreness post-workout.</p>
+          <Link
+            to={`/recovery-log?returnTo=${encodeURIComponent('/session-summary')}`}
+            className="mt-4 inline-block rounded-xl bg-blue-600/20 border border-blue-500/30 px-5 py-3 text-[14px] font-bold text-blue-300 transition hover:bg-blue-600/30 hover:text-blue-200"
+          >
+            Log how you&apos;re feeling →
+          </Link>
         </section>
 
         {/* Raw samples (power users) */}
