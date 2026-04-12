@@ -23,6 +23,8 @@ export function OnboardingPage() {
     heightIn: '8',
     sex: '',
   })
+  const [apiKey,     setApiKey]     = useState('')
+  const [showApiKey, setShowApiKey] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -40,6 +42,12 @@ export function OnboardingPage() {
     if (!isValid || submitting) return
     setSubmitting(true)
     localStorage.setItem('formAI_profile', JSON.stringify(form))
+    const trimmedKey = apiKey.trim()
+    if (trimmedKey) {
+      localStorage.setItem('formAI_openai_key', trimmedKey)
+    } else {
+      localStorage.removeItem('formAI_openai_key')
+    }
     setTimeout(() => navigate('/home'), 700)
   }
 
@@ -208,6 +216,39 @@ export function OnboardingPage() {
                 <option value="female">Female</option>
                 <option value="other">Other / Prefer not to say</option>
               </select>
+            </div>
+
+            {/* OpenAI API Key — optional */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.1em]">
+                  OpenAI API Key
+                  <span className="ml-2 normal-case font-normal text-gray-600 tracking-normal">
+                    (optional)
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(v => !v)}
+                  className="text-[11px] text-blue-500 hover:text-blue-400 transition-colors"
+                >
+                  {showApiKey ? 'hide' : 'show'}
+                </button>
+              </div>
+              <input
+                type={showApiKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder="sk-proj-…"
+                className="input-dark font-mono text-[13px]"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="mt-1.5 text-[11px] text-gray-600 leading-relaxed">
+                Enables AI form coaching, visual injury risk, and personalized cooldowns.
+                Without it the app still works with local pose-based scoring.
+                You can add or change this later in Profile.
+              </p>
             </div>
 
             {/* Submit */}

@@ -12,16 +12,33 @@
 import OpenAI from 'openai'
 import type { FormAnalysisResult, CooldownExercise, Session, DailyLog, UserProfile } from '../types/index'
 
-// ── SDK instance (lazy) ────────────────────────────────────────────────────
+// ── Key resolution ─────────────────────────────────────────────────────────
+// Priority: user-saved key in localStorage > build-time VITE_OPENAI_API_KEY
 
-let _openai: OpenAI | null = null
+function getApiKey(): string {
+  try {
+    const stored = localStorage.getItem('formAI_openai_key')?.trim()
+    if (stored) return stored
+  } catch { /* localStorage unavailable in SSR / tests */ }
+  return import.meta.env.VITE_OPENAI_API_KEY ?? ''
+}
 
-function client(): OpenAI {
-  if (!_openai) {
-    _openai = new OpenAI({
-      apiKey: import.meta.env.VITE_OPENAI_API_KEY ?? '',
-      dangerouslyAllowBrowser: true,
-    })
+/** Returns true when an OpenAI key is available (user-provided or env var). */
+export function hasApiKey(): boolean {
+  return getApiKey().length > 0
+}
+
+// ── SDK instance (lazy, invalidated when key changes) ─────────────────────
+
+let _openai:    OpenAI | null = null
+let _activeKey: string        = ''
+
+function client(): OpenAI | null {
+  const key = getApiKey()
+  if (!key) return null
+  if (!_openai || _activeKey !== key) {
+    _activeKey = key
+    _openai = new OpenAI({ apiKey: key, dangerouslyAllowBrowser: true })
   }
   return _openai
 }
@@ -63,6 +80,9 @@ async function sleep(ms: number): Promise<void> {
 // ── analyzeForm — gpt-4o vision ───────────────────────────────────────────
 
 export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisResult> {
+  const c = client()
+  if (!c) return { ...DEFAULT_FORM_RESULT }
+
   const attempt = async (): Promise<FormAnalysisResult> => {
     const imageBlocks: OpenAI.Chat.Completions.ChatCompletionContentPart[] =
       params.frames.map(frame => ({
@@ -98,7 +118,7 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
         `}`,
     }
 
-    const completion = await client().chat.completions.create({
+    const completion = await c.chat.completions.create({
       model:      'gpt-4o-mini',
       max_tokens: 400,
       messages: [
@@ -140,8 +160,10 @@ export async function generateCooldown(
   session:     Partial<Session>,
   userProfile: UserProfile,
 ): Promise<CooldownExercise[]> {
+  const c = client()
+  if (!c) return []
   try {
-    const completion = await client().chat.completions.create({
+    const completion = await c.chat.completions.create({
       model:      'gpt-4o-mini',
       max_tokens: 600,
       messages: [
@@ -179,8 +201,10 @@ export async function generateRecoveryInsight(context: {
   sessions: Session[]
   logs:     DailyLog[]
 }): Promise<string> {
+  const c = client()
+  if (!c) return ''
   try {
-    const completion = await client().chat.completions.create({
+    const completion = await c.chat.completions.create({
       model:      'gpt-4o-mini',
       max_tokens: 200,
       messages: [

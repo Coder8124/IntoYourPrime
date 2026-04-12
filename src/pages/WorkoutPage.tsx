@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
-import { analyzeForm } from '../lib/formAnalysis'
+import { analyzeForm, hasApiKey } from '../lib/formAnalysis'
 
 // ── Alignment-based risk (no angle math — just body segment deviation) ─────
 
@@ -393,6 +393,7 @@ export function WorkoutPage() {
 
   // ── API risk + suggestions call: first at 8 s, then every 30 s ──────
   useEffect(() => {
+    if (!hasApiKey()) return   // skip entirely in no-key / basic mode
     const callApi = async () => {
       if (!isTracking || analyzingRef.current) return
       const frames = getBestFrames(2)
