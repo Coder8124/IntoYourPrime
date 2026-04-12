@@ -291,6 +291,62 @@ export async function updateUserProfile(
 }
 
 /**
+ * Save the full local profile form to Firestore.
+ * Called from Onboarding and ProfilePage so returning users can reload their data on sign-in.
+ */
+export async function upsertFullUserProfile(
+  uid: string,
+  p: {
+    name: string
+    age: string
+    weight: string       // lbs
+    heightFt: string
+    heightIn: string
+    sex: string
+    fitnessLevel?: string
+    email?: string
+  },
+): Promise<void> {
+  try {
+    const id = await effectiveUserId(uid)
+    const weightKg  = Math.round(Number(p.weight) * 0.453592 * 10) / 10
+    const heightCm  = Math.round(((Number(p.heightFt) * 12) + Number(p.heightIn)) * 2.54)
+    await setDoc(
+      doc(db, 'users', id),
+      {
+        uid:           id,
+        displayName:   p.name.trim(),
+        email:         (p.email ?? '').trim().toLowerCase(),
+        age:           Number(p.age),
+        weightKg,
+        heightCm,
+        biologicalSex: p.sex,
+        fitnessLevel:  p.fitnessLevel ?? 'intermediate',
+      },
+      { merge: true },
+    )
+  } catch (e) {
+    wrapError('upsertFullUserProfile', e)
+  }
+}
+
+/**
+ * Convert a Firestore UserProfile back to the localStorage profile format.
+ */
+export function firestoreProfileToLocal(p: UserProfile): Record<string, string> {
+  const totalInches = Math.round((p.heightCm ?? 0) / 2.54)
+  return {
+    name:         p.displayName,
+    age:          String(p.age ?? ''),
+    weight:       String(Math.round((p.weightKg ?? 0) / 0.453592)),
+    heightFt:     String(Math.floor(totalInches / 12)),
+    heightIn:     String(totalInches % 12),
+    sex:          p.biologicalSex ?? '',
+    fitnessLevel: p.fitnessLevel  ?? 'intermediate',
+  }
+}
+
+/**
  * Upsert just displayName + email into the users collection (merge, won't overwrite other fields).
  * Safe to call on sign-up when we don't yet have age/weight etc.
  */

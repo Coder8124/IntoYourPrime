@@ -6,7 +6,7 @@ import {
   updateProfile,
 } from 'firebase/auth'
 import { auth } from '../lib/firebase'
-import { upsertUserDisplayName } from '../lib/firebaseHelpers'
+import { getUserProfile, upsertUserDisplayName, firestoreProfileToLocal } from '../lib/firebaseHelpers'
 
 type Mode = 'signin' | 'signup'
 
@@ -32,13 +32,23 @@ export function AuthPage() {
           const existing = JSON.parse(localStorage.getItem('formAI_profile') ?? '{}') as Record<string, unknown>
           localStorage.setItem('formAI_profile', JSON.stringify({ ...existing, name: name.trim() }))
         }
-        // Write to Firestore so this user is discoverable by friends search
         await upsertUserDisplayName(cred.user.uid, name.trim() || email, email)
+        navigate('/onboarding', { replace: true })
       } else {
-        await signInWithEmailAndPassword(auth, email, password)
+        const cred = await signInWithEmailAndPassword(auth, email, password)
+        // Try to reload this user's profile from Firestore — covers account switching
+        try {
+          const firestoreProfile = await getUserProfile(cred.user.uid)
+          if (firestoreProfile && firestoreProfile.age) {
+            // Returning user with a saved profile — restore it to localStorage
+            localStorage.setItem('formAI_profile', JSON.stringify(firestoreProfileToLocal(firestoreProfile)))
+            navigate('/home', { replace: true })
+            return
+          }
+        } catch { /* offline — fall through to localStorage check */ }
+        const hasProfile = Boolean(localStorage.getItem('formAI_profile'))
+        navigate(hasProfile ? '/home' : '/onboarding', { replace: true })
       }
-      const hasProfile = Boolean(localStorage.getItem('formAI_profile'))
-      navigate(hasProfile ? '/home' : '/onboarding', { replace: true })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Authentication failed'
       // Clean up Firebase error messages

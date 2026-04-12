@@ -2,13 +2,19 @@ import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { hasApiKey } from '../lib/formAnalysis'
 import { signOutUser } from '../lib/firestoreUser'
-import { upsertUserDisplayName } from '../lib/firebaseHelpers'
+import { upsertFullUserProfile } from '../lib/firebaseHelpers'
 import { auth } from '../lib/firebase'
+
+const FT_OPTIONS  = [4, 5, 6, 7]
+const IN_OPTIONS  = [0,1,2,3,4,5,6,7,8,9,10,11]
 
 interface ProfileForm {
   name:         string
   age:          string
   weight:       string
+  heightFt:     string
+  heightIn:     string
+  sex:          string
   fitnessLevel: string
 }
 
@@ -19,10 +25,13 @@ function loadProfile(): ProfileForm {
       name:         typeof p.name         === 'string' ? p.name         : '',
       age:          typeof p.age          === 'string' ? p.age          : String(p.age ?? ''),
       weight:       typeof p.weight       === 'string' ? p.weight       : String(p.weight ?? ''),
+      heightFt:     typeof p.heightFt     === 'string' ? p.heightFt     : '5',
+      heightIn:     typeof p.heightIn     === 'string' ? p.heightIn     : '8',
+      sex:          typeof p.sex          === 'string' ? p.sex          : '',
       fitnessLevel: typeof p.fitnessLevel === 'string' ? p.fitnessLevel : 'intermediate',
     }
   } catch {
-    return { name: '', age: '', weight: '', fitnessLevel: 'intermediate' }
+    return { name: '', age: '', weight: '', heightFt: '5', heightIn: '8', sex: '', fitnessLevel: 'intermediate' }
   }
 }
 
@@ -48,11 +57,11 @@ export function ProfilePage() {
     localStorage.setItem('formAI_profile', JSON.stringify({ ...existing, ...form }))
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
-    // Keep Firestore displayName in sync so friends search works
-    const uid = auth.currentUser?.uid
+    // Sync full profile to Firestore so it reloads correctly on account switch
+    const uid   = auth.currentUser?.uid
     const email = auth.currentUser?.email ?? ''
-    if (uid && form.name.trim()) {
-      upsertUserDisplayName(uid, form.name.trim(), email).catch(() => {})
+    if (uid) {
+      upsertFullUserProfile(uid, { ...form, email }).catch(() => {})
     }
   }
 
@@ -136,6 +145,34 @@ export function ProfilePage() {
                   className="input-dark"
                 />
               </div>
+            </div>
+
+            {/* Height */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-[0.1em] mb-2">
+                Height
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <select name="heightFt" value={form.heightFt} onChange={handleChange} className="input-dark">
+                  {FT_OPTIONS.map(ft => <option key={ft} value={ft}>{ft} ft</option>)}
+                </select>
+                <select name="heightIn" value={form.heightIn} onChange={handleChange} className="input-dark">
+                  {IN_OPTIONS.map(i => <option key={i} value={i}>{i} in</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Sex */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-[0.1em] mb-2">
+                Biological Sex
+              </label>
+              <select name="sex" value={form.sex} onChange={handleChange} className="input-dark">
+                <option value="" disabled>Select…</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other / Prefer not to say</option>
+              </select>
             </div>
 
             <div>

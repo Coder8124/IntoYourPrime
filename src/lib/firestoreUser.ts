@@ -35,9 +35,18 @@ export function isFirebaseAuthed(): boolean {
   return auth.currentUser !== null
 }
 
-/** Sign out and clear the uid cache. */
+/** Sign out, clear the uid cache, and wipe user-specific localStorage. */
 export async function signOutUser(): Promise<void> {
   const { signOut } = await import('firebase/auth')
   await signOut(auth)
   cachedUid = null
+  // Clear all user-specific local data so the next sign-in starts fresh
+  const keysToRemove = [
+    'formAI_profile',
+    'formAI_openai_key',
+    'formAI_streak',
+    'formAI_lastSession',
+    'formAI_lastSession_savedId',
+  ]
+  keysToRemove.forEach(k => localStorage.removeItem(k))
 }

@@ -1,6 +1,8 @@
 import { useState, type FormEvent, type ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { hasApiKey } from '../lib/formAnalysis'
+import { upsertFullUserProfile } from '../lib/firebaseHelpers'
+import { auth } from '../lib/firebase'
 
 const FT_OPTIONS = [4, 5, 6, 7]
 const IN_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
@@ -43,6 +45,14 @@ export function OnboardingPage() {
     e.preventDefault()
     if (!isValid || submitting) return
     localStorage.setItem('formAI_profile', JSON.stringify(form))
+    // Save to Firestore so profile reloads when signing in on another device/account
+    const uid = auth.currentUser?.uid
+    if (uid) {
+      upsertFullUserProfile(uid, {
+        ...form,
+        email: auth.currentUser?.email ?? '',
+      }).catch(() => {})
+    }
     if (!hasApiKey()) {
       setStep('apikey')
     } else {
