@@ -4,7 +4,7 @@ import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
-import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI } from '../lib/formAnalysis'
+import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI, cancelTTS } from '../lib/formAnalysis'
 import type { CooldownExercise, UserProfile } from '../types/index'
 
 // ── Alignment-based risk (no angle math — pure body-segment deviation) ─────
@@ -308,7 +308,7 @@ export function WorkoutPage() {
   const [elapsed,       setElapsed]       = useState(0)
   const [showModal,     setShowModal]     = useState(false)
   const [cameraStarted, setCameraStarted] = useState(false)
-  const [voiceMuted,    setVoiceMuted]    = useState(false)
+  const [voiceMuted,    setVoiceMuted]    = useState(true)
   const [cameraZoom,       setCameraZoom]       = useState(1)
   const [wideCameraLayout, setWideCameraLayout] = useState(false)
   const [cameraFullscreen, setCameraFullscreen] = useState(false)
@@ -1259,16 +1259,16 @@ export function WorkoutPage() {
 
           {/* Mute toggle */}
           <button
-            onClick={() => setVoiceMuted(m => !m)}
+            onClick={() => setVoiceMuted(m => { if (!m) cancelTTS(); return !m })}
             className={[
-              'flex items-center gap-2 px-4 py-2 rounded-lg border text-[12px] font-semibold transition-all',
+              'flex items-center gap-2 px-4 py-2 rounded-lg border text-[12px] font-bold transition-all',
               voiceMuted
-                ? 'border-[#1e1e2e] text-gray-600 hover:text-gray-400'
-                : 'border-[#1e1e2e] text-gray-500 hover:text-gray-300 hover:border-[#2e2e3e]',
+                ? 'border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:border-blue-400'
+                : 'border-green-500/40 bg-green-500/10 text-green-400 hover:bg-green-500/20',
             ].join(' ')}
           >
             {voiceMuted ? '🔇' : '🔊'}
-            <span>{voiceMuted ? 'Voice Off' : 'Voice On'}</span>
+            <span>{voiceMuted ? 'Enable Voice' : 'Voice On'}</span>
           </button>
 
           {/* Phase CTA */}

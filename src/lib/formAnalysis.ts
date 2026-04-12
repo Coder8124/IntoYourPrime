@@ -47,6 +47,15 @@ function client(): OpenAI | null {
 
 let _ttsAudio: HTMLAudioElement | null = null
 
+/** Stop any currently playing TTS audio immediately. */
+export function cancelTTS(): void {
+  if (_ttsAudio) {
+    _ttsAudio.pause()
+    _ttsAudio = null
+  }
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+}
+
 /**
  * Speak text using OpenAI TTS (tts-1, alloy voice).
  * Falls back to Web Speech API if no API key is available.
