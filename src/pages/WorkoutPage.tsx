@@ -7,7 +7,7 @@ import { useWorkoutStore } from '../stores/workoutStore'
 import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI, cancelTTS } from '../lib/formAnalysis'
 import type { CooldownExercise, UserProfile } from '../types/index'
 
-// ── Alignment-based risk (no angle math — pure body-segment deviation) ─────
+// ── Alignment-based risk (landmark geometry, runs every frame) ────────────
 
 interface Lm { x: number; y: number; visibility?: number }
 function vis(lm: Lm, t = 0.5) { return (lm.visibility ?? 0) >= t }
@@ -16,53 +16,109 @@ function ptLineDist(ax: number, ay: number, bx: number, by: number, px: number, 
   const len = Math.sqrt(dx * dx + dy * dy)
   return len === 0 ? 0 : Math.abs(dy * px - dx * py + bx * ay - by * ax) / len
 }
+
 function computeAlignmentRisk(lms: Lm[], exercise: string): number {
   if (lms.length < 29) return 0
-  const lSh = lms[11], rSh = lms[12], lHip = lms[23], rHip = lms[24]
-  const lKn = lms[25], rKn = lms[26], lAn = lms[27], rAn = lms[28]
+  const lSh = lms[11], rSh = lms[12]
+  const lEl = lms[13], rEl = lms[14]
+  const lWr = lms[15], rWr = lms[16]
+  const lHip = lms[23], rHip = lms[24]
+  const lKn = lms[25], rKn = lms[26]
+  const lAn = lms[27], rAn = lms[28]
   const ex = exercise.toLowerCase()
-  const BASE = 10
+
   if (ex === 'pushup') {
-    if (!vis(lSh) || !vis(lHip) || !vis(lAn)) return 0
+    if (!vis(lSh) || !vis(rSh) || !vis(lHip) || !vis(rHip) || !vis(lAn) || !vis(rAn)) return 0
+    // Hip sag / pike: deviation of hips from shoulder–ankle straight line
     const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
     const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
     const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
-    return Math.min(100, BASE + Math.round(ptLineDist(shX, shY, anX, anY, hipX, hipY) * 1100))
+    const sagPike = ptLineDist(shX, shY, anX, anY, hipX, hipY)
+    // Elbow flare: elbows wider than 1.4× shoulder width = shoulder strain
+    let flare = 0
+    if (vis(lEl) && vis(rEl)) {
+      const shW = Math.abs(lSh.x - rSh.x)
+      flare = Math.max(0, Math.abs(lEl.x - rEl.x) - shW * 1.4) * 2.5
+    }
+    return Math.min(100, 10 + Math.round(sagPike * 850 + flare * 120))
   }
+
   if (ex === 'squat') {
     if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
-    return Math.min(100, BASE + Math.round(Math.max(Math.abs(lKn.x - lAn.x), Math.abs(rKn.x - rAn.x)) * 800))
+    // Knee valgus: knees should stay at or outside ankle width (left knee x >= left ankle x)
+    const lValgus = Math.max(0, lAn.x - lKn.x)   // left knee caving inward
+    const rValgus = Math.max(0, rKn.x - rAn.x)   // right knee caving inward
+    const valgus  = Math.max(lValgus, rValgus)
+    // Excessive forward torso lean
+    let lean = 0
+    if (vis(lSh) && vis(rSh) && vis(lHip) && vis(rHip)) {
+      const shMx = (lSh.x + rSh.x) / 2, hipMx = (lHip.x + rHip.x) / 2
+      lean = Math.max(0, Math.abs(shMx - hipMx) - 0.06)
+    }
+    return Math.min(100, 10 + Math.round(valgus * 650 + lean * 380))
   }
+
   if (ex === 'deadlift') {
-    if (!vis(lSh) || !vis(lHip)) return 0
-    const vertDist = Math.abs((lSh.y + rSh.y) / 2 - (lHip.y + rHip.y) / 2)
-    if (vertDist < 0.05) return 0
-    return Math.min(100, BASE + Math.round(Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) / vertDist * 200))
+    if (!vis(lSh) || !vis(rSh) || !vis(lHip) || !vis(rHip)) return 0
+    const shMy = (lSh.y + rSh.y) / 2, hipMy = (lHip.y + rHip.y) / 2
+    const vertDist = Math.abs(shMy - hipMy)
+    if (vertDist < 0.05) return 10  // standing — spine neutral
+    // Spine rounding: shoulder forward of hip relative to how bent-over they are
+    const shMx = (lSh.x + rSh.x) / 2, hipMx = (lHip.x + rHip.x) / 2
+    const spineRound = Math.abs(shMx - hipMx) / Math.max(vertDist, 0.1)
+    // Deadlift is highest-injury exercise — score more aggressively
+    return Math.min(100, 10 + Math.round(spineRound * 220))
   }
+
   if (ex === 'lunge') {
-    if (!vis(lKn) || !vis(lAn)) return 0
-    return Math.min(100, BASE + Math.round(Math.abs(lKn.x - lAn.x) * 800))
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    // Front-knee tracking: each knee should stay over its ankle
+    const lOver = Math.abs(lKn.x - lAn.x)
+    const rOver = Math.abs(rKn.x - rAn.x)
+    const kneeTrack = Math.max(lOver, rOver)
+    // Torso upright — shoulder should be above hip, not leaning far forward
+    let torsoLean = 0
+    if (vis(lSh) && vis(rSh) && vis(lHip) && vis(rHip)) {
+      torsoLean = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.05)
+    }
+    return Math.min(100, 10 + Math.round(kneeTrack * 580 + torsoLean * 480))
   }
+
   if (ex === 'shoulderpress') {
-    const lWr = lms[15], rWr = lms[16]
-    if (!vis(lSh, 0.3) || !vis(lWr, 0.3) || !vis(rWr, 0.3)) return BASE
-    return Math.min(100, BASE + Math.round(Math.abs((lSh.y - lWr.y) - (rSh.y - rWr.y)) * 700))
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3) || !vis(lWr, 0.3) || !vis(rWr, 0.3)) return 10
+    // L/R asymmetry: both wrists should travel equal distances
+    const asymmetry = Math.abs((lSh.y - lWr.y) - (rSh.y - rWr.y))
+    // Wrist flare: wrists should stay roughly over shoulders
+    const lFlare = Math.max(0, Math.abs(lWr.x - lSh.x) - 0.09)
+    const rFlare = Math.max(0, Math.abs(rWr.x - rSh.x) - 0.09)
+    return Math.min(100, 10 + Math.round(asymmetry * 480 + Math.max(lFlare, rFlare) * 360))
   }
+
   if (ex === 'curlup') {
-    // Check symmetry: both shoulders should rise equally (uneven = neck strain)
-    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return BASE
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    // Shoulder asymmetry — uneven rise stresses the neck on one side
     const asymmetry = Math.abs(lSh.y - rSh.y)
-    return Math.min(100, BASE + Math.round(asymmetry * 900))
+    // Hip flexor dominance proxy: if hips are lifting off (knees visible, ankles near hips)
+    let hipLift = 0
+    if (vis(lKn, 0.3) && vis(lHip, 0.3)) {
+      hipLift = Math.max(0, 0.12 - Math.abs(lKn.y - lHip.y)) * 2
+    }
+    return Math.min(100, 10 + Math.round(asymmetry * 650 + hipLift * 200))
   }
+
   if (ex === 'bicepcurl') {
-    // Check elbow drift: elbows should stay at sides (drift = using momentum)
-    const lEl = lms[13], rEl = lms[14]
-    if (!vis(lEl, 0.3) || !vis(lHip, 0.3)) return BASE
-    const leftDrift  = Math.abs(lEl.x - lHip.x)
-    const rightDrift = Math.abs(rEl.x - rHip.x)
-    const drift = Math.max(leftDrift, rightDrift)
-    return Math.min(100, BASE + Math.round(drift * 600))
+    if (!vis(lEl, 0.3) || !vis(rEl, 0.3) || !vis(lHip, 0.3)) return 10
+    // Elbow drift: elbow should stay close to hip/torso, not swing forward
+    const lDrift = Math.max(0, Math.abs(lEl.x - lHip.x) - 0.07)
+    const rDrift = Math.max(0, Math.abs(rEl.x - rHip.x) - 0.07)
+    // Body sway: shoulder should stay over hip (no momentum cheating)
+    let sway = 0
+    if (vis(lSh) && vis(rSh)) {
+      sway = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.04)
+    }
+    return Math.min(100, 10 + Math.round(Math.max(lDrift, rDrift) * 480 + sway * 360))
   }
+
   return 0
 }
 
