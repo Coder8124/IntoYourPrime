@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Flame } from 'lucide-react'
+import { hasApiKey } from '../lib/formAnalysis'
 import {
   getActivityFeed,
   getRecentLogs,
@@ -61,6 +62,9 @@ export function HomePage() {
 
   const [loading, setLoading] = useState(true)
   const [todayLog, setTodayLog] = useState<DailyLog | null>(null)
+  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [apiKeySet, setApiKeySet] = useState(hasApiKey)
+  const [showKeyInput, setShowKeyInput] = useState(false)
   const [sessions, setSessions] = useState<Session[]>([])
   const [streak, setStreak] = useState(0)
   const [feed, setFeed] = useState<ActivityFeedItem[]>([])
@@ -122,6 +126,15 @@ export function HomePage() {
     void refresh()
   }, [refresh])
 
+  const handleSaveApiKey = useCallback(() => {
+    const trimmed = apiKeyInput.trim()
+    if (!trimmed) return
+    localStorage.setItem('formAI_openai_key', trimmed)
+    setApiKeySet(true)
+    setApiKeyInput('')
+    setShowKeyInput(false)
+  }, [apiKeyInput])
+
   const sessionCountForInsight = useMemo(() => {
     return sessions.length >= 5
   }, [sessions])
@@ -150,6 +163,50 @@ export function HomePage() {
             Start workout
           </button>
         </header>
+
+        {!apiKeySet && (
+          <div className="mt-5 rounded-2xl border border-amber-500/25 bg-amber-500/8 px-5 py-4"
+            style={{ background: 'rgba(245,158,11,0.07)' }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-amber-200">AI coaching is off</p>
+                <p className="mt-0.5 text-[12px] text-amber-200/60 leading-snug">
+                  Add an OpenAI key to enable real-time form analysis &amp; injury risk scoring.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowKeyInput(v => !v)}
+                className="shrink-0 rounded-lg px-3 py-1.5 text-[12px] font-bold text-amber-300 border border-amber-500/30 hover:border-amber-400/50 transition-colors"
+              >
+                {showKeyInput ? 'Cancel' : 'Add key'}
+              </button>
+            </div>
+            {showKeyInput && (
+              <div className="mt-3 flex gap-2">
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={e => setApiKeyInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSaveApiKey()}
+                  placeholder="sk-proj-…"
+                  className="input-dark flex-1 font-mono text-[13px] py-2"
+                  autoComplete="off"
+                  spellCheck={false}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveApiKey}
+                  disabled={!apiKeyInput.trim()}
+                  className="shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 px-4 py-2 text-[13px] font-bold text-white transition-colors"
+                >
+                  Save
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {loadError && (
           <p className="mt-6 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-center text-[13px] text-red-300">
@@ -311,10 +368,10 @@ export function HomePage() {
             Image pipeline test →
           </Link>
           <Link
-            to="/onboarding"
+            to="/profile"
             className="text-[13px] font-semibold text-gray-500 hover:text-gray-300"
           >
-            Edit profile →
+            Edit profile / API key →
           </Link>
         </nav>
       </div>

@@ -2,17 +2,18 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import type { NormalizedLandmark } from '@mediapipe/pose'
 
 // ── MediaPipe landmark indices ─────────────────────────────────────────────
-// https://developers.google.com/mediapipe/solutions/vision/pose_landmarker
 
 const LM = {
   LEFT_SHOULDER:  11,
   RIGHT_SHOULDER: 12,
+  LEFT_ELBOW:     13,
+  RIGHT_ELBOW:    14,
+  LEFT_WRIST:     15,
+  RIGHT_WRIST:    16,
   LEFT_HIP:       23,
   RIGHT_HIP:      24,
   LEFT_KNEE:      25,
   RIGHT_KNEE:     26,
-  LEFT_WRIST:     15,
-  RIGHT_WRIST:    16,
 } as const
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -37,13 +38,13 @@ export interface UseRepCounterReturn {
   phase:             MovementPhase
   lastRepTimestamp:  number | null
   repLog:            RepLogEntry[]
+  isCalibrating:     boolean
   reset:             () => void
 }
 
 // ── Exercise config ────────────────────────────────────────────────────────
 
 interface ExerciseConfig {
-  /** Indices of the two landmarks whose Y positions are averaged */
   joints: [number, number]
   /**
    * Which phase transition completes a rep.
@@ -74,6 +75,46 @@ const PAUSE_AFTER_MS    = 1000  // null-landmark gap before pausing
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+/** Angle in degrees at landmark b, given three landmarks a-b-c. */
+function calcAngle(
+  a: NormalizedLandmark,
+  b: NormalizedLandmark,
+  c: NormalizedLandmark,
+): number {
+  const ax = a.x - b.x, ay = a.y - b.y
+  const cx = c.x - b.x, cy = c.y - b.y
+  const dot = ax * cx + ay * cy
+  const mag = Math.sqrt((ax * ax + ay * ay) * (cx * cx + cy * cy))
+  if (mag === 0) return 180
+  return (Math.acos(Math.max(-1, Math.min(1, dot / mag))) * 180) / Math.PI
+}
+
+/**
+ * Average elbow angle (shoulder→elbow→wrist) across visible arms.
+ * Returns a value in degrees [0, 180].
+ */
+function getPushupElbowAngle(
+  landmarks: NormalizedLandmark[],
+): { value: number; confidence: number } | null {
+  const lSh = landmarks[LM.LEFT_SHOULDER],  lEl = landmarks[LM.LEFT_ELBOW],  lWr = landmarks[LM.LEFT_WRIST]
+  const rSh = landmarks[LM.RIGHT_SHOULDER], rEl = landmarks[LM.RIGHT_ELBOW], rWr = landmarks[LM.RIGHT_WRIST]
+
+  const lConf = Math.min(lSh?.visibility ?? 0, lEl?.visibility ?? 0, lWr?.visibility ?? 0)
+  const rConf = Math.min(rSh?.visibility ?? 0, rEl?.visibility ?? 0, rWr?.visibility ?? 0)
+
+  const angles: number[] = []
+  const confs:  number[] = []
+  if (lConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(lSh, lEl, lWr)); confs.push(lConf) }
+  if (rConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(rSh, rEl, rWr)); confs.push(rConf) }
+  if (angles.length === 0) return null
+
+  const n = angles.length
+  return {
+    value:      angles.reduce((s, v) => s + v, 0) / n,
+    confidence: confs.reduce((s, v)  => s + v, 0) / n,
+  }
+}
+
 function getJointY(
   landmarks: NormalizedLandmark[],
   idxA: number,
@@ -82,15 +123,9 @@ function getJointY(
   const a = landmarks[idxA]
   const b = landmarks[idxB]
   if (!a || !b) return null
-
   const confA = a.visibility ?? 0
   const confB = b.visibility ?? 0
-  const confidence = (confA + confB) / 2
-
-  return {
-    y: (a.y + b.y) / 2,
-    confidence,
-  }
+  return { y: (a.y + b.y) / 2, confidence: (confA + confB) / 2 }
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
@@ -100,7 +135,6 @@ export function useRepCounter(
   exercise:  string,
 ): UseRepCounterReturn {
 
-  // Normalise exercise string to a known key (default to squat)
   const exerciseKey: SupportedExercise =
     (exercise.toLowerCase().trim() as SupportedExercise) in EXERCISE_CONFIG
       ? (exercise.toLowerCase().trim() as SupportedExercise)
@@ -108,26 +142,23 @@ export function useRepCounter(
 
   const config = EXERCISE_CONFIG[exerciseKey]
 
-  // ── Persistent state refs (reset-able) ────────────────────────────────
   const smoothedY       = useRef<number | null>(null)
   const calibratedMin   = useRef<number>(Infinity)
   const calibratedMax   = useRef<number>(-Infinity)
-  const calibrationEnd  = useRef<number>(0)          // epoch ms when calibration ends
+  const calibrationEnd  = useRef<number>(0)
   const phaseRef        = useRef<MovementPhase>('unknown')
   const lastRepTime     = useRef<number | null>(null)
   const lastLandmarkTs  = useRef<number | null>(null)
   const isPaused        = useRef(false)
 
-  // ── React state ────────────────────────────────────────────────────────
   const [repCount,         setRepCount]         = useState(0)
   const [phase,            setPhase]            = useState<MovementPhase>('unknown')
   const [lastRepTimestamp, setLastRepTimestamp] = useState<number | null>(null)
   const [repLog,           setRepLog]           = useState<RepLogEntry[]>([])
+  const [isCalibrating,    setIsCalibrating]    = useState(true)
 
-  // Keep a mutable ref of repCount so callbacks can read the latest value
   const repCountRef = useRef(0)
 
-  // ── Reset ──────────────────────────────────────────────────────────────
   const reset = useCallback(() => {
     smoothedY.current      = null
     calibratedMin.current  = Infinity
@@ -138,11 +169,11 @@ export function useRepCounter(
     lastLandmarkTs.current = Date.now()
     isPaused.current       = false
     repCountRef.current    = 0
-
     setRepCount(0)
     setPhase('unknown')
     setLastRepTimestamp(null)
     setRepLog([])
+    setIsCalibrating(true)
   }, [])
 
   // Reset when exercise changes
@@ -150,21 +181,15 @@ export function useRepCounter(
   useEffect(() => {
     if (prevExercise.current !== exerciseKey) {
       prevExercise.current = exerciseKey
-      // Rep FSM must reset when the lift changes; state is hook-internal only.
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync FSM to new exerciseKey
       reset()
     }
   }, [exerciseKey, reset])
 
-  // ── Main landmark processing ───────────────────────────────────────────
   useEffect(() => {
-    // ── No landmarks: check if we should pause ────────────────────────
     if (!landmarks) {
       if (lastLandmarkTs.current != null) {
         const gap = Date.now() - lastLandmarkTs.current
-        if (gap > PAUSE_AFTER_MS) {
-          isPaused.current = true
-        }
+        if (gap > PAUSE_AFTER_MS) isPaused.current = true
       }
       return
     }
@@ -173,16 +198,26 @@ export function useRepCounter(
     lastLandmarkTs.current = now
     isPaused.current = false
 
-    // ── Extract joint data ────────────────────────────────────────────
-    const joint = getJointY(landmarks, config.joints[0], config.joints[1])
-    if (!joint || joint.confidence < CONFIDENCE_THRESH) return
+    // ── Pushups: use elbow angle instead of shoulder Y-position ───────────
+    // Invert so that bent arms (low angle) → high normalised (= "down")
+    let rawSignal: number
+    let invertSignal = false
 
-    const rawY = joint.y
+    if (exerciseKey === 'pushup') {
+      const angleResult = getPushupElbowAngle(landmarks)
+      if (!angleResult || angleResult.confidence < CONFIDENCE_THRESH) return
+      rawSignal    = angleResult.value
+      invertSignal = true
+    } else {
+      const joint = getJointY(landmarks, config.joints[0], config.joints[1])
+      if (!joint || joint.confidence < CONFIDENCE_THRESH) return
+      rawSignal = joint.y
+    }
 
-    // ── EMA smoothing ─────────────────────────────────────────────────
+    const rawY = rawSignal
+
     if (smoothedY.current === null) {
       smoothedY.current = rawY
-      // Start calibration window
       calibrationEnd.current = now + CALIBRATION_MS
     } else {
       smoothedY.current = EMA_ALPHA * rawY + (1 - EMA_ALPHA) * smoothedY.current
@@ -190,33 +225,28 @@ export function useRepCounter(
 
     const y = smoothedY.current
 
-    // ── Calibration: track min/max in first 3 s ───────────────────────
+    // Calibration window — track range, don't count reps yet
     if (now < calibrationEnd.current) {
       calibratedMin.current = Math.min(calibratedMin.current, y)
       calibratedMax.current = Math.max(calibratedMax.current, y)
-      return  // don't count reps during calibration
+      setIsCalibrating(true)
+      return
     }
+    setIsCalibrating(false)
 
-    // Guard: if range too small (person barely moving) skip
     const range = calibratedMax.current - calibratedMin.current
     if (range < MIN_RANGE) return  // not enough movement to be a real rep
 
-    // ── Normalise position within calibrated range (0 = top, 1 = bottom) ──
-    const normalised = (y - calibratedMin.current) / range
+    const normalisedRaw = (y - calibratedMin.current) / range
+    const normalised    = invertSignal ? 1 - normalisedRaw : normalisedRaw
 
-    // Update calibrated range live (extend, never shrink)
+    // Extend range live (never shrink)
     calibratedMin.current = Math.min(calibratedMin.current, y)
     calibratedMax.current = Math.max(calibratedMax.current, y)
 
-    // ── Phase detection ───────────────────────────────────────────────
     let newPhase = phaseRef.current
-
-    if (normalised > DOWN_THRESHOLD) {
-      newPhase = 'down'
-    } else if (normalised < UP_THRESHOLD) {
-      newPhase = 'up'
-    }
-    // positions between thresholds stay in current phase (hysteresis)
+    if (normalised > DOWN_THRESHOLD) newPhase = 'down'
+    else if (normalised < UP_THRESHOLD) newPhase = 'up'
 
     const phaseChanged = newPhase !== phaseRef.current
 
@@ -229,11 +259,12 @@ export function useRepCounter(
     if (isRepTransition) {
       const timeSinceLast = lastRepTime.current ? now - lastRepTime.current : Infinity
 
+    if (isRepTransition) {
+      const timeSinceLast = lastRepTime.current ? now - lastRepTime.current : Infinity
       if (timeSinceLast >= DEBOUNCE_MS) {
         const newCount = repCountRef.current + 1
         repCountRef.current = newCount
         lastRepTime.current = now
-
         setRepCount(newCount)
         setLastRepTimestamp(now)
         setRepLog(prev => [
@@ -243,19 +274,12 @@ export function useRepCounter(
       }
     }
 
-    // ── Update phase state ────────────────────────────────────────────
     if (phaseChanged) {
       phaseRef.current = newPhase
       setPhase(newPhase)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [landmarks, exerciseKey])
 
-  }, [landmarks, config.joints, exerciseKey])
-
-  return {
-    repCount,
-    phase,
-    lastRepTimestamp,
-    repLog,
-    reset,
-  }
+  return { repCount, phase, lastRepTimestamp, repLog, isCalibrating, reset }
 }

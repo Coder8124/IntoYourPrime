@@ -9,6 +9,7 @@ import { CooldownPage } from './pages/CooldownPage'
 import { RecoveryLogPage } from './pages/RecoveryLogPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { FriendsPage } from './pages/FriendsPage'
+import { CooldownPage } from './pages/CooldownPage'
 
 export default function App() {
   return (

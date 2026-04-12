@@ -48,6 +48,7 @@ function client(): OpenAI | null {
 export interface AnalyzeParams {
   frames:      string[]    // base64 data URLs (jpeg)
   exercise:    string
+  repCount?:   number
   userProfile: { age: number; weight: number; fitnessLevel: string }
   phase:       'warmup' | 'main'
 }
