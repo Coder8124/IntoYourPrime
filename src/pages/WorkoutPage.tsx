@@ -276,6 +276,7 @@ export function WorkoutPage() {
   const demoSugIdxRef       = useRef(0)
   const lastSpokenRef       = useRef(0)
   const aiRiskRef           = useRef<number | null>(null)
+  const referenceFrameRef   = useRef<string | null>(null)   // reference photo for AI person tracking
 
   // ── Store ──────────────────────────────────────────────────────────────
   const {
@@ -294,6 +295,7 @@ export function WorkoutPage() {
   const [cameraZoom,       setCameraZoom]       = useState(1)
   const [wideCameraLayout, setWideCameraLayout] = useState(false)
   const [cameraFullscreen, setCameraFullscreen] = useState(false)
+  const [refCaptured,      setRefCaptured]      = useState(false)   // whether reference photo has been taken
 
   // ── Set counter ────────────────────────────────────────────────────────
   interface SetLogEntry { setNum: number; exercise: string; reps: number }
@@ -348,6 +350,23 @@ export function WorkoutPage() {
     document.addEventListener('fullscreenchange', sync)
     return () => document.removeEventListener('fullscreenchange', sync)
   }, [])
+
+  // ── Reference photo capture ────────────────────────────────────────────
+  const captureReferencePhoto = useCallback(() => {
+    const video = videoRef.current
+    if (!video || video.readyState < 2) return
+    const canvas = document.createElement('canvas')
+    canvas.width  = 640
+    canvas.height = 480
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    // Mirror to match the displayed feed
+    ctx.translate(canvas.width, 0)
+    ctx.scale(-1, 1)
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    referenceFrameRef.current = canvas.toDataURL('image/jpeg', 0.85)
+    setRefCaptured(true)
+  }, [videoRef])
 
   const toggleCameraFullscreen = useCallback(() => {
     const el = cameraShellRef.current
@@ -519,10 +538,11 @@ export function WorkoutPage() {
       try {
         const result = await analyzeForm({
           frames,
-          exercise:    exerciseRef.current,
-          repCount:    repCountRef.current,
+          exercise:       exerciseRef.current,
+          repCount:       repCountRef.current,
           userProfile,
-          phase: phaseRef.current === 'warmup' ? 'warmup' : 'main',
+          phase:          phaseRef.current === 'warmup' ? 'warmup' : 'main',
+          referenceFrame: referenceFrameRef.current,
         })
         aiRiskRef.current = result.riskScore
         if (result.suggestions.length > 0) {
@@ -993,6 +1013,46 @@ export function WorkoutPage() {
                   <div className="px-4 py-2.5 bg-black/70 backdrop-blur-md rounded-full border border-white/[0.07]">
                     <span className="text-gray-400 text-[13px]">No pose detected — step into frame</span>
                   </div>
+                </div>
+              )}
+
+              {/* Reference photo prompt — shown once after pose is first detected */}
+              {!cameraLoading && cameraStarted && isTracking && !refCaptured && (
+                <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                  <div
+                    className="mx-4 w-full max-w-sm rounded-2xl p-5 text-center pointer-events-auto"
+                    style={{ background: 'rgba(10,10,20,0.88)', border: '1px solid rgba(59,130,246,0.35)', backdropFilter: 'blur(12px)' }}
+                  >
+                    <div className="text-3xl mb-3">📸</div>
+                    <p className="font-black text-white text-[16px] mb-1">Set your reference</p>
+                    <p className="text-gray-400 text-[12px] leading-relaxed mb-4">
+                      Stand in frame so we can identify you. The AI will focus on you even if others walk through.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={captureReferencePhoto}
+                      className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-[15px] text-white transition-colors"
+                      style={{ boxShadow: '0 0 24px rgba(59,130,246,0.4)' }}
+                    >
+                      That's me — capture photo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRefCaptured(true)}
+                      className="mt-2 w-full py-2 text-[12px] text-gray-600 hover:text-gray-400 transition-colors"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Reference captured confirmation — fades after 2s */}
+              {refCaptured && referenceFrameRef.current && (
+                <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full pointer-events-none"
+                  style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }}>
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  <span className="text-[11px] font-semibold text-green-400">Reference set</span>
                 </div>
               )}
 
