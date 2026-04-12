@@ -39,14 +39,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
     // Build vision content blocks
-    const imageBlocks: OpenAI.Chat.Completions.ChatCompletionContentPart[] = frames.map(frame => ({
+    const imageDetail = exercise?.toLowerCase().trim() === 'pushup' ? 'high' : 'low'
+    const imageBlocks: OpenAI.Chat.Completions.ChatCompletionContentPart[] = frames.map((frame) => ({
       type:      'image_url',
-      image_url: { url: frame, detail: 'low' },
+      image_url: { url: frame, detail: imageDetail },
     }))
 
     const textBlock: OpenAI.Chat.Completions.ChatCompletionContentPart = {
       type: 'text',
-      text: `Exercise: ${exercise}. Phase: ${phase}. Rep count so far: ${repCount}. ` +
+      text: `Exercise: ${exercise}. Phase: ${phase}. Client rep count (from pose tracking): ${repCount}. ` +
+            `Treat this count as correct unless the frames clearly show a different number of completed reps.\n` +
             `User: ${userProfile.age}yo, ${userProfile.weight}kg, fitness level: ${userProfile.fitnessLevel}.\n\n` +
             `Analyze the form across these frames and respond with exactly this JSON structure:\n` +
             `{\n` +

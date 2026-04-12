@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { hasApiKey } from '../lib/formAnalysis'
 
 const FT_OPTIONS = [4, 5, 6, 7]
 const IN_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
@@ -15,6 +16,7 @@ interface ProfileForm {
 
 export function OnboardingPage() {
   const navigate = useNavigate()
+  const [step, setStep] = useState<'profile' | 'apikey'>('profile')
   const [form, setForm] = useState<ProfileForm>({
     name: '',
     age: '',
@@ -24,6 +26,8 @@ export function OnboardingPage() {
     sex: '',
   })
   const [submitting, setSubmitting] = useState(false)
+  const [apiKey, setApiKey] = useState('')
+  const [showKey, setShowKey] = useState(false)
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
@@ -38,9 +42,96 @@ export function OnboardingPage() {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (!isValid || submitting) return
-    setSubmitting(true)
     localStorage.setItem('formAI_profile', JSON.stringify(form))
-    setTimeout(() => navigate('/home'), 700)
+    if (!hasApiKey()) {
+      setStep('apikey')
+    } else {
+      setSubmitting(true)
+      setTimeout(() => navigate('/home'), 700)
+    }
+  }
+
+  const handleSaveKey = () => {
+    const trimmed = apiKey.trim()
+    if (trimmed) localStorage.setItem('formAI_openai_key', trimmed)
+    setSubmitting(true)
+    setTimeout(() => navigate('/home'), 400)
+  }
+
+  const handleSkipKey = () => {
+    setSubmitting(true)
+    setTimeout(() => navigate('/home'), 400)
+  }
+
+  if (step === 'apikey') {
+    return (
+      <div className="relative min-h-screen bg-[#0a0a0f] flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="grid-bg absolute inset-0" />
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 45%, transparent 20%, #0a0a0f 80%)' }} />
+        </div>
+        <div
+          className="relative z-10 w-full max-w-[440px] px-5 py-10"
+          style={{
+            opacity: submitting ? 0 : 1,
+            transform: submitting ? 'scale(0.96) translateY(8px)' : 'scale(1)',
+            transition: 'opacity 0.4s ease, transform 0.4s ease',
+          }}
+        >
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+              style={{ background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', boxShadow: '0 0 40px rgba(59,130,246,0.4)' }}>
+              <span className="text-white font-black select-none" style={{ fontSize: 28, letterSpacing: '-1px' }}>F</span>
+            </div>
+            <h1 className="text-[26px] font-black text-white tracking-tight">Enable AI Coaching</h1>
+            <p className="mt-2 text-center text-gray-400 text-[13px] leading-relaxed max-w-[300px]">
+              Add your OpenAI API key to unlock real-time form analysis, injury risk scoring, and personalized cooldowns.
+            </p>
+          </div>
+
+          <div className="card-surface p-7 space-y-5">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.1em]">OpenAI API Key</label>
+                <button type="button" onClick={() => setShowKey(v => !v)} className="text-[11px] text-blue-500 hover:text-blue-400">
+                  {showKey ? 'hide' : 'show'}
+                </button>
+              </div>
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder="sk-proj-…"
+                className="input-dark font-mono text-[15px] py-4"
+                autoComplete="off"
+                spellCheck={false}
+                autoFocus
+              />
+              <p className="mt-2 text-[11px] text-gray-700 leading-relaxed">
+                Stored in your browser only — never sent to any server.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSaveKey}
+              disabled={!apiKey.trim()}
+              className="w-full py-5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[17px] text-white transition-colors"
+              style={{ boxShadow: '0 0 32px rgba(59,130,246,0.35)' }}
+            >
+              Save Key &amp; Start →
+            </button>
+            <button
+              type="button"
+              onClick={handleSkipKey}
+              className="w-full py-3 rounded-xl border border-[#2e2e3e] text-[14px] font-semibold text-gray-500 hover:text-gray-300 hover:border-gray-500 transition-colors"
+            >
+              Skip — use basic mode
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

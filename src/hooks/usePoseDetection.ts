@@ -56,16 +56,18 @@ function ensureMediaPipePoseScript(): Promise<void> {
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const BUFFER_SIZE    = 120   // 4 s at 30 fps
-const FRAME_W        = 640
-const FRAME_H        = 480
-const JPEG_QUALITY   = 0.7
+const FRAME_W        = 960
+const FRAME_H        = 720
+const JPEG_QUALITY   = 0.85
 const TRACKING_THRESH = 0.5
 
 // ── Internal frame entry ───────────────────────────────────────────────────
 
 interface FrameEntry {
-  dataUrl:    string
-  confidence: number
+  dataUrl:          string
+  confidence:       number
+  /** Shoulders + elbows + wrists — better frame pick for pushups / pressing. */
+  armConfidence:    number
 }
 
 // ── Return type ────────────────────────────────────────────────────────────
@@ -74,7 +76,7 @@ export interface UsePoseDetectionReturn {
   landmarks:    NormalizedLandmark[] | null
   isTracking:   boolean
   confidence:   number
-  getBestFrames: (n: number) => string[]
+  getBestFrames: (n: number, exercise?: string) => string[]
   startCamera:  () => Promise<void>
   stopCamera:   () => void
   isLoading:    boolean
@@ -86,6 +88,18 @@ export interface UsePoseDetectionReturn {
 function avgVisibility(lms: NormalizedLandmark[]): number {
   if (!lms.length) return 0
   return lms.reduce((sum, lm) => sum + (lm.visibility ?? 0), 0) / lms.length
+}
+
+/** Landmarks 11–16: shoulders, elbows, wrists. */
+function armChainVisibility(lms: NormalizedLandmark[]): number {
+  const idx = [11, 12, 13, 14, 15, 16]
+  let sum = 0
+  for (const i of idx) {
+    const p = lms[i]
+    if (!p) return 0
+    sum += p.visibility ?? 0
+  }
+  return sum / idx.length
 }
 
 function connectionColor(conf: number): string {
@@ -140,8 +154,8 @@ export function usePoseDetection(
   }, [videoRef, getOffscreen])
 
   // ── Circular buffer ──────────────────────────────────────────────────────
-  const storeFrame = useCallback((dataUrl: string, conf: number) => {
-    frameBuffer.current.push({ dataUrl, confidence: conf })
+  const storeFrame = useCallback((dataUrl: string, conf: number, armConf: number) => {
+    frameBuffer.current.push({ dataUrl, confidence: conf, armConfidence: armConf })
     if (frameBuffer.current.length > BUFFER_SIZE) {
       frameBuffer.current.shift()
     }
@@ -223,15 +237,20 @@ export function usePoseDetection(
 
     // Capture & buffer frame
     const dataUrl = captureFrame()
-    if (dataUrl) storeFrame(dataUrl, conf)
+    if (dataUrl) storeFrame(dataUrl, conf, armChainVisibility(lms))
   }, [canvasRef, drawSkeleton, captureFrame, storeFrame])
 
   // ── Public: getBestFrames ────────────────────────────────────────────────
-  const getBestFrames = useCallback((n: number): string[] => {
+  const getBestFrames = useCallback((n: number, exercise?: string): string[] => {
+    const pushup = exercise?.toLowerCase().trim() === 'pushup'
     return [...frameBuffer.current]
-      .sort((a, b) => b.confidence - a.confidence)
+      .sort((a, b) => {
+        const av = pushup ? a.armConfidence : a.confidence
+        const bv = pushup ? b.armConfidence : b.confidence
+        return bv - av
+      })
       .slice(0, n)
-      .map(f => f.dataUrl)
+      .map((f) => f.dataUrl)
   }, [])
 
   // ── Public: stopCamera ───────────────────────────────────────────────────
