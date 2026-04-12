@@ -8,7 +8,7 @@ import { analyzeForm } from '../lib/formAnalysis'
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress'] as const
-const ANALYSIS_INTERVAL_MS = 4000
+const ANALYSIS_INTERVAL_MS = 8000
 const DEMO_MODE = !import.meta.env.VITE_OPENAI_API_KEY
 
 const DEMO_SUGGESTIONS = [
@@ -357,8 +357,7 @@ export function WorkoutPage() {
           exercise:    exerciseRef.current,
           repCount:    repCountRef.current,
           userProfile,
-          phase:       (phase === 'warmup' ? 'warmup' : 'main'),
-          landmarks:   landmarks ?? undefined,
+          phase: (phase === 'warmup' ? 'warmup' : 'main'),
         })
         updateAnalysis(result)
       } finally {
