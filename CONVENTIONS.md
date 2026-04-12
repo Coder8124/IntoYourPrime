@@ -39,3 +39,5 @@ api/                # Vercel serverless functions (NOT inside src/)
 ## People/roles (do not cross-pollinate files without asking)
 - Person A owns: hooks/usePoseDetection, hooks/useRepCounter, lib/formAnalysis, api/analyze
 - Person B owns: pages/, components/, stores/, lib/firebase
+
+# YOU MUST PRIO
