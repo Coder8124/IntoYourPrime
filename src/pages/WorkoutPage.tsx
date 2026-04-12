@@ -4,7 +4,7 @@ import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
-import { analyzeForm, generateCooldown, hasApiKey } from '../lib/formAnalysis'
+import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI } from '../lib/formAnalysis'
 import type { CooldownExercise, UserProfile } from '../types/index'
 
 // ── Alignment-based risk (no angle math — pure body-segment deviation) ─────
@@ -482,18 +482,13 @@ export function WorkoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastRepTimestamp])
 
-  // ── Voice feedback — speak newest suggestion when it arrives ──────────
+  // ── Voice feedback — speak newest suggestion via OpenAI TTS ──────────
   useEffect(() => {
     if (!suggestions.length || voiceMuted) return
     const newest = suggestions[0]
     if (newest.timestamp > lastSpokenRef.current) {
       lastSpokenRef.current = newest.timestamp
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel()
-        const utter = new SpeechSynthesisUtterance(newest.text)
-        utter.rate = 0.92
-        window.speechSynthesis.speak(utter)
-      }
+      void speakWithOpenAI(newest.text)
     }
   }, [suggestions, voiceMuted])
 

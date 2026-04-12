@@ -43,6 +43,57 @@ function client(): OpenAI | null {
   return _openai
 }
 
+// ── OpenAI TTS ─────────────────────────────────────────────────────────────
+
+let _ttsAudio: HTMLAudioElement | null = null
+
+/**
+ * Speak text using OpenAI TTS (tts-1, alloy voice).
+ * Falls back to Web Speech API if no API key is available.
+ * Cancels any currently playing audio before starting a new one.
+ */
+export async function speakWithOpenAI(text: string): Promise<void> {
+  const ai = client()
+  if (!ai) {
+    // Fallback to Web Speech API
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      const utter = new SpeechSynthesisUtterance(text)
+      utter.rate = 0.92
+      window.speechSynthesis.speak(utter)
+    }
+    return
+  }
+
+  // Stop any currently playing TTS
+  if (_ttsAudio) {
+    _ttsAudio.pause()
+    _ttsAudio = null
+  }
+
+  try {
+    const response = await ai.audio.speech.create({
+      model: 'tts-1',
+      voice: 'alloy',
+      input: text,
+      response_format: 'mp3',
+    })
+
+    const arrayBuffer = await response.arrayBuffer()
+    const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' })
+    const url = URL.createObjectURL(blob)
+
+    _ttsAudio = new Audio(url)
+    _ttsAudio.onended = () => {
+      URL.revokeObjectURL(url)
+      _ttsAudio = null
+    }
+    await _ttsAudio.play()
+  } catch {
+    // Silently fail — TTS is non-critical
+  }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface AnalyzeParams {
