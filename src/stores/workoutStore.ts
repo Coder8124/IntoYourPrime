@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { FormAnalysisResult, WorkoutPhase } from '../types/index'
+import type { CooldownExercise, FormAnalysisResult, WorkoutPhase } from '../types/index'
 
 // Re-export so existing imports from this module keep working
 export type { WorkoutPhase }
@@ -20,26 +20,30 @@ interface WorkoutState {
   warmupScore:      number | null
   sessionStartTime: number | null
 
+  cooldownExercises: CooldownExercise[]
+
   // ── Actions ───────────────────────────────────────────────────────────
-  setPhase:       (phase: WorkoutPhase) => void
-  setExercise:    (exercise: string) => void
-  addRep:         (exercise: string) => void
-  updateAnalysis: (result: FormAnalysisResult) => void
-  setWarmupScore: (score: number) => void
-  resetSession:   () => void
+  setPhase:             (phase: WorkoutPhase) => void
+  setExercise:          (exercise: string) => void
+  addRep:               (exercise: string) => void
+  updateAnalysis:       (result: FormAnalysisResult) => void
+  setWarmupScore:       (score: number) => void
+  setCooldownExercises: (exercises: CooldownExercise[]) => void
+  resetSession:         () => void
 }
 
 // ── Initial state ──────────────────────────────────────────────────────────
 
-const INITIAL: Omit<WorkoutState, 'setPhase' | 'setExercise' | 'addRep' | 'updateAnalysis' | 'setWarmupScore' | 'resetSession'> = {
-  phase:            'warmup' as WorkoutPhase,
-  currentExercise:  'squat',
-  repCounts:        {},
-  riskScores:       [],
-  suggestions:      [],
-  safetyConcerns:   [],
-  warmupScore:      null,
-  sessionStartTime: null,
+const INITIAL: Omit<WorkoutState, 'setPhase' | 'setExercise' | 'addRep' | 'updateAnalysis' | 'setWarmupScore' | 'setCooldownExercises' | 'resetSession'> = {
+  phase:             'warmup' as WorkoutPhase,
+  currentExercise:   'squat',
+  repCounts:         {},
+  riskScores:        [],
+  suggestions:       [],
+  safetyConcerns:    [],
+  warmupScore:       null,
+  sessionStartTime:  null,
+  cooldownExercises: [],
 }
 
 // ── Store ──────────────────────────────────────────────────────────────────
@@ -72,6 +76,8 @@ export const useWorkoutStore = create<WorkoutState>()((set) => ({
   })),
 
   setWarmupScore: (score) => set({ warmupScore: score }),
+
+  setCooldownExercises: (exercises) => set({ cooldownExercises: exercises }),
 
   resetSession: () => set({
     ...INITIAL,

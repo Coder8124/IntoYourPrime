@@ -8,7 +8,17 @@ import { analyzeForm } from '../lib/formAnalysis'
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress'] as const
-const ANALYSIS_INTERVAL_MS = 2500
+const ANALYSIS_INTERVAL_MS = 8000
+const DEMO_MODE = !import.meta.env.VITE_OPENAI_API_KEY
+
+const DEMO_SUGGESTIONS = [
+  'Keep your chest up and drive through your heels.',
+  'Engage your core — brace your abs like you\'re about to take a punch.',
+  'Control the descent — aim for a 3-second eccentric.',
+  'Keep your knees tracking over your toes, not caving inward.',
+  'Breathe out on the concentric, in on the way down.',
+  'Neutral spine throughout — don\'t let your lower back round.',
+]
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -103,7 +113,7 @@ function WarmupScoreModal({ score, onContinueWarmup, onStartWorkout }: WarmupSco
       ? { message: 'Great warmup!',           detail: 'Your body is ready to train.' }
       : score >= 50
       ? { message: 'Decent warmup.',           detail: "You're good to go, but a bit more wouldn't hurt." }
-      : { message: 'Your warmup needs work.',  detail: 'Risk of injury is higher going into the main session.' }
+      : { message: 'Your warmup needs work.',  detail: 'You may not be ready — consider continuing your warmup. Risk of injury is higher if you start now.' }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
@@ -173,11 +183,15 @@ export function WorkoutPage() {
   const navigate = useNavigate()
 
   // ── Refs ───────────────────────────────────────────────────────────────
-  const videoRef     = useRef<HTMLVideoElement>(null)
-  const canvasRef    = useRef<HTMLCanvasElement>(null)
-  const analyzingRef = useRef(false)
-  const repCountRef  = useRef(0)
-  const exerciseRef  = useRef('squat')
+  const videoRef            = useRef<HTMLVideoElement>(null)
+  const canvasRef           = useRef<HTMLCanvasElement>(null)
+  const analyzingRef        = useRef(false)
+  const repCountRef         = useRef(0)
+  const exerciseRef         = useRef('squat')
+  const warmupModalFiredRef = useRef(false)
+  const phaseRef            = useRef<string>('warmup')
+  const demoSugIdxRef       = useRef(0)
+  const lastSpokenRef       = useRef(0)
 
   // ── Store ──────────────────────────────────────────────────────────────
   const {
@@ -222,8 +236,9 @@ export function WorkoutPage() {
     useRepCounter(landmarks, currentExercise)
 
   // ── Keep mutable refs in sync with latest values ───────────────────────
-  useEffect(() => { repCountRef.current  = repCount        }, [repCount])
-  useEffect(() => { exerciseRef.current  = currentExercise }, [currentExercise])
+  useEffect(() => { repCountRef.current = repCount        }, [repCount])
+  useEffect(() => { exerciseRef.current = currentExercise }, [currentExercise])
+  useEffect(() => { phaseRef.current    = phase           }, [phase])
 
   // ── Mount: reset store, start camera ──────────────────────────────────
   useEffect(() => {
@@ -265,6 +280,68 @@ export function WorkoutPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastRepTimestamp])
+
+  // ── Voice feedback — speak newest suggestion when it arrives ──────────
+  useEffect(() => {
+    if (!suggestions.length || voiceMuted) return
+    const newest = suggestions[0]
+    if (newest.timestamp > lastSpokenRef.current) {
+      lastSpokenRef.current = newest.timestamp
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel()
+        const utter = new SpeechSynthesisUtterance(newest.text)
+        utter.rate = 0.92
+        utter.pitch = 1.0
+        window.speechSynthesis.speak(utter)
+      }
+    }
+  }, [suggestions, voiceMuted])
+
+  // ── Auto-fire warmup modal at 60 s (once per session) ────────────────
+  useEffect(() => {
+    if (phase !== 'warmup' || showModal || warmupModalFiredRef.current) return
+    if (elapsed < 60) return
+    warmupModalFiredRef.current = true
+    if (DEMO_MODE) {
+      setWarmupScore(74)
+      setShowModal(true)
+    } else {
+      handleEndWarmup()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsed, phase, showModal])
+
+  // ── Demo mode — fake reps + suggestions + animated risk ───────────────
+  useEffect(() => {
+    if (!DEMO_MODE) return
+
+    const repId = setInterval(() => {
+      addRep(exerciseRef.current)
+    }, 3000)
+
+    const sugId = setInterval(() => {
+      const idx = demoSugIdxRef.current % DEMO_SUGGESTIONS.length
+      demoSugIdxRef.current++
+      const t = Date.now()
+      // Smoothly animate risk score 15-55 using a slow sine wave
+      const fakeRisk = Math.round(35 + Math.sin(t / 8000) * 20)
+      updateAnalysis({
+        riskScore:        fakeRisk,
+        suggestions:      [DEMO_SUGGESTIONS[idx]],
+        safetyConcerns:   [],
+        repCountEstimate: repCountRef.current,
+        dominantIssue:    null,
+        warmupQuality:    phaseRef.current === 'warmup' ? 74 : null,
+      })
+    }, 8000)
+
+    return () => {
+      clearInterval(repId)
+      clearInterval(sugId)
+    }
+    // stable zustand actions — intentionally no deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ── Form analysis loop (every 2.5 s when tracking) ────────────────────
   useEffect(() => {
@@ -318,7 +395,7 @@ export function WorkoutPage() {
   }, [navigate])
 
   // ── Camera error screen ────────────────────────────────────────────────
-  if (cameraError && !cameraStarted) {
+  if (cameraError && !cameraStarted && !DEMO_MODE) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-6">
         <div className="card-surface p-10 max-w-[380px] text-center">
@@ -369,6 +446,14 @@ export function WorkoutPage() {
               <span className="text-white font-black text-[15px]" style={{ letterSpacing: -1 }}>F</span>
             </div>
             <span className="font-black text-white text-[14px] tracking-tight">FormAI</span>
+            {DEMO_MODE && (
+              <span
+                className="px-2 py-0.5 text-[9px] font-black tracking-[0.15em] uppercase rounded-md"
+                style={{ background: 'rgba(234,179,8,0.15)', color: '#eab308', border: '1px solid rgba(234,179,8,0.35)' }}
+              >
+                DEMO
+              </span>
+            )}
             <div className="w-px h-4 bg-[#1e1e2e]" />
             <span
               className="text-[11px] font-bold tracking-[0.13em] uppercase"
