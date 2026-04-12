@@ -48,12 +48,37 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     if (!vis(lSh, 0.3) || !vis(lWr, 0.3) || !vis(rWr, 0.3)) return BASE
     return Math.min(100, BASE + Math.round(Math.abs((lSh.y - lWr.y) - (rSh.y - rWr.y)) * 700))
   }
+  if (ex === 'curlup') {
+    // Check symmetry: both shoulders should rise equally (uneven = neck strain)
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return BASE
+    const asymmetry = Math.abs(lSh.y - rSh.y)
+    return Math.min(100, BASE + Math.round(asymmetry * 900))
+  }
+  if (ex === 'bicepcurl') {
+    // Check elbow drift: elbows should stay at sides (drift = using momentum)
+    const lEl = lms[13], rEl = lms[14]
+    if (!vis(lEl, 0.3) || !vis(lHip, 0.3)) return BASE
+    const leftDrift  = Math.abs(lEl.x - lHip.x)
+    const rightDrift = Math.abs(rEl.x - rHip.x)
+    const drift = Math.max(leftDrift, rightDrift)
+    return Math.min(100, BASE + Math.round(drift * 600))
+  }
   return 0
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress'] as const
+const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl'] as const
+
+const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
+  squat:         'Squat',
+  pushup:        'Push-Up',
+  lunge:         'Lunge',
+  deadlift:      'Deadlift',
+  shoulderpress: 'Shoulder Press',
+  curlup:        'Curl-Up',
+  bicepcurl:     'Bicep Curl',
+}
 
 const DEMO_SUGGESTIONS = [
   "Keep your chest up and drive through your heels.",
@@ -821,7 +846,7 @@ export function WorkoutPage() {
                 className="input-dark capitalize"
               >
                 {EXERCISES.map(ex => (
-                  <option key={ex} value={ex}>{ex.charAt(0).toUpperCase() + ex.slice(1)}</option>
+                  <option key={ex} value={ex}>{EXERCISE_LABELS[ex]}</option>
                 ))}
               </select>
             </div>
@@ -837,7 +862,7 @@ export function WorkoutPage() {
               >
                 {String(repCounts[currentExercise] ?? 0).padStart(2, '0')}
               </div>
-              <span className="text-[11px] text-gray-600 mt-1 capitalize">{currentExercise}</span>
+              <span className="text-[11px] text-gray-600 mt-1">{EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}</span>
 
               {/* Movement phase dot */}
               {isCalibrating ? (
@@ -934,7 +959,7 @@ export function WorkoutPage() {
                       key={ex}
                       className="flex items-center justify-between p-2.5 rounded-lg bg-[#0f0f1a] border border-[#1e1e2e]"
                     >
-                      <span className="text-[12px] font-semibold text-white capitalize">{ex}</span>
+                      <span className="text-[12px] font-semibold text-white">{EXERCISE_LABELS[ex as typeof EXERCISES[number]] ?? ex}</span>
                       <span className="text-blue-400 font-black text-[15px]">{count}</span>
                     </div>
                   ))

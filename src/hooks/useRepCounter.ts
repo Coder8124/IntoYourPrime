@@ -24,6 +24,8 @@ export type SupportedExercise =
   | 'lunge'
   | 'deadlift'
   | 'shoulderpress'
+  | 'curlup'
+  | 'bicepcurl'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -60,6 +62,10 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   lunge:         { joints: [LM.LEFT_KNEE,       LM.RIGHT_KNEE],     repOn: 'down_to_up' },
   deadlift:      { joints: [LM.LEFT_HIP,        LM.RIGHT_HIP],      repOn: 'down_to_up' },
   shoulderpress: { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'up_to_down' },
+  // Curl-up: track shoulders — they rise (low Y) at top, rep counted on down→up
+  curlup:        { joints: [LM.LEFT_SHOULDER,   LM.RIGHT_SHOULDER], repOn: 'down_to_up' },
+  // Bicep curl: track wrists — they rise toward shoulder at top, rep counted on down→up
+  bicepcurl:     { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'down_to_up' },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
