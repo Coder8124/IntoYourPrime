@@ -4,7 +4,8 @@ import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
-import { analyzeForm } from '../lib/formAnalysis'
+import { analyzeForm, generateCooldown } from '../lib/formAnalysis'
+import type { CooldownExercise, UserProfile } from '../types/index'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -189,7 +190,9 @@ export function WorkoutPage() {
   const {
     phase, currentExercise, repCounts,
     riskScores, suggestions, safetyConcerns, warmupScore, sessionStartTime,
-    setPhase, setExercise, addRep, updateAnalysis, setWarmupScore, endSession, resetSession,
+    cooldownExercises,
+    setPhase, setExercise, addRep, updateAnalysis, setWarmupScore,
+    setCooldownExercises, setCooldownCompleted, endSession, resetSession,
   } = useWorkoutStore()
 
   // ── Local UI state ─────────────────────────────────────────────────────
@@ -200,6 +203,11 @@ export function WorkoutPage() {
   const [cameraZoom,       setCameraZoom]       = useState(1)
   const [wideCameraLayout, setWideCameraLayout] = useState(false)
   const [cameraFullscreen, setCameraFullscreen] = useState(false)
+
+  // ── Cooldown state ─────────────────────────────────────────────────────
+  const [loadingCooldown,  setLoadingCooldown]  = useState(false)
+  const [cooldownIdx,      setCooldownIdx]      = useState(0)
+  const [cooldownTimeLeft, setCooldownTimeLeft] = useState(0)
 
   // ── User profile ───────────────────────────────────────────────────────
   const userProfile = useMemo(() => {
@@ -332,7 +340,7 @@ export function WorkoutPage() {
           exercise:    ex,
           repCount:    repCountRef.current,
           userProfile,
-          phase,
+          phase: phase as 'warmup' | 'main',
         })
         updateAnalysis(result)
       } finally {
@@ -365,10 +373,184 @@ export function WorkoutPage() {
     setPhase('main')
   }, [setPhase])
 
-  const handleEndWorkout = useCallback(() => {
-    endSession()
-    navigate('/session-summary')
-  }, [endSession, navigate])
+  const handleEndWorkout = useCallback(async () => {
+    setPhase('cooldown')
+    setLoadingCooldown(true)
+    setCooldownIdx(0)
+
+    let profileData: Record<string, unknown> = {}
+    try {
+      const raw = localStorage.getItem('formAI_profile')
+      if (raw) profileData = JSON.parse(raw) as Record<string, unknown>
+    } catch { /* ignore */ }
+
+    const fullProfile: UserProfile = {
+      uid: '',
+      email: '',
+      displayName: String(profileData.name ?? ''),
+      age: Number(profileData.age) || 25,
+      weightKg: Number(profileData.weight) || 70,
+      heightCm: Number(profileData.height) || 170,
+      biologicalSex: (profileData.biologicalSex as UserProfile['biologicalSex']) ?? 'other',
+      fitnessLevel: (profileData.fitnessLevel as UserProfile['fitnessLevel']) ?? 'intermediate',
+      createdAt: new Date(),
+      streakCount: 0,
+      lastWorkoutDate: null,
+    }
+
+    const exercises: CooldownExercise[] = await generateCooldown(
+      { exercises: Object.keys(repCounts), repCounts },
+      fullProfile,
+    )
+
+    const fallback: CooldownExercise[] = [
+      { name: 'Standing quad stretch', durationSeconds: 30, targetMuscles: ['quads'], instruction: 'Stand on one leg, pull the other foot to your glutes. Hold and switch.' },
+      { name: 'Seated hamstring stretch', durationSeconds: 40, targetMuscles: ['hamstrings'], instruction: 'Sit on the floor, legs straight, reach toward your toes. Keep your back flat.' },
+      { name: 'Child\'s pose', durationSeconds: 45, targetMuscles: ['back', 'shoulders'], instruction: 'Kneel and sit back on your heels, stretch arms forward on the floor. Breathe deeply.' },
+      { name: 'Cross-body shoulder stretch', durationSeconds: 30, targetMuscles: ['shoulders'], instruction: 'Pull one arm across your chest with the opposite hand. Hold then switch.' },
+    ]
+
+    const final = exercises.length > 0 ? exercises : fallback
+    setCooldownExercises(final)
+    setCooldownTimeLeft(final[0].durationSeconds)
+    setLoadingCooldown(false)
+  }, [setPhase, repCounts, setCooldownExercises])
+
+  // ── Cooldown timer ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'cooldown' || loadingCooldown || cooldownExercises.length === 0) return
+    if (cooldownIdx >= cooldownExercises.length) return
+
+    const id = setInterval(() => {
+      setCooldownTimeLeft(t => Math.max(0, t - 1))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [phase, loadingCooldown, cooldownExercises, cooldownIdx])
+
+  // ── Auto-advance when timer hits 0 ─────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'cooldown' || loadingCooldown || cooldownExercises.length === 0) return
+    if (cooldownTimeLeft !== 0) return
+    if (cooldownIdx >= cooldownExercises.length) return
+
+    const next = cooldownIdx + 1
+    if (next >= cooldownExercises.length) {
+      setCooldownCompleted(true)
+      endSession()
+      navigate('/session-summary')
+    } else {
+      setCooldownIdx(next)
+      setCooldownTimeLeft(cooldownExercises[next].durationSeconds)
+    }
+  }, [cooldownTimeLeft, phase, loadingCooldown, cooldownExercises, cooldownIdx, setCooldownCompleted, endSession, navigate])
+
+  // ── Cooldown screen ────────────────────────────────────────────────────
+  if (phase === 'cooldown') {
+    const currentEx = cooldownExercises[cooldownIdx] ?? null
+
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center p-6 text-white">
+        <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-green-400 mb-2">Cooldown</p>
+        <h1 className="text-2xl font-black tracking-tight mb-1">Nice work — cool down now</h1>
+        <p className="text-gray-500 text-sm mb-10">Follow each stretch at a gentle pace</p>
+
+        {loadingCooldown ? (
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-10 h-10 border-2 border-green-600/30 border-t-green-500 rounded-full animate-spin" />
+            <p className="text-gray-500 text-sm">Generating your cooldown…</p>
+          </div>
+        ) : currentEx ? (
+          <div className="w-full max-w-md">
+            {/* Progress dots */}
+            <div className="flex justify-center gap-2 mb-8">
+              {cooldownExercises.map((_, i) => (
+                <div
+                  key={i}
+                  className="w-2 h-2 rounded-full transition-all"
+                  style={{
+                    background: i < cooldownIdx ? '#22c55e' : i === cooldownIdx ? '#86efac' : '#1e1e2e',
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Current exercise card */}
+            <div
+              className="card-surface p-8 text-center mb-6"
+              style={{ borderColor: 'rgba(34,197,94,0.25)' }}
+            >
+              <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-gray-500 mb-3">
+                {cooldownIdx + 1} of {cooldownExercises.length}
+              </p>
+              <h2 className="text-2xl font-black text-white mb-2">{currentEx.name}</h2>
+              <p className="text-gray-400 text-sm leading-relaxed mb-6">{currentEx.instruction}</p>
+
+              {/* Timer circle */}
+              <div className="flex justify-center mb-6">
+                <div className="relative w-24 h-24">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 96 96">
+                    <circle cx={48} cy={48} r={40} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={6} />
+                    <circle
+                      cx={48} cy={48} r={40}
+                      fill="none"
+                      stroke="#22c55e"
+                      strokeWidth={6}
+                      strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 40}
+                      strokeDashoffset={2 * Math.PI * 40 * (1 - cooldownTimeLeft / (currentEx.durationSeconds || 1))}
+                      style={{ transition: 'stroke-dashoffset 0.9s linear' }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="font-mono text-2xl font-black text-green-400">{cooldownTimeLeft}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {currentEx.targetMuscles.map(m => (
+                  <span key={m} className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-green-500/10 text-green-400 border border-green-500/20 capitalize">
+                    {m}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  const next = cooldownIdx + 1
+                  if (next >= cooldownExercises.length) {
+                    setCooldownCompleted(true)
+                    endSession()
+                    navigate('/session-summary')
+                  } else {
+                    setCooldownIdx(next)
+                    setCooldownTimeLeft(cooldownExercises[next].durationSeconds)
+                  }
+                }}
+                className="flex-1 py-3 rounded-xl border border-[#2e2e3e] text-gray-400 font-semibold text-sm hover:border-gray-500 hover:text-gray-200 transition-all"
+              >
+                Skip →
+              </button>
+              <button
+                onClick={() => {
+                  setCooldownCompleted(true)
+                  endSession()
+                  navigate('/session-summary')
+                }}
+                className="flex-1 py-3 rounded-xl font-semibold text-sm text-green-400 transition-all"
+                style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)' }}
+              >
+                Finish early
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    )
+  }
 
   // ── Camera error screen ────────────────────────────────────────────────
   if (cameraError && !cameraStarted) {

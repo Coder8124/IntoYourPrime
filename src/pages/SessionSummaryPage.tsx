@@ -1,19 +1,26 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useWorkoutStore, type SuggestionEntry, type WorkoutPhase } from '../stores/workoutStore'
+import { saveSession, updateStreak, postActivityItem } from '../lib/firebaseHelpers'
+import { getOrSignInUserId } from '../lib/firestoreUser'
+import type { CooldownExercise } from '../types/index'
 
 const LAST_SESSION_KEY = 'formAI_lastSession'
+const LAST_SESSION_SAVED_KEY = 'formAI_lastSession_savedId'
 
 interface SessionSnapshot {
   sessionStartTime: number
   sessionEndedAt: number
   phase: WorkoutPhase
   warmupScore: number | null
+  warmupEndedAt: number | null
   repCounts: Record<string, number>
   riskScores: number[]
   suggestions: SuggestionEntry[]
   safetyConcerns: string[]
   lastExercise: string
+  cooldownExercises: CooldownExercise[]
+  cooldownCompleted: boolean
 }
 
 function fmtDuration(sec: number) {
@@ -52,11 +59,14 @@ function buildSnapshot(): SessionSnapshot | null {
     sessionEndedAt: s.sessionEndedAt,
     phase: s.phase,
     warmupScore: s.warmupScore,
+    warmupEndedAt: s.warmupEndedAt ?? null,
     repCounts: { ...s.repCounts },
     riskScores: [...s.riskScores],
     suggestions: s.suggestions.map((e) => ({ ...e })),
     safetyConcerns: [...s.safetyConcerns],
     lastExercise: s.currentExercise,
+    cooldownExercises: [...s.cooldownExercises],
+    cooldownCompleted: s.cooldownCompleted,
   }
 }
 
@@ -71,6 +81,10 @@ function loadStoredSnapshot(): SessionSnapshot | null {
     ) {
       return null
     }
+    // backfill optional fields for older snapshots
+    if (!p.cooldownExercises) p.cooldownExercises = []
+    if (p.cooldownCompleted === undefined) p.cooldownCompleted = false
+    if (p.warmupEndedAt === undefined) p.warmupEndedAt = null
     return p
   } catch {
     return null
@@ -173,6 +187,79 @@ export function SessionSummaryPage() {
     }
   }, [snapshot])
 
+  // ── Auto-save session to Firestore ─────────────────────────────────────
+  const [saveStatus, setSaveStatus] = useState<'pending' | 'saving' | 'saved' | 'error'>('pending')
+  const saveAttempted = useRef(false)
+
+  useEffect(() => {
+    if (!snapshot || !stats || saveAttempted.current) return
+    saveAttempted.current = true
+
+    // Skip if this exact session was already saved (e.g. page refresh)
+    const storedSavedKey = `${LAST_SESSION_SAVED_KEY}_${snapshot.sessionStartTime}`
+    if (localStorage.getItem(storedSavedKey)) {
+      setSaveStatus('saved')
+      return
+    }
+
+    setSaveStatus('saving')
+
+    const durationMinutes = stats.durationSec / 60
+    const warmupDurationMinutes = snapshot.warmupEndedAt
+      ? (snapshot.warmupEndedAt - snapshot.sessionStartTime) / 60000
+      : 0
+    const exercises = [
+      ...new Set([...Object.keys(snapshot.repCounts), snapshot.lastExercise].filter(Boolean)),
+    ]
+
+    ;(async () => {
+      try {
+        const userId = await getOrSignInUserId()
+        const today = new Date().toISOString().slice(0, 10)
+
+        const sessionId = await saveSession({
+          userId,
+          date: today,
+          exercises,
+          durationMinutes,
+          warmupScore: snapshot.warmupScore ?? 0,
+          warmupDurationMinutes,
+          avgRiskScore: Math.round(stats.avgRisk),
+          peakRiskScore: Math.round(stats.peakRisk),
+          repCounts: snapshot.repCounts,
+          formSuggestions: snapshot.suggestions.map((s) => s.text).slice(0, 20),
+          cooldownCompleted: snapshot.cooldownCompleted,
+          cooldownExercises: snapshot.cooldownExercises,
+          feelRating: null,
+          totalRiskEvents: stats.highRiskEvents,
+        })
+
+        await Promise.allSettled([
+          updateStreak(userId),
+          postActivityItem({
+            userId,
+            displayName: (() => {
+              try {
+                const p = localStorage.getItem('formAI_profile')
+                return p ? (JSON.parse(p) as Record<string, unknown>).name as string ?? 'Athlete' : 'Athlete'
+              } catch { return 'Athlete' }
+            })(),
+            type: 'workout_completed',
+            sessionId,
+            warmupScore: snapshot.warmupScore ?? 0,
+            avgRiskScore: Math.round(stats.avgRisk),
+            timestamp: new Date(),
+          }),
+        ])
+
+        localStorage.setItem(storedSavedKey, sessionId)
+        setSaveStatus('saved')
+      } catch {
+        setSaveStatus('error')
+      }
+    })()
+  }, [snapshot, stats])
+
   if (!snapshot || !stats) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] px-6 py-12 text-white">
@@ -215,7 +302,19 @@ export function SessionSummaryPage() {
             <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Workout summary</h1>
             <p className="mt-1 text-[13px] text-gray-500">{fmtClock(snapshot.sessionEndedAt)}</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {saveStatus === 'saving' && (
+              <span className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                <span className="w-3 h-3 border border-gray-600 border-t-gray-400 rounded-full animate-spin inline-block" />
+                Saving…
+              </span>
+            )}
+            {saveStatus === 'saved' && (
+              <span className="text-[11px] text-green-500">✓ Saved</span>
+            )}
+            {saveStatus === 'error' && (
+              <span className="text-[11px] text-red-400">Could not save</span>
+            )}
             <Link
               to="/workout"
               className="rounded-xl bg-blue-600 px-4 py-2.5 text-[13px] font-bold text-white transition hover:bg-blue-500 btn-glow-blue"
