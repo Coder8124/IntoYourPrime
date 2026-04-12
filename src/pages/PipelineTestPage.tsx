@@ -68,7 +68,6 @@ export function PipelineTestPage() {
       const res = await analyzeForm({
         frames,
         exercise,
-        repCount: 0,
         userProfile,
         phase,
       })

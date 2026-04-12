@@ -31,7 +31,6 @@ function client(): OpenAI {
 export interface AnalyzeParams {
   frames:      string[]    // base64 data URLs (jpeg)
   exercise:    string
-  repCount:    number
   userProfile: { age: number; weight: number; fitnessLevel: string }
   phase:       'warmup' | 'main'
 }
@@ -84,7 +83,6 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
       type: 'text',
       text:
         `Exercise: ${params.exercise.toUpperCase()}. Phase: ${params.phase}. ` +
-        `Reps so far: ${params.repCount}. ` +
         `Athlete: ${params.userProfile.age}yo, ${params.userProfile.weight}kg, level: ${params.userProfile.fitnessLevel}.\n\n` +
         `${guide}\n\n` +
         `Look at the images and judge the form visually. ` +
@@ -95,7 +93,6 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
         `  "riskScore": number 0-100,\n` +
         `  "suggestions": string[] (2-3 specific cues about what you actually see, present tense),\n` +
         `  "safetyConcerns": string[] (empty array if none),\n` +
-        `  "repCountEstimate": number,\n` +
         `  "dominantIssue": string | null,\n` +
         `  "warmupQuality": number | null (0-100 if warmup phase, else null)\n` +
         `}`,
@@ -133,7 +130,7 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
   try {
     return await attempt()
   } catch {
-    return { ...DEFAULT_FORM_RESULT, repCountEstimate: params.repCount }
+    return { ...DEFAULT_FORM_RESULT }
   }
 }
 

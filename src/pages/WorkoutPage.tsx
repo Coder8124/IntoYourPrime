@@ -355,7 +355,6 @@ export function WorkoutPage() {
         const result = await analyzeForm({
           frames,
           exercise:    exerciseRef.current,
-          repCount:    repCountRef.current,
           userProfile,
           phase: (phase === 'warmup' ? 'warmup' : 'main'),
         })
