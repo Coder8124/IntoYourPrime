@@ -67,7 +67,7 @@ export function HomePage() {
 
   const [loading, setLoading] = useState(true)
   const [apiKeyInput, setApiKeyInput] = useState('')
-  const [apiKeySet, setApiKeySet] = useState(hasApiKey)
+  const [apiKeySet] = useState(hasApiKey)
   const [showKeyInput, setShowKeyInput] = useState(false)
   const [sessions, setSessions] = useState<Session[]>([])
   const [streak, setStreak] = useState(0)
