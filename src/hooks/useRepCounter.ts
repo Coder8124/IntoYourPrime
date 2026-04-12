@@ -2,19 +2,16 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import type { NormalizedLandmark } from '@mediapipe/pose'
 
 // ── MediaPipe landmark indices ─────────────────────────────────────────────
-// https://developers.google.com/mediapipe/solutions/vision/pose_landmarker
 
 const LM = {
   LEFT_SHOULDER:  11,
   RIGHT_SHOULDER: 12,
-  LEFT_ELBOW:     13,
-  RIGHT_ELBOW:    14,
-  LEFT_WRIST:     15,
-  RIGHT_WRIST:    16,
   LEFT_HIP:       23,
   RIGHT_HIP:      24,
   LEFT_KNEE:      25,
   RIGHT_KNEE:     26,
+  LEFT_WRIST:     15,
+  RIGHT_WRIST:    16,
 } as const
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -42,114 +39,45 @@ export interface UseRepCounterReturn {
   reset:             () => void
 }
 
-interface Thresholds {
-  down:         number
-  up:           number
-  debounce:     number
-  minRawRange:  number
+// ── Exercise config ────────────────────────────────────────────────────────
+
+interface ExerciseConfig {
+  joints: [number, number]
+  repOn: 'down_to_up' | 'up_to_down'
 }
 
-type ExerciseConfig =
-  | { kind: 'y'; joints: [number, number]; thresholds: Thresholds }
-  | { kind: 'pushup_elbow'; thresholds: Thresholds }
-
 const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
-  squat: {
-    kind: 'y',
-    joints: [LM.LEFT_HIP, LM.RIGHT_HIP],
-    thresholds: { down: 0.65, up: 0.35, debounce: 800, minRawRange: 0.02 },
-  },
-  pushup: {
-    kind: 'pushup_elbow',
-    thresholds: { down: 0.58, up: 0.42, debounce: 550, minRawRange: 10 },
-  },
-  lunge: {
-    kind: 'y',
-    joints: [LM.LEFT_KNEE, LM.RIGHT_KNEE],
-    thresholds: { down: 0.65, up: 0.35, debounce: 800, minRawRange: 0.02 },
-  },
-  deadlift: {
-    kind: 'y',
-    joints: [LM.LEFT_HIP, LM.RIGHT_HIP],
-    thresholds: { down: 0.65, up: 0.35, debounce: 800, minRawRange: 0.02 },
-  },
-  shoulderpress: {
-    kind: 'y',
-    joints: [LM.LEFT_WRIST, LM.RIGHT_WRIST],
-    thresholds: { down: 0.62, up: 0.38, debounce: 750, minRawRange: 0.02 },
-  },
+  squat:         { joints: [LM.LEFT_HIP,       LM.RIGHT_HIP],      repOn: 'down_to_up' },
+  pushup:        { joints: [LM.LEFT_SHOULDER,   LM.RIGHT_SHOULDER], repOn: 'down_to_up' },
+  lunge:         { joints: [LM.LEFT_KNEE,       LM.RIGHT_KNEE],     repOn: 'down_to_up' },
+  deadlift:      { joints: [LM.LEFT_HIP,        LM.RIGHT_HIP],      repOn: 'down_to_up' },
+  shoulderpress: { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'up_to_down' },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EMA_ALPHA         = 0.28
-const CALIBRATION_MS    = 3200
-const CONFIDENCE_THRESH = 0.5
+const EMA_ALPHA         = 0.2
+const CALIBRATION_MS    = 3000  // first 3 s used to calibrate range
+const DOWN_THRESHOLD    = 0.70
+const UP_THRESHOLD      = 0.30
+const DEBOUNCE_MS       = 1200  // min ms between reps
+const MIN_RANGE         = 0.06  // minimum movement range to count
+const CONFIDENCE_THRESH = 0.6
 const PAUSE_AFTER_MS    = 1000
 
-// ── Geometry ───────────────────────────────────────────────────────────────
-
-/** Interior angle at elbow (shoulder–elbow–wrist), degrees. ~180 extended, ~90 bent. */
-function elbowAngleDegrees(
-  shoulder: NormalizedLandmark,
-  elbow: NormalizedLandmark,
-  wrist: NormalizedLandmark,
-): number {
-  const bx = elbow.x
-  const by = elbow.y
-  const v1x = shoulder.x - bx
-  const v1y = shoulder.y - by
-  const v2x = wrist.x - bx
-  const v2y = wrist.y - by
-  const d1 = Math.hypot(v1x, v1y)
-  const d2 = Math.hypot(v2x, v2y)
-  if (d1 < 1e-5 || d2 < 1e-5) return NaN
-  const cos = (v1x * v2x + v1y * v2y) / (d1 * d2)
-  return (Math.acos(Math.max(-1, Math.min(1, cos))) * 180) / Math.PI
-}
-
-/** Higher when elbows are more bent (better pushup ROM signal than shoulder Y alone). */
-function getPushupBentness(landmarks: NormalizedLandmark[]): { raw: number; confidence: number } | null {
-  const Ls = landmarks[LM.LEFT_SHOULDER]
-  const Le = landmarks[LM.LEFT_ELBOW]
-  const Lw = landmarks[LM.LEFT_WRIST]
-  const Rs = landmarks[LM.RIGHT_SHOULDER]
-  const Re = landmarks[LM.RIGHT_ELBOW]
-  const Rw = landmarks[LM.RIGHT_WRIST]
-  if (!Ls || !Le || !Lw || !Rs || !Re || !Rw) return null
-
-  const vis =
-    ((Ls.visibility ?? 0) + (Le.visibility ?? 0) + (Lw.visibility ?? 0) +
-      (Rs.visibility ?? 0) + (Re.visibility ?? 0) + (Rw.visibility ?? 0)) /
-    6
-  if (vis < CONFIDENCE_THRESH) return null
-
-  const aL = elbowAngleDegrees(Ls, Le, Lw)
-  const aR = elbowAngleDegrees(Rs, Re, Rw)
-  if (!Number.isFinite(aL) || !Number.isFinite(aR)) return null
-
-  const avgAngle = (aL + aR) / 2
-  const raw = 180 - avgAngle
-  return { raw, confidence: vis }
-}
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function getJointY(
   landmarks: NormalizedLandmark[],
   idxA: number,
   idxB: number,
-): { raw: number; confidence: number } | null {
+): { y: number; confidence: number } | null {
   const a = landmarks[idxA]
   const b = landmarks[idxB]
   if (!a || !b) return null
-
   const confA = a.visibility ?? 0
   const confB = b.visibility ?? 0
-  const confidence = (confA + confB) / 2
-
-  return {
-    raw: (a.y + b.y) / 2,
-    confidence,
-  }
+  return { y: (a.y + b.y) / 2, confidence: (confA + confB) / 2 }
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
@@ -164,14 +92,16 @@ export function useRepCounter(
       ? (exercise.toLowerCase().trim() as SupportedExercise)
       : 'squat'
 
-  const smoothedSignal = useRef<number | null>(null)
-  const calibratedMin  = useRef<number>(Infinity)
-  const calibratedMax  = useRef<number>(-Infinity)
-  const calibrationEnd = useRef<number>(0)
-  const phaseRef       = useRef<MovementPhase>('unknown')
-  const lastRepTime    = useRef<number | null>(null)
-  const lastLandmarkTs = useRef<number | null>(null)
-  const isPaused       = useRef(false)
+  const config = EXERCISE_CONFIG[exerciseKey]
+
+  const smoothedY       = useRef<number | null>(null)
+  const calibratedMin   = useRef<number>(Infinity)
+  const calibratedMax   = useRef<number>(-Infinity)
+  const calibrationEnd  = useRef<number>(0)
+  const phaseRef        = useRef<MovementPhase>('unknown')
+  const lastRepTime     = useRef<number | null>(null)
+  const lastLandmarkTs  = useRef<number | null>(null)
+  const isPaused        = useRef(false)
 
   const [repCount,         setRepCount]         = useState(0)
   const [phase,            setPhase]            = useState<MovementPhase>('unknown')
@@ -181,7 +111,7 @@ export function useRepCounter(
   const repCountRef = useRef(0)
 
   const reset = useCallback(() => {
-    smoothedSignal.current = null
+    smoothedY.current      = null
     calibratedMin.current  = Infinity
     calibratedMax.current  = -Infinity
     calibrationEnd.current = 0
@@ -190,32 +120,26 @@ export function useRepCounter(
     lastLandmarkTs.current = Date.now()
     isPaused.current       = false
     repCountRef.current    = 0
-
     setRepCount(0)
     setPhase('unknown')
     setLastRepTimestamp(null)
     setRepLog([])
   }, [])
 
+  // Reset when exercise changes
   const prevExercise = useRef(exerciseKey)
   useEffect(() => {
     if (prevExercise.current !== exerciseKey) {
       prevExercise.current = exerciseKey
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync FSM to new exerciseKey
       reset()
     }
   }, [exerciseKey, reset])
 
   useEffect(() => {
-    const cfg = EXERCISE_CONFIG[exerciseKey]
-    const th = cfg.thresholds
-
     if (!landmarks) {
       if (lastLandmarkTs.current != null) {
         const gap = Date.now() - lastLandmarkTs.current
-        if (gap > PAUSE_AFTER_MS) {
-          isPaused.current = true
-        }
+        if (gap > PAUSE_AFTER_MS) isPaused.current = true
       }
       return
     }
@@ -224,63 +148,56 @@ export function useRepCounter(
     lastLandmarkTs.current = now
     isPaused.current = false
 
-    const sample =
-      cfg.kind === 'pushup_elbow'
-        ? getPushupBentness(landmarks)
-        : getJointY(landmarks, cfg.joints[0], cfg.joints[1])
+    const joint = getJointY(landmarks, config.joints[0], config.joints[1])
+    if (!joint || joint.confidence < CONFIDENCE_THRESH) return
 
-    if (!sample || sample.confidence < CONFIDENCE_THRESH) return
+    const rawY = joint.y
 
-    const raw = sample.raw
-
-    if (smoothedSignal.current === null) {
-      smoothedSignal.current = raw
+    if (smoothedY.current === null) {
+      smoothedY.current = rawY
       calibrationEnd.current = now + CALIBRATION_MS
     } else {
-      smoothedSignal.current =
-        EMA_ALPHA * raw + (1 - EMA_ALPHA) * smoothedSignal.current
+      smoothedY.current = EMA_ALPHA * rawY + (1 - EMA_ALPHA) * smoothedY.current
     }
 
-    const signal = smoothedSignal.current
+    const y = smoothedY.current
 
+    // Calibration window — track range, don't count reps yet
     if (now < calibrationEnd.current) {
-      calibratedMin.current = Math.min(calibratedMin.current, signal)
-      calibratedMax.current = Math.max(calibratedMax.current, signal)
+      calibratedMin.current = Math.min(calibratedMin.current, y)
+      calibratedMax.current = Math.max(calibratedMax.current, y)
       return
     }
 
     const range = calibratedMax.current - calibratedMin.current
-    if (range < th.minRawRange) return
+    if (range < MIN_RANGE) return
 
-    const normalised = (signal - calibratedMin.current) / range
+    const normalised = (y - calibratedMin.current) / range
 
-    calibratedMin.current = Math.min(calibratedMin.current, signal)
-    calibratedMax.current = Math.max(calibratedMax.current, signal)
+    // Extend range live (never shrink)
+    calibratedMin.current = Math.min(calibratedMin.current, y)
+    calibratedMax.current = Math.max(calibratedMax.current, y)
 
     let newPhase = phaseRef.current
-
-    if (normalised > th.down) {
-      newPhase = 'down'
-    } else if (normalised < th.up) {
-      newPhase = 'up'
-    }
+    if (normalised > DOWN_THRESHOLD) newPhase = 'down'
+    else if (normalised < UP_THRESHOLD) newPhase = 'up'
 
     const phaseChanged = newPhase !== phaseRef.current
 
-    if (phaseChanged && newPhase === 'up' && phaseRef.current === 'down') {
-      const timeSinceLast = lastRepTime.current ? now - lastRepTime.current : Infinity
+    const isRepTransition =
+      config.repOn === 'down_to_up'
+        ? phaseChanged && newPhase === 'up'   && phaseRef.current === 'down'
+        : phaseChanged && newPhase === 'down' && phaseRef.current === 'up'
 
-      if (timeSinceLast >= th.debounce) {
+    if (isRepTransition) {
+      const timeSinceLast = lastRepTime.current ? now - lastRepTime.current : Infinity
+      if (timeSinceLast >= DEBOUNCE_MS) {
         const newCount = repCountRef.current + 1
         repCountRef.current = newCount
         lastRepTime.current = now
-
         setRepCount(newCount)
         setLastRepTimestamp(now)
-        setRepLog((prev) => [
-          ...prev,
-          { exercise: exerciseKey, timestamp: now, phase: 'up' },
-        ])
+        setRepLog(prev => [...prev, { exercise: exerciseKey, timestamp: now, phase: newPhase }])
       }
     }
 
@@ -288,13 +205,7 @@ export function useRepCounter(
       phaseRef.current = newPhase
       setPhase(newPhase)
     }
-  }, [landmarks, exerciseKey])
+  }, [landmarks, config.joints, exerciseKey])
 
-  return {
-    repCount,
-    phase,
-    lastRepTimestamp,
-    repLog,
-    reset,
-  }
+  return { repCount, phase, lastRepTimestamp, repLog, reset }
 }

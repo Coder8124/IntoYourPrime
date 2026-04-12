@@ -4,12 +4,65 @@ import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
-import { analyzeForm, generateCooldown } from '../lib/formAnalysis'
+import { analyzeForm, generateCooldown, hasApiKey } from '../lib/formAnalysis'
 import type { CooldownExercise, UserProfile } from '../types/index'
+
+// ── Alignment-based risk (no angle math — pure body-segment deviation) ─────
+
+interface Lm { x: number; y: number; visibility?: number }
+function vis(lm: Lm, t = 0.5) { return (lm.visibility ?? 0) >= t }
+function ptLineDist(ax: number, ay: number, bx: number, by: number, px: number, py: number) {
+  const dx = bx - ax, dy = by - ay
+  const len = Math.sqrt(dx * dx + dy * dy)
+  return len === 0 ? 0 : Math.abs(dy * px - dx * py + bx * ay - by * ax) / len
+}
+function computeAlignmentRisk(lms: Lm[], exercise: string): number {
+  if (lms.length < 29) return 0
+  const lSh = lms[11], rSh = lms[12], lHip = lms[23], rHip = lms[24]
+  const lKn = lms[25], rKn = lms[26], lAn = lms[27], rAn = lms[28]
+  const ex = exercise.toLowerCase()
+  const BASE = 10
+  if (ex === 'pushup') {
+    if (!vis(lSh) || !vis(lHip) || !vis(lAn)) return 0
+    const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
+    const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
+    const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
+    return Math.min(100, BASE + Math.round(ptLineDist(shX, shY, anX, anY, hipX, hipY) * 1100))
+  }
+  if (ex === 'squat') {
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    return Math.min(100, BASE + Math.round(Math.max(Math.abs(lKn.x - lAn.x), Math.abs(rKn.x - rAn.x)) * 800))
+  }
+  if (ex === 'deadlift') {
+    if (!vis(lSh) || !vis(lHip)) return 0
+    const vertDist = Math.abs((lSh.y + rSh.y) / 2 - (lHip.y + rHip.y) / 2)
+    if (vertDist < 0.05) return 0
+    return Math.min(100, BASE + Math.round(Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) / vertDist * 200))
+  }
+  if (ex === 'lunge') {
+    if (!vis(lKn) || !vis(lAn)) return 0
+    return Math.min(100, BASE + Math.round(Math.abs(lKn.x - lAn.x) * 800))
+  }
+  if (ex === 'shoulderpress') {
+    const lWr = lms[15], rWr = lms[16]
+    if (!vis(lSh, 0.3) || !vis(lWr, 0.3) || !vis(rWr, 0.3)) return BASE
+    return Math.min(100, BASE + Math.round(Math.abs((lSh.y - lWr.y) - (rSh.y - rWr.y)) * 700))
+  }
+  return 0
+}
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress'] as const
+
+const DEMO_SUGGESTIONS = [
+  "Keep your chest up and drive through your heels.",
+  "Engage your core — brace your abs like you're about to take a punch.",
+  "Control the descent — aim for a 3-second eccentric.",
+  "Keep your knees tracking over your toes, not caving inward.",
+  "Breathe out on the concentric, in on the way down.",
+  "Neutral spine throughout — don't let your lower back round.",
+]
 
 /** Optional center-crop so a small subject fills more of the preview (pose still uses full camera). */
 const CAMERA_ZOOM_MIN = 1
@@ -179,12 +232,17 @@ export function WorkoutPage() {
   const navigate = useNavigate()
 
   // ── Refs ───────────────────────────────────────────────────────────────
-  const videoRef       = useRef<HTMLVideoElement>(null)
-  const canvasRef      = useRef<HTMLCanvasElement>(null)
-  const cameraShellRef = useRef<HTMLDivElement>(null)
-  const analyzingRef = useRef(false)
-  const repCountRef  = useRef(0)
-  const exerciseRef  = useRef('squat')
+  const videoRef            = useRef<HTMLVideoElement>(null)
+  const canvasRef           = useRef<HTMLCanvasElement>(null)
+  const cameraShellRef      = useRef<HTMLDivElement>(null)
+  const analyzingRef        = useRef(false)
+  const repCountRef         = useRef(0)
+  const exerciseRef         = useRef('squat')
+  const phaseRef            = useRef<string>('warmup')
+  const warmupModalFiredRef = useRef(false)
+  const demoSugIdxRef       = useRef(0)
+  const lastSpokenRef       = useRef(0)
+  const aiRiskRef           = useRef<number | null>(null)
 
   // ── Store ──────────────────────────────────────────────────────────────
   const {
@@ -277,8 +335,9 @@ export function WorkoutPage() {
     useRepCounter(landmarks, currentExercise)
 
   // ── Keep mutable refs in sync with latest values ───────────────────────
-  useEffect(() => { repCountRef.current  = repCount        }, [repCount])
-  useEffect(() => { exerciseRef.current  = currentExercise }, [currentExercise])
+  useEffect(() => { repCountRef.current = repCount        }, [repCount])
+  useEffect(() => { exerciseRef.current = currentExercise }, [currentExercise])
+  useEffect(() => { phaseRef.current    = phase           }, [phase])
 
   // ── Mount: reset store, start camera ──────────────────────────────────
   useEffect(() => {
@@ -321,38 +380,109 @@ export function WorkoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastRepTimestamp])
 
-  // ── Form analysis loop (faster + more frames for pushups in main) ─────
+  // ── Voice feedback — speak newest suggestion when it arrives ──────────
   useEffect(() => {
-    const intervalMs =
-      currentExercise === 'pushup' && phase === 'main' ? 2000 : 2500
+    if (!suggestions.length || voiceMuted) return
+    const newest = suggestions[0]
+    if (newest.timestamp > lastSpokenRef.current) {
+      lastSpokenRef.current = newest.timestamp
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel()
+        const utter = new SpeechSynthesisUtterance(newest.text)
+        utter.rate = 0.92
+        window.speechSynthesis.speak(utter)
+      }
+    }
+  }, [suggestions, voiceMuted])
 
-    const id = setInterval(async () => {
+  // ── Auto-fire warmup modal at 60 s (once per session) ─────────────────
+  useEffect(() => {
+    if (phase !== 'warmup' || showModal || warmupModalFiredRef.current) return
+    if (elapsed < 60) return
+    warmupModalFiredRef.current = true
+    handleEndWarmup()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsed, phase, showModal])
+
+  // ── Rotating coaching suggestions every 10 s ──────────────────────────
+  useEffect(() => {
+    const id = setInterval(() => {
+      const idx = demoSugIdxRef.current % DEMO_SUGGESTIONS.length
+      demoSugIdxRef.current++
+      updateAnalysis({
+        riskScore:        0,
+        suggestions:      [DEMO_SUGGESTIONS[idx]],
+        safetyConcerns:   [],
+        repCountEstimate: 0,
+        dominantIssue:    null,
+        warmupQuality:    phaseRef.current === 'warmup' ? 74 : null,
+      })
+    }, 10000)
+    return () => clearInterval(id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Live risk from pose landmarks (runs every frame) ──────────────────
+  useEffect(() => {
+    if (!landmarks || !isTracking) return
+    const localScore = computeAlignmentRisk(landmarks, exerciseRef.current)
+    const aiScore = aiRiskRef.current
+    const blended = aiScore !== null
+      ? Math.round(aiScore * 0.6 + localScore * 0.4)
+      : localScore
+    updateAnalysis({
+      riskScore:        blended,
+      suggestions:      [],
+      safetyConcerns:   blended >= 70 ? ['High injury risk — check your form'] : [],
+      repCountEstimate: 0,
+      dominantIssue:    null,
+      warmupQuality:    null,
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [landmarks, isTracking])
+
+  // ── API risk + suggestions: first at 8 s, then every 30 s ────────────
+  useEffect(() => {
+    if (!hasApiKey()) return
+    const callApi = async () => {
       if (!isTracking || analyzingRef.current) return
-      const ex = exerciseRef.current
-      const nFrames = ex === 'pushup' ? 5 : 3
-      const frames = getBestFrames(nFrames, ex)
+      const frames = getBestFrames(3, exerciseRef.current)
       if (!frames.length) return
-
       analyzingRef.current = true
       try {
         const result = await analyzeForm({
           frames,
-          exercise:    ex,
+          exercise:    exerciseRef.current,
           repCount:    repCountRef.current,
           userProfile,
-          phase: phase as 'warmup' | 'main',
+          phase: phaseRef.current === 'warmup' ? 'warmup' : 'main',
         })
-        updateAnalysis(result)
-      } finally {
+        aiRiskRef.current = result.riskScore
+        if (result.suggestions.length > 0) {
+          updateAnalysis({
+            riskScore:        result.riskScore,
+            suggestions:      result.suggestions,
+            safetyConcerns:   result.safetyConcerns,
+            repCountEstimate: 0,
+            dominantIssue:    result.dominantIssue,
+            warmupQuality:    result.warmupQuality,
+          })
+        }
+      } catch { /* keep using local score */ } finally {
         analyzingRef.current = false
       }
-    }, intervalMs)
-
-    return () => clearInterval(id)
-  }, [isTracking, phase, currentExercise, getBestFrames, updateAnalysis, userProfile])
+    }
+    const firstTimer = setTimeout(callApi, 8_000)
+    const interval   = setInterval(callApi, 30_000)
+    return () => { clearTimeout(firstTimer); clearInterval(interval) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTracking, getBestFrames])
 
   // ── Derived ────────────────────────────────────────────────────────────
-  const latestRisk        = riskScores.length ? riskScores[riskScores.length - 1] : 0
+  // Smooth over last 8 frames to reduce jitter
+  const latestRisk = riskScores.length
+    ? Math.round(riskScores.slice(-8).reduce((a, b) => a + b, 0) / Math.min(riskScores.length, 8))
+    : 0
   const latestSuggestions = suggestions.slice(0, 3)
   const totalReps         = Object.values(repCounts).reduce((a, b) => a + b, 0)
 
@@ -663,7 +793,7 @@ export function WorkoutPage() {
                 className="font-black leading-none select-none text-white"
                 style={{ fontSize: 84, letterSpacing: -4 }}
               >
-                {String(repCount).padStart(2, '0')}
+                {String(repCounts[currentExercise] ?? 0).padStart(2, '0')}
               </div>
               <span className="text-[11px] text-gray-600 mt-1 capitalize">{currentExercise}</span>
 
