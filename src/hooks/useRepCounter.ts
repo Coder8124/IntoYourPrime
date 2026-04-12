@@ -97,33 +97,6 @@ function calcAngle(
   return (Math.acos(Math.max(-1, Math.min(1, dot / mag))) * 180) / Math.PI
 }
 
-/**
- * Average shoulder angle (hip→shoulder→elbow) across visible sides.
- * At the top of a pushup (arms extended) this is large (~160–170°).
- * At the bottom (chest near floor) the elbow swings back and the angle shrinks (~70–100°).
- * Returns a value in degrees [0, 180].
- */
-function getPushupShoulderAngle(
-  landmarks: NormalizedLandmark[],
-): { value: number; confidence: number } | null {
-  const lHip = landmarks[LM.LEFT_HIP],  lSh = landmarks[LM.LEFT_SHOULDER],  lEl = landmarks[LM.LEFT_ELBOW]
-  const rHip = landmarks[LM.RIGHT_HIP], rSh = landmarks[LM.RIGHT_SHOULDER], rEl = landmarks[LM.RIGHT_ELBOW]
-
-  const lConf = Math.min(lHip?.visibility ?? 0, lSh?.visibility ?? 0, lEl?.visibility ?? 0)
-  const rConf = Math.min(rHip?.visibility ?? 0, rSh?.visibility ?? 0, rEl?.visibility ?? 0)
-
-  const angles: number[] = []
-  const confs:  number[] = []
-  if (lConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(lHip, lSh, lEl)); confs.push(lConf) }
-  if (rConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(rHip, rSh, rEl)); confs.push(rConf) }
-  if (angles.length === 0) return null
-
-  const n = angles.length
-  return {
-    value:      angles.reduce((s, v) => s + v, 0) / n,
-    confidence: confs.reduce((s, v)  => s + v, 0) / n,
-  }
-}
 
 function getJointY(
   landmarks: NormalizedLandmark[],

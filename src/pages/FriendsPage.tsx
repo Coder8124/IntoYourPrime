@@ -216,10 +216,14 @@ function OptBar({ score, label }: { score: number; label: string }) {
 // ── Default demo members ───────────────────────────────────────────────────
 
 const DEFAULT_MEMBERS: MemberData[] = [
-  { name: 'You',    sessionCompleted: false, calories: 0, intensity: 'N/A', streakDays: 0 },
-  { name: 'Alex',   sessionCompleted: false, calories: 0, intensity: 'N/A', streakDays: 0 },
-  { name: 'Jordan', sessionCompleted: false, calories: 0, intensity: 'N/A', streakDays: 0 },
+  { name: 'You',     sessionCompleted: true,  calories: 412, intensity: 'High',   streakDays: 7  },
+  { name: 'Alex',    sessionCompleted: true,  calories: 380, intensity: 'High',   streakDays: 7  },
+  { name: 'Jordan',  sessionCompleted: true,  calories: 295, intensity: 'Medium', streakDays: 5  },
+  { name: 'Riley',   sessionCompleted: false, calories: 0,   intensity: 'N/A',    streakDays: 2  },
+  { name: 'Morgan',  sessionCompleted: true,  calories: 210, intensity: 'Low',    streakDays: 3  },
 ]
+
+const DEFAULT_GROUP_STREAK = 5
 
 // ── FriendsPage ────────────────────────────────────────────────────────────
 
@@ -234,7 +238,7 @@ export function FriendsPage() {
       i === 0 ? { ...m, ...myData } : m
     )
   })
-  const [groupStreak,  setGroupStreak]  = useState(0)
+  const [groupStreak,  setGroupStreak]  = useState(DEFAULT_GROUP_STREAK)
   const [briefing,     setBriefing]     = useState<PIBriefing | null>(null)
   const [loading,      setLoading]      = useState(false)
   const [error,        setError]        = useState<string | null>(null)
@@ -313,6 +317,12 @@ export function FriendsPage() {
       }])
     } catch { /* ignore */ }
   }
+
+  // Auto-run demo briefing on first load so the PI section is visible immediately
+  useEffect(() => {
+    setBriefing(getDemoBriefing(DEFAULT_MEMBERS, DEFAULT_GROUP_STREAK))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Refresh "You" row whenever the page gains focus (after a workout)
   useEffect(() => {
