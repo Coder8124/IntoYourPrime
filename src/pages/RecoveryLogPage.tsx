@@ -8,6 +8,7 @@ import {
   saveDailyLog,
 } from '../lib/firebaseHelpers'
 import { getOrSignInUserId } from '../lib/firestoreUser'
+import { getOrCreateLocalUserId } from '../lib/localUserId'
 import { loadRecoveryLogLocal, saveRecoveryLogLocal } from '../lib/recoveryLogLocal'
 import type { DailyLog } from '../types'
 import { BodySorenessMap } from '../components/BodySorenessMap'
@@ -96,7 +97,11 @@ export function RecoveryLogPage() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const id = await getOrSignInUserId()
+      const localId = getOrCreateLocalUserId()
+      const id = await Promise.race([
+        getOrSignInUserId(),
+        new Promise<string>(resolve => setTimeout(() => resolve(localId), 3000)),
+      ])
       if (cancelled) return
       setUid(id)
 

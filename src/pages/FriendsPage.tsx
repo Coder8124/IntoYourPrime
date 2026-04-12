@@ -61,7 +61,6 @@ function loadMyData(): { calories: number; streakDays: number; sessionCompleted:
 // ── Avatar renderer ────────────────────────────────────────────────────────
 
 function PIAvatar({ avatar }: { avatar: AvatarState }) {
-  const glow    = Math.round(avatar.aura_glow    * 255)
   const density = Math.round(avatar.muscle_mass  * 255)
   const prime   = avatar.state_label === 'The Prime'
 

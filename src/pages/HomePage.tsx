@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Flame } from 'lucide-react'
 import { hasApiKey } from '../lib/formAnalysis'
+import { PoseSkeletonDecor } from '../components/PoseSkeletonDecor'
 import {
   getActivityFeed,
   getRecentLogs,
@@ -67,7 +68,7 @@ export function HomePage() {
 
   const [loading, setLoading] = useState(true)
   const [apiKeyInput, setApiKeyInput] = useState('')
-  const [apiKeySet, setApiKeySet] = useState(hasApiKey)
+  const [apiKeySet] = useState(hasApiKey)
   const [showKeyInput, setShowKeyInput] = useState(false)
   const [sessions, setSessions] = useState<Session[]>([])
   const [streak, setStreak] = useState(0)
@@ -191,9 +192,9 @@ export function HomePage() {
       <div className="mx-auto max-w-lg px-5">
 
         {/* ── Hero ── */}
-        <header className="pt-12 pb-2">
+        <header className="relative pt-12 pb-2">
           <p className="text-[15px] text-gray-400">{timeGreeting()}</p>
-          <h1 className="mt-1 text-6xl font-black tracking-tight">{welcomeName}</h1>
+          <h1 className="mt-1 text-6xl font-black tracking-tight leading-none">{welcomeName}</h1>
 
           {/* Streak pill */}
           <div className="mt-5 inline-flex items-center gap-2.5 rounded-full px-5 py-2.5"
@@ -203,6 +204,12 @@ export function HomePage() {
               <span className="font-mono text-[18px] font-black">{streak}</span>
               <span className="ml-1.5 text-amber-300/70"> day streak</span>
             </span>
+          </div>
+
+          {/* Pose skeleton — absolutely positioned, doesn't affect text layout */}
+          <div className="absolute top-8 -right-6 opacity-70 rounded-2xl p-2"
+            style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.14)' }}>
+            <PoseSkeletonDecor size={110} />
           </div>
         </header>
 
