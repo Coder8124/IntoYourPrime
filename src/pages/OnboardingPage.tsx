@@ -44,10 +44,12 @@ export function OnboardingPage() {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (!isValid || submitting) return
-    localStorage.setItem('formAI_profile', JSON.stringify(form))
-    // Save to Firestore so profile reloads when signing in on another device/account
+    const profileJson = JSON.stringify(form)
+    localStorage.setItem('formAI_profile', profileJson)
+    // Also cache under uid so sign-in restores the profile without hitting Firestore
     const uid = auth.currentUser?.uid
     if (uid) {
+      localStorage.setItem(`formAI_profile_${uid}`, profileJson)
       upsertFullUserProfile(uid, {
         ...form,
         email: auth.currentUser?.email ?? '',

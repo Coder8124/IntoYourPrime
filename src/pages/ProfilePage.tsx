@@ -54,15 +54,17 @@ export function ProfilePage() {
   const handleSaveProfile = (e: FormEvent) => {
     e.preventDefault()
     const existing = JSON.parse(localStorage.getItem('formAI_profile') ?? '{}') as Record<string, unknown>
-    localStorage.setItem('formAI_profile', JSON.stringify({ ...existing, ...form }))
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
-    // Sync full profile to Firestore so it reloads correctly on account switch
+    const merged = JSON.stringify({ ...existing, ...form })
+    localStorage.setItem('formAI_profile', merged)
+    // Also cache under uid so sign-in restores the profile without hitting Firestore
     const uid   = auth.currentUser?.uid
     const email = auth.currentUser?.email ?? ''
     if (uid) {
+      localStorage.setItem(`formAI_profile_${uid}`, merged)
       upsertFullUserProfile(uid, { ...form, email }).catch(() => {})
     }
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
   }
 
   const handleSaveKey = () => {

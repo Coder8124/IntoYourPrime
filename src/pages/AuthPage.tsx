@@ -27,27 +27,39 @@ export function AuthPage() {
       if (mode === 'signup') {
         const cred = await createUserWithEmailAndPassword(auth, email, password)
         if (name.trim()) await updateProfile(cred.user, { displayName: name.trim() })
-        // Pre-fill profile with name from signup
         if (name.trim()) {
-          const existing = JSON.parse(localStorage.getItem('formAI_profile') ?? '{}') as Record<string, unknown>
-          localStorage.setItem('formAI_profile', JSON.stringify({ ...existing, name: name.trim() }))
+          const stub = { name: name.trim() }
+          localStorage.setItem('formAI_profile', JSON.stringify(stub))
+          localStorage.setItem(`formAI_profile_${cred.user.uid}`, JSON.stringify(stub))
         }
         await upsertUserDisplayName(cred.user.uid, name.trim() || email, email)
         navigate('/onboarding', { replace: true })
       } else {
         const cred = await signInWithEmailAndPassword(auth, email, password)
-        // Try to reload this user's profile from Firestore — covers account switching
+        const uid = cred.user.uid
+
+        // 1. Check uid-keyed localStorage cache first (works offline, instant)
+        const cached = localStorage.getItem(`formAI_profile_${uid}`)
+        if (cached) {
+          localStorage.setItem('formAI_profile', cached)
+          navigate('/home', { replace: true })
+          return
+        }
+
+        // 2. Try Firestore (covers signing in on a new device)
         try {
-          const firestoreProfile = await getUserProfile(cred.user.uid)
-          if (firestoreProfile && firestoreProfile.age) {
-            // Returning user with a saved profile — restore it to localStorage
-            localStorage.setItem('formAI_profile', JSON.stringify(firestoreProfileToLocal(firestoreProfile)))
+          const fp = await getUserProfile(uid)
+          if (fp?.displayName) {
+            const local = JSON.stringify(firestoreProfileToLocal(fp))
+            localStorage.setItem('formAI_profile', local)
+            localStorage.setItem(`formAI_profile_${uid}`, local)
             navigate('/home', { replace: true })
             return
           }
-        } catch { /* offline — fall through to localStorage check */ }
-        const hasProfile = Boolean(localStorage.getItem('formAI_profile'))
-        navigate(hasProfile ? '/home' : '/onboarding', { replace: true })
+        } catch { /* offline */ }
+
+        // 3. New user — go to onboarding
+        navigate('/onboarding', { replace: true })
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Authentication failed'
