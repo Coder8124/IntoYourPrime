@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useWorkoutStore, type SuggestionEntry, type WorkoutPhase } from '../stores/workoutStore'
 import { saveSession, updateStreak, postActivityItem } from '../lib/firebaseHelpers'
 import { getOrSignInUserId } from '../lib/firestoreUser'
+import { getOrCreateLocalUserId } from '../lib/localUserId'
 import type { CooldownExercise } from '../types/index'
 
 const LAST_SESSION_KEY = 'formAI_lastSession'
@@ -214,7 +215,11 @@ export function SessionSummaryPage() {
 
     ;(async () => {
       try {
-        const userId = await getOrSignInUserId()
+        const localId = getOrCreateLocalUserId()
+        const userId = await Promise.race([
+          getOrSignInUserId(),
+          new Promise<string>(resolve => setTimeout(() => resolve(localId), 3000)),
+        ])
         const today = new Date().toISOString().slice(0, 10)
 
         const sessionId = await saveSession({
