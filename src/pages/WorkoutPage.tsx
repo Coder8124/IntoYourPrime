@@ -280,7 +280,7 @@ export function WorkoutPage() {
           exercise:    exerciseRef.current,
           repCount:    repCountRef.current,
           userProfile,
-          phase,
+          phase: (phase === 'warmup' ? 'warmup' : 'main'),
         })
         updateAnalysis(result)
       } finally {

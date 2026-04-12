@@ -1,9 +1,8 @@
 import { create } from 'zustand'
-import type { FormAnalysisResult } from '../types/index'
+import type { FormAnalysisResult, WorkoutPhase } from '../types/index'
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
-export type WorkoutPhase = 'warmup' | 'main'
+// Re-export so existing imports from this module keep working
+export type { WorkoutPhase }
 
 export interface SuggestionEntry {
   text:      string
@@ -33,7 +32,7 @@ interface WorkoutState {
 // ── Initial state ──────────────────────────────────────────────────────────
 
 const INITIAL: Omit<WorkoutState, 'setPhase' | 'setExercise' | 'addRep' | 'updateAnalysis' | 'setWarmupScore' | 'resetSession'> = {
-  phase:            'warmup',
+  phase:            'warmup' as WorkoutPhase,
   currentExercise:  'squat',
   repCounts:        {},
   riskScores:       [],

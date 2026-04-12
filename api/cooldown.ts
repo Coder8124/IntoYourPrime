@@ -41,10 +41,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                      `Return a JSON array of 4-6 cooldown exercises targeting the muscles used:\n` +
                      `[{\n` +
                      `  "name": string,\n` +
-                     `  "duration": number (seconds),\n` +
+                     `  "durationSeconds": number,\n` +
                      `  "targetMuscles": string[],\n` +
-                     `  "instructions": string (1-2 sentences),\n` +
-                     `  "priority": "high" | "medium" | "low"\n` +
+                     `  "instruction": string (1-2 sentences)\n` +
                      `}]`,
           },
         ],
