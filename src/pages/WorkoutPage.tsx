@@ -350,6 +350,7 @@ export function WorkoutPage() {
   const lastSpokenRef       = useRef(0)
   const aiRiskRef           = useRef<number | null>(null)
   const referenceFrameRef   = useRef<string | null>(null)   // reference photo for AI person tracking
+  const isTrackingRef       = useRef(false)
 
   // ── Store ──────────────────────────────────────────────────────────────
   const {
@@ -578,6 +579,9 @@ export function WorkoutPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // ── Keep isTrackingRef in sync so API interval doesn't need it as a dep ─
+  useEffect(() => { isTrackingRef.current = isTracking }, [isTracking])
+
   // ── Live risk from pose landmarks (runs every frame) ──────────────────
   useEffect(() => {
     if (!landmarks || !isTracking) return
@@ -601,7 +605,7 @@ export function WorkoutPage() {
   useEffect(() => {
     if (!hasApiKey()) return
     const callApi = async () => {
-      if (!isTracking || analyzingRef.current) return
+      if (!isTrackingRef.current || analyzingRef.current) return
       const frames = getBestFrames(3, exerciseRef.current)
       if (!frames.length) return
       analyzingRef.current = true
@@ -633,7 +637,7 @@ export function WorkoutPage() {
     const interval   = setInterval(callApi, 15_000)
     return () => { clearTimeout(firstTimer); clearInterval(interval) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTracking, getBestFrames])
+  }, [getBestFrames])
 
   // ── Derived ────────────────────────────────────────────────────────────
   // Smooth over last 8 frames to reduce jitter
