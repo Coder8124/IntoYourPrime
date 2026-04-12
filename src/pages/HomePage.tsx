@@ -177,7 +177,7 @@ export function HomePage() {
               <button
                 type="button"
                 onClick={() => setShowKeyInput(v => !v)}
-                className="shrink-0 rounded-lg px-3 py-1.5 text-[12px] font-bold text-amber-300 border border-amber-500/30 hover:border-amber-400/50 transition-colors"
+                className="shrink-0 rounded-xl px-5 py-2.5 text-[14px] font-bold text-amber-300 border border-amber-500/40 hover:border-amber-400/70 hover:bg-amber-500/10 transition-colors"
               >
                 {showKeyInput ? 'Cancel' : 'Add key'}
               </button>

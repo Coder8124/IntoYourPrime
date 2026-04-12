@@ -102,7 +102,7 @@ export function OnboardingPage() {
                 value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
                 placeholder="sk-proj-…"
-                className="input-dark font-mono text-[13px]"
+                className="input-dark font-mono text-[15px] py-4"
                 autoComplete="off"
                 spellCheck={false}
                 autoFocus
@@ -116,14 +116,15 @@ export function OnboardingPage() {
               type="button"
               onClick={handleSaveKey}
               disabled={!apiKey.trim()}
-              className="w-full py-[14px] rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[15px] text-white transition-colors"
+              className="w-full py-5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[17px] text-white transition-colors"
+              style={{ boxShadow: '0 0 32px rgba(59,130,246,0.35)' }}
             >
               Save Key &amp; Start →
             </button>
             <button
               type="button"
               onClick={handleSkipKey}
-              className="w-full text-[13px] text-gray-600 hover:text-gray-400 transition-colors"
+              className="w-full py-3 rounded-xl border border-[#2e2e3e] text-[14px] font-semibold text-gray-500 hover:text-gray-300 hover:border-gray-500 transition-colors"
             >
               Skip — use basic mode
             </button>
