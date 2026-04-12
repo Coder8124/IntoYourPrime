@@ -1,8 +1,8 @@
-# IntoYourPrime — AI Workout Coach
+# IntoYourPrime — Your Personal AI Workout Guide
 
-## What FormAI Does
+## What IYP Does
 
-FormAI uses your device camera and MediaPipe pose estimation to track your body in real time, then sends the best frames to GPT-4o Vision for instant form analysis and injury-risk scoring. It coaches you through warmup, main workout, and cooldown phases — giving you rep counts, safety alerts, and personalized recovery insights powered by Claude — all without any wearables or equipment.
+IYP uses your device camera and MediaPipe pose estimation to track your body in real time, then sends the best frames to GPT-4o Vision for instant form analysis and injury-risk scoring. It coaches you through warmup, main workout, and cooldown phases — giving you rep counts, safety alerts, and personalized recovery insights powered by Claude — all without any wearables or equipment.
 
 ## Tech Stack
 
