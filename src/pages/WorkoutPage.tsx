@@ -5,6 +5,111 @@ import { useRepCounter } from '../hooks/useRepCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
 import { analyzeForm } from '../lib/formAnalysis'
 
+// ── Risk calculation from pose landmarks ──────────────────────────────────
+
+interface Lm { x: number; y: number; visibility?: number }
+
+function vis(lm: Lm, t = 0.5) { return (lm.visibility ?? 0) >= t }
+
+/** Perpendicular distance from point P to line AB (normalized coords). */
+function pointToLineDist(ax: number, ay: number, bx: number, by: number, px: number, py: number): number {
+  const dx = bx - ax, dy = by - ay
+  const len = Math.sqrt(dx * dx + dy * dy)
+  if (len === 0) return 0
+  return Math.abs(dy * px - dx * py + bx * ay - by * ax) / len
+}
+
+/** Smooth a raw score into 0-100 using a soft curve so minor deviations don't spike. */
+function scale(raw: number, maxAt: number): number {
+  return Math.min(100, Math.round((raw / maxAt) * 100))
+}
+
+export function computePoseRisk(landmarks: Lm[], exercise: string): number {
+  if (landmarks.length < 29) return 0
+
+  const lSh = landmarks[11], rSh = landmarks[12]
+  const lEl = landmarks[13], rEl = landmarks[14]
+  const lWr = landmarks[15], rWr = landmarks[16]
+  const lHip = landmarks[23], rHip = landmarks[24]
+  const lKn = landmarks[25], rKn = landmarks[26]
+  const lAn = landmarks[27], rAn = landmarks[28]
+  const ex = exercise.toLowerCase()
+
+  // ── Pushup: body must be a straight plank ──────────────────────────────
+  if (ex === 'pushup') {
+    if (!vis(lSh) || !vis(lHip) || !vis(lAn)) return 0
+    const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
+    const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
+    const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
+    // How far does the hip deviate from the shoulder-ankle line?
+    const dev = pointToLineDist(shX, shY, anX, anY, hipX, hipY)
+    // Also check elbow asymmetry (one arm collapsing)
+    let elbowAsym = 0
+    if (vis(lEl) && vis(rEl)) {
+      elbowAsym = Math.abs(lEl.y - rEl.y) * 40
+    }
+    return Math.min(100, scale(dev, 0.12) + Math.round(elbowAsym))
+  }
+
+  // ── Squat: knee-over-ankle tracking + depth ────────────────────────────
+  if (ex === 'squat') {
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    // Knee valgus: knee x should stay close to ankle x
+    const lValgus = Math.abs(lKn.x - lAn.x)
+    const rValgus = Math.abs(rKn.x - rAn.x)
+    const valgusRisk = scale(Math.max(lValgus, rValgus), 0.12)
+    // Forward lean: hip should not be far behind ankles
+    let leanRisk = 0
+    if (vis(lSh) && vis(lHip)) {
+      const hipX = (lHip.x + rHip.x) / 2
+      const anX  = (lAn.x + rAn.x) / 2
+      leanRisk = scale(Math.abs(hipX - anX), 0.18)
+    }
+    return Math.min(100, Math.round(valgusRisk * 0.6 + leanRisk * 0.4))
+  }
+
+  // ── Deadlift: flat back (shoulder over hip, no rounding) ───────────────
+  if (ex === 'deadlift') {
+    if (!vis(lSh) || !vis(lHip)) return 0
+    const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
+    const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
+    const verticalDist = Math.abs(shY - hipY)
+    if (verticalDist < 0.05) return 0 // standing upright, no hinge yet
+    // How much does the shoulder drift forward vs the hip?
+    const horizontalDrift = Math.abs(shX - hipX) / verticalDist
+    return scale(horizontalDrift, 0.5)
+  }
+
+  // ── Lunge: front knee over ankle, torso upright ────────────────────────
+  if (ex === 'lunge') {
+    if (!vis(lKn) || !vis(lAn)) return 0
+    const kneeForward = Math.max(0, lKn.x - lAn.x) // knee past toes
+    const kneeCave    = Math.abs(lKn.y - lAn.y) * 0.5
+    let torsoRisk = 0
+    if (vis(lSh) && vis(lHip)) {
+      torsoRisk = scale(Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2), 0.15)
+    }
+    return Math.min(100, scale(kneeForward, 0.08) + Math.round(kneeCave * 100) + Math.round(torsoRisk * 0.4))
+  }
+
+  // ── Shoulder press: no lower-back arch, elbow symmetry ─────────────────
+  if (ex === 'shoulderpress') {
+    if (!vis(lSh) || !vis(lHip)) return 0
+    // Lean-back: shoulder x should be roughly over hip x
+    const shX  = (lSh.x + rSh.x) / 2
+    const hipX = (lHip.x + rHip.x) / 2
+    const leanBack = scale(Math.abs(shX - hipX), 0.12)
+    // Elbow asymmetry
+    let elbowAsym = 0
+    if (vis(lEl) && vis(rEl) && vis(lWr) && vis(rWr)) {
+      elbowAsym = Math.round(Math.abs(lEl.y - rEl.y) * 200)
+    }
+    return Math.min(100, leanBack + elbowAsym)
+  }
+
+  return 0
+}
+
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress'] as const
@@ -196,8 +301,8 @@ export function WorkoutPage() {
   // ── Store ──────────────────────────────────────────────────────────────
   const {
     phase, currentExercise, repCounts,
-    riskScores, suggestions, safetyConcerns, warmupScore, sessionStartTime,
-    setPhase, setExercise, addRep, updateAnalysis, setWarmupScore, resetSession,
+    riskScores, liveRisk, suggestions, safetyConcerns, warmupScore, sessionStartTime,
+    setPhase, setExercise, addRep, updateAnalysis, setLiveRisk, setWarmupScore, resetSession,
   } = useWorkoutStore()
 
   // ── Local UI state ─────────────────────────────────────────────────────
@@ -297,6 +402,13 @@ export function WorkoutPage() {
     }
   }, [suggestions, voiceMuted])
 
+  // ── Live risk from pose landmarks (runs every frame, no API needed) ────
+  useEffect(() => {
+    if (!landmarks || !isTracking) return
+    const score = computePoseRisk(landmarks, exerciseRef.current)
+    setLiveRisk(score)
+  }, [landmarks, isTracking, setLiveRisk])
+
   // ── Auto-fire warmup modal at 60 s (once per session) ────────────────
   useEffect(() => {
     if (phase !== 'warmup' || showModal || warmupModalFiredRef.current) return
@@ -369,7 +481,7 @@ export function WorkoutPage() {
   }, [isTracking, phase, getBestFrames, updateAnalysis, userProfile])
 
   // ── Derived ────────────────────────────────────────────────────────────
-  const latestRisk        = riskScores.length ? riskScores[riskScores.length - 1] : 0
+  const latestRisk        = liveRisk
   const latestSuggestions = suggestions.slice(0, 3)
   const totalReps         = Object.values(repCounts).reduce((a, b) => a + b, 0)
 

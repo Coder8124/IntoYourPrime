@@ -15,6 +15,7 @@ interface WorkoutState {
   currentExercise:  string
   repCounts:        Record<string, number>
   riskScores:       number[]
+  liveRisk:         number
   suggestions:      SuggestionEntry[]
   safetyConcerns:   string[]
   warmupScore:      number | null
@@ -27,6 +28,7 @@ interface WorkoutState {
   setExercise:          (exercise: string) => void
   addRep:               (exercise: string) => void
   updateAnalysis:       (result: FormAnalysisResult) => void
+  setLiveRisk:          (score: number) => void
   setWarmupScore:       (score: number) => void
   setCooldownExercises: (exercises: CooldownExercise[]) => void
   resetSession:         () => void
@@ -34,11 +36,12 @@ interface WorkoutState {
 
 // ── Initial state ──────────────────────────────────────────────────────────
 
-const INITIAL: Omit<WorkoutState, 'setPhase' | 'setExercise' | 'addRep' | 'updateAnalysis' | 'setWarmupScore' | 'setCooldownExercises' | 'resetSession'> = {
+const INITIAL: Omit<WorkoutState, 'setPhase' | 'setExercise' | 'addRep' | 'updateAnalysis' | 'setLiveRisk' | 'setWarmupScore' | 'setCooldownExercises' | 'resetSession'> = {
   phase:             'warmup' as WorkoutPhase,
   currentExercise:   'squat',
   repCounts:         {},
   riskScores:        [],
+  liveRisk:          0,
   suggestions:       [],
   safetyConcerns:    [],
   warmupScore:       null,
@@ -74,6 +77,8 @@ export const useWorkoutStore = create<WorkoutState>()((set) => ({
     ].slice(0, 10),
     safetyConcerns: result.safetyConcerns,
   })),
+
+  setLiveRisk: (score) => set({ liveRisk: score }),
 
   setWarmupScore: (score) => set({ warmupScore: score }),
 
