@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
+import { analyzeForm } from '../lib/formAnalysis'
 
 // ── Alignment-based risk (no angle math — just body segment deviation) ─────
 
@@ -241,6 +242,8 @@ export function WorkoutPage() {
   const phaseRef            = useRef<string>('warmup')
   const demoSugIdxRef       = useRef(0)
   const lastSpokenRef       = useRef(0)
+  const aiRiskRef           = useRef<number | null>(null)   // latest AI risk score
+  const analyzingRef        = useRef(false)
 
   // ── Store ──────────────────────────────────────────────────────────────
   const {
@@ -260,7 +263,7 @@ export function WorkoutPage() {
   const {
     landmarks, isTracking,
     isLoading: cameraLoading, error: cameraError,
-    startCamera, stopCamera,
+    getBestFrames, startCamera, stopCamera,
   } = usePoseDetection(videoRef, canvasRef)
 
   // ── Rep counter hook ───────────────────────────────────────────────────
@@ -362,15 +365,19 @@ export function WorkoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Live risk from pose landmarks ─────────────────────────────────────
+  // ── Live risk from pose landmarks (runs every frame) ─────────────────
   useEffect(() => {
     if (!landmarks || !isTracking) return
-    const score = computeAlignmentRisk(landmarks, exerciseRef.current)
-    // patch only the riskScore without overwriting suggestions
+    const localScore = computeAlignmentRisk(landmarks, exerciseRef.current)
+    // Blend: 60% AI risk if fresh, 40% local — otherwise 100% local
+    const aiScore = aiRiskRef.current
+    const blended = aiScore !== null
+      ? Math.round(aiScore * 0.6 + localScore * 0.4)
+      : localScore
     updateAnalysis({
-      riskScore:        score,
+      riskScore:        blended,
       suggestions:      [],
-      safetyConcerns:   score >= 70 ? ['High injury risk — check your form'] : [],
+      safetyConcerns:   blended >= 70 ? ['High injury risk — check your form'] : [],
       repCountEstimate: 0,
       dominantIssue:    null,
       warmupQuality:    null,
@@ -378,6 +385,29 @@ export function WorkoutPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landmarks, isTracking])
 
+  // ── API risk call every 30 s ──────────────────────────────────────────
+  useEffect(() => {
+    const id = setInterval(async () => {
+      if (!isTracking || analyzingRef.current) return
+      const frames = getBestFrames(2)
+      if (!frames.length) return
+      analyzingRef.current = true
+      try {
+        const result = await analyzeForm({
+          frames,
+          exercise:    exerciseRef.current,
+          userProfile: { age: 25, weight: 70, fitnessLevel: 'intermediate' },
+          phase:       phaseRef.current === 'warmup' ? 'warmup' : 'main',
+        })
+        aiRiskRef.current = result.riskScore
+      } catch {
+        // keep using local score if API fails
+      } finally {
+        analyzingRef.current = false
+      }
+    }, 30_000)
+    return () => clearInterval(id)
+  }, [isTracking, getBestFrames])
 
   // ── Derived ────────────────────────────────────────────────────────────
   // Smooth over last 8 frames to avoid jitter
