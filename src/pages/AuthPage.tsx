@@ -6,6 +6,7 @@ import {
   updateProfile,
 } from 'firebase/auth'
 import { auth } from '../lib/firebase'
+import { upsertUserDisplayName } from '../lib/firebaseHelpers'
 
 type Mode = 'signin' | 'signup'
 
@@ -31,6 +32,8 @@ export function AuthPage() {
           const existing = JSON.parse(localStorage.getItem('formAI_profile') ?? '{}') as Record<string, unknown>
           localStorage.setItem('formAI_profile', JSON.stringify({ ...existing, name: name.trim() }))
         }
+        // Write to Firestore so this user is discoverable by friends search
+        await upsertUserDisplayName(cred.user.uid, name.trim() || email, email)
       } else {
         await signInWithEmailAndPassword(auth, email, password)
       }

@@ -1,4 +1,8 @@
+import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
+import { onAuthStateChanged } from 'firebase/auth'
+import { auth } from './lib/firebase'
+import { upsertUserDisplayName } from './lib/firebaseHelpers'
 import { RootRedirect } from './components/RootRedirect'
 import { AuthPage } from './pages/AuthPage'
 import { OnboardingPage } from './pages/OnboardingPage'
@@ -12,6 +16,21 @@ import { ProfilePage } from './pages/ProfilePage'
 import { FriendsPage } from './pages/FriendsPage'
 
 export default function App() {
+  // Sync displayName to Firestore for any signed-in user (including existing accounts)
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (!user) return
+      const profile = JSON.parse(localStorage.getItem('formAI_profile') ?? '{}') as Record<string, unknown>
+      const name = (typeof profile.name === 'string' && profile.name.trim())
+        ? profile.name.trim()
+        : user.displayName ?? user.email ?? ''
+      if (name) {
+        upsertUserDisplayName(user.uid, name, user.email ?? '').catch(() => {})
+      }
+    })
+    return unsub
+  }, [])
+
   return (
     <Routes>
       <Route path="/" element={<RootRedirect />} />

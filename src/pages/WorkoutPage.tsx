@@ -483,12 +483,9 @@ export function WorkoutPage() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (
-        e.code === 'Space' &&
-        phaseRef.current === 'main' &&
-        !(e.target instanceof HTMLInputElement) &&
-        !(e.target instanceof HTMLSelectElement)
-      ) {
+      const isTyping = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement
+      if (phaseRef.current !== 'main' || isTyping) return
+      if (e.code === 'Space' || e.key === 's' || e.key === 'S') {
         e.preventDefault()
         handleNewSet()
       }
@@ -632,8 +629,8 @@ export function WorkoutPage() {
         analyzingRef.current = false
       }
     }
-    const firstTimer = setTimeout(callApi, 8_000)
-    const interval   = setInterval(callApi, 30_000)
+    const firstTimer = setTimeout(callApi, 5_000)
+    const interval   = setInterval(callApi, 15_000)
     return () => { clearTimeout(firstTimer); clearInterval(interval) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTracking, getBestFrames])
@@ -1010,7 +1007,7 @@ export function WorkoutPage() {
                   ))}
                 </div>
               )}
-              <p className="mt-2 text-[10px] text-gray-700">Space to start new set</p>
+              <p className="mt-2 text-[10px] text-gray-700">Press <kbd className="px-1 rounded bg-white/10 font-mono">S</kbd> or <kbd className="px-1 rounded bg-white/10 font-mono">Space</kbd></p>
             </div>
 
             {/* Phase badge */}

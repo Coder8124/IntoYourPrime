@@ -96,22 +96,24 @@ function calcAngle(
 }
 
 /**
- * Average elbow angle (shoulder→elbow→wrist) across visible arms.
+ * Average shoulder angle (hip→shoulder→elbow) across visible sides.
+ * At the top of a pushup (arms extended) this is large (~160–170°).
+ * At the bottom (chest near floor) the elbow swings back and the angle shrinks (~70–100°).
  * Returns a value in degrees [0, 180].
  */
-function getPushupElbowAngle(
+function getPushupShoulderAngle(
   landmarks: NormalizedLandmark[],
 ): { value: number; confidence: number } | null {
-  const lSh = landmarks[LM.LEFT_SHOULDER],  lEl = landmarks[LM.LEFT_ELBOW],  lWr = landmarks[LM.LEFT_WRIST]
-  const rSh = landmarks[LM.RIGHT_SHOULDER], rEl = landmarks[LM.RIGHT_ELBOW], rWr = landmarks[LM.RIGHT_WRIST]
+  const lHip = landmarks[LM.LEFT_HIP],  lSh = landmarks[LM.LEFT_SHOULDER],  lEl = landmarks[LM.LEFT_ELBOW]
+  const rHip = landmarks[LM.RIGHT_HIP], rSh = landmarks[LM.RIGHT_SHOULDER], rEl = landmarks[LM.RIGHT_ELBOW]
 
-  const lConf = Math.min(lSh?.visibility ?? 0, lEl?.visibility ?? 0, lWr?.visibility ?? 0)
-  const rConf = Math.min(rSh?.visibility ?? 0, rEl?.visibility ?? 0, rWr?.visibility ?? 0)
+  const lConf = Math.min(lHip?.visibility ?? 0, lSh?.visibility ?? 0, lEl?.visibility ?? 0)
+  const rConf = Math.min(rHip?.visibility ?? 0, rSh?.visibility ?? 0, rEl?.visibility ?? 0)
 
   const angles: number[] = []
   const confs:  number[] = []
-  if (lConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(lSh, lEl, lWr)); confs.push(lConf) }
-  if (rConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(rSh, rEl, rWr)); confs.push(rConf) }
+  if (lConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(lHip, lSh, lEl)); confs.push(lConf) }
+  if (rConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(rHip, rSh, rEl)); confs.push(rConf) }
   if (angles.length === 0) return null
 
   const n = angles.length
@@ -132,6 +134,59 @@ function getJointY(
   const confA = a.visibility ?? 0
   const confB = b.visibility ?? 0
   return { y: (a.y + b.y) / 2, confidence: (confA + confB) / 2 }
+}
+
+/**
+ * Average elbow angle (shoulder→elbow→wrist) across visible arms.
+ * Extended arm ≈ 160–170°, fully curled ≈ 40–60°.
+ */
+function getElbowAngle(
+  landmarks: NormalizedLandmark[],
+): { value: number; confidence: number } | null {
+  const lSh = landmarks[LM.LEFT_SHOULDER],  lEl = landmarks[LM.LEFT_ELBOW],  lWr = landmarks[LM.LEFT_WRIST]
+  const rSh = landmarks[LM.RIGHT_SHOULDER], rEl = landmarks[LM.RIGHT_ELBOW], rWr = landmarks[LM.RIGHT_WRIST]
+
+  const lConf = Math.min(lSh?.visibility ?? 0, lEl?.visibility ?? 0, lWr?.visibility ?? 0)
+  const rConf = Math.min(rSh?.visibility ?? 0, rEl?.visibility ?? 0, rWr?.visibility ?? 0)
+
+  const angles: number[] = []
+  const confs:  number[] = []
+  if (lConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(lSh, lEl, lWr)); confs.push(lConf) }
+  if (rConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(rSh, rEl, rWr)); confs.push(rConf) }
+  if (angles.length === 0) return null
+
+  const n = angles.length
+  return {
+    value:      angles.reduce((s, v) => s + v, 0) / n,
+    confidence: confs.reduce((s, v) => s + v, 0) / n,
+  }
+}
+
+/**
+ * Curl-up signal: average of (hipY - shoulderY) across visible sides.
+ * When flat on the floor: ~0. When curled up: positive (shoulder rises above hip).
+ * Camera-position independent — no absolute Y needed.
+ */
+function getCurlupSignal(
+  landmarks: NormalizedLandmark[],
+): { value: number; confidence: number } | null {
+  const lSh  = landmarks[LM.LEFT_SHOULDER],  lHip = landmarks[LM.LEFT_HIP]
+  const rSh  = landmarks[LM.RIGHT_SHOULDER], rHip = landmarks[LM.RIGHT_HIP]
+
+  const lConf = Math.min(lSh?.visibility ?? 0, lHip?.visibility ?? 0)
+  const rConf = Math.min(rSh?.visibility ?? 0, rHip?.visibility ?? 0)
+
+  const diffs: number[] = []
+  const confs: number[] = []
+  if (lConf >= CONFIDENCE_THRESH) { diffs.push(lHip.y - lSh.y); confs.push(lConf) }
+  if (rConf >= CONFIDENCE_THRESH) { diffs.push(rHip.y - rSh.y); confs.push(rConf) }
+  if (diffs.length === 0) return null
+
+  const n = diffs.length
+  return {
+    value:      diffs.reduce((s, v) => s + v, 0) / n,
+    confidence: confs.reduce((s, v) => s + v, 0) / n,
+  }
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
@@ -215,16 +270,33 @@ export function useRepCounter(
     lastLandmarkTs.current = now
     isPaused.current = false
 
-    // ── Pushups: use elbow angle instead of shoulder Y-position ───────────
-    // Invert so that bent arms (low angle) → high normalised (= "down")
+    // ── Per-exercise signal selection ─────────────────────────────────────
     let rawSignal: number
     let invertSignal = false
 
     if (exerciseKey === 'pushup') {
-      const angleResult = getPushupElbowAngle(landmarks)
+      // hip→shoulder→elbow angle. Large = arms extended (top), small = chest down.
+      // Invert so small angle → high normalised → "down" phase.
+      const angleResult = getPushupShoulderAngle(landmarks)
       if (!angleResult || angleResult.confidence < CONFIDENCE_THRESH) return
       rawSignal    = angleResult.value
       invertSignal = true
+    } else if (exerciseKey === 'bicepcurl') {
+      // Elbow angle: extended (~160°) = bottom, contracted (~40°) = top.
+      // No inversion: large angle → high normalised → "down"; small → "up".
+      // Rep counted on down→up (completing the curl).
+      const result = getElbowAngle(landmarks)
+      if (!result || result.confidence < CONFIDENCE_THRESH) return
+      rawSignal    = result.value
+      invertSignal = false
+    } else if (exerciseKey === 'curlup') {
+      // hipY − shoulderY. Near-zero when flat, positive when curled up.
+      // No inversion: high value = curled up = "up" phase naturally maps to low normalised.
+      // Actually: high diff = "up" position, so we invert so that "up" → low normalised.
+      const result = getCurlupSignal(landmarks)
+      if (!result || result.confidence < CONFIDENCE_THRESH) return
+      rawSignal    = result.value
+      invertSignal = true   // large diff (curled) → low normalised → "up" phase
     } else {
       const joint = getJointY(landmarks, config.joints[0], config.joints[1])
       if (!joint || joint.confidence < CONFIDENCE_THRESH) return

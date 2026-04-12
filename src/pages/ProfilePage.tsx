@@ -2,6 +2,8 @@ import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { hasApiKey } from '../lib/formAnalysis'
 import { signOutUser } from '../lib/firestoreUser'
+import { upsertUserDisplayName } from '../lib/firebaseHelpers'
+import { auth } from '../lib/firebase'
 
 interface ProfileForm {
   name:         string
@@ -46,6 +48,12 @@ export function ProfilePage() {
     localStorage.setItem('formAI_profile', JSON.stringify({ ...existing, ...form }))
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
+    // Keep Firestore displayName in sync so friends search works
+    const uid = auth.currentUser?.uid
+    const email = auth.currentUser?.email ?? ''
+    if (uid && form.name.trim()) {
+      upsertUserDisplayName(uid, form.name.trim(), email).catch(() => {})
+    }
   }
 
   const handleSaveKey = () => {
