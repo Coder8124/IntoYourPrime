@@ -3,10 +3,60 @@ import { useNavigate } from 'react-router-dom'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
+
+// ── Alignment-based risk (no angle math — just body segment deviation) ─────
+
+interface Lm { x: number; y: number; visibility?: number }
+
+function vis(lm: Lm, t = 0.5) { return (lm.visibility ?? 0) >= t }
+
+function ptLineDist(ax: number, ay: number, bx: number, by: number, px: number, py: number) {
+  const dx = bx - ax, dy = by - ay
+  const len = Math.sqrt(dx * dx + dy * dy)
+  return len === 0 ? 0 : Math.abs(dy * px - dx * py + bx * ay - by * ax) / len
+}
+
+function computeAlignmentRisk(lms: Lm[], exercise: string): number {
+  if (lms.length < 29) return 0
+  const lSh = lms[11], rSh = lms[12], lHip = lms[23], rHip = lms[24]
+  const lKn = lms[25], rKn = lms[26], lAn = lms[27], rAn = lms[28]
+  const ex = exercise.toLowerCase()
+
+  if (ex === 'pushup') {
+    if (!vis(lSh) || !vis(lHip) || !vis(lAn)) return 0
+    const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
+    const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
+    const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
+    const dev = ptLineDist(shX, shY, anX, anY, hipX, hipY)
+    return Math.min(100, Math.round(dev * 700))
+  }
+  if (ex === 'squat') {
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    const valgus = Math.max(Math.abs(lKn.x - lAn.x), Math.abs(rKn.x - rAn.x))
+    return Math.min(100, Math.round(valgus * 500))
+  }
+  if (ex === 'deadlift') {
+    if (!vis(lSh) || !vis(lHip)) return 0
+    const vertDist = Math.abs((lSh.y + rSh.y) / 2 - (lHip.y + rHip.y) / 2)
+    if (vertDist < 0.05) return 0
+    const horizDrift = Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) / vertDist
+    return Math.min(100, Math.round(horizDrift * 120))
+  }
+  if (ex === 'lunge') {
+    if (!vis(lKn) || !vis(lAn)) return 0
+    return Math.min(100, Math.round(Math.abs(lKn.x - lAn.x) * 500))
+  }
+  if (ex === 'shoulderpress') {
+    if (!vis(lSh) || !vis(lHip)) return 0
+    return Math.min(100, Math.round(Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) * 600))
+  }
+  return 0
+}
+
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress'] as const
-const DEMO_MODE = true  // rep counter and suggestions always use local logic
+const DEMO_MODE = true  // suggestions use local cues; risk from landmarks
 
 const DEMO_SUGGESTIONS = [
   'Keep your chest up and drive through your heels.',
@@ -290,37 +340,40 @@ export function WorkoutPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsed, phase, showModal])
 
-  // ── Demo mode — fake reps + suggestions + animated risk ───────────────
+  // ── Rotating coaching suggestions every 10 s ─────────────────────────
   useEffect(() => {
-    if (!DEMO_MODE) return
-
-    const repId = setInterval(() => {
-      addRep(exerciseRef.current)
-    }, 3000)
-
     const sugId = setInterval(() => {
       const idx = demoSugIdxRef.current % DEMO_SUGGESTIONS.length
       demoSugIdxRef.current++
-      const t = Date.now()
-      // Smoothly animate risk score 15-55 using a slow sine wave
-      const fakeRisk = Math.round(35 + Math.sin(t / 8000) * 20)
       updateAnalysis({
-        riskScore:        fakeRisk,
+        riskScore:        0,          // risk comes from landmarks below
         suggestions:      [DEMO_SUGGESTIONS[idx]],
         safetyConcerns:   [],
-        repCountEstimate: repCountRef.current,
+        repCountEstimate: 0,
         dominantIssue:    null,
         warmupQuality:    phaseRef.current === 'warmup' ? 74 : null,
       })
-    }, 8000)
+    }, 10000)
 
-    return () => {
-      clearInterval(repId)
-      clearInterval(sugId)
-    }
-    // stable zustand actions — intentionally no deps
+    return () => clearInterval(sugId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // ── Live risk from pose landmarks ─────────────────────────────────────
+  useEffect(() => {
+    if (!landmarks || !isTracking) return
+    const score = computeAlignmentRisk(landmarks, exerciseRef.current)
+    // patch only the riskScore without overwriting suggestions
+    updateAnalysis({
+      riskScore:        score,
+      suggestions:      [],
+      safetyConcerns:   score >= 70 ? ['High injury risk — check your form'] : [],
+      repCountEstimate: 0,
+      dominantIssue:    null,
+      warmupQuality:    null,
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [landmarks, isTracking])
 
 
   // ── Derived ────────────────────────────────────────────────────────────

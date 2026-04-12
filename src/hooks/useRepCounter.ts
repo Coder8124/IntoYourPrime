@@ -57,12 +57,13 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EMA_ALPHA         = 0.3   // smoothing factor
+const EMA_ALPHA         = 0.2   // more smoothing = less twitchy
 const CALIBRATION_MS    = 3000  // first 3 s used to calibrate range
-const DOWN_THRESHOLD    = 0.65  // fraction of range = "down"
-const UP_THRESHOLD      = 0.35  // fraction of range = "up"
-const DEBOUNCE_MS       = 800   // min ms between reps
-const CONFIDENCE_THRESH = 0.5   // min joint visibility to count
+const DOWN_THRESHOLD    = 0.70  // must go further down before "down" phase
+const UP_THRESHOLD      = 0.30  // must come further up before "up" phase
+const DEBOUNCE_MS       = 1200  // min ms between reps (was 800)
+const MIN_RANGE         = 0.06  // minimum movement range to count (was 0.02)
+const CONFIDENCE_THRESH = 0.6   // higher confidence required (was 0.5)
 const PAUSE_AFTER_MS    = 1000  // null-landmark gap before pausing
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -192,7 +193,7 @@ export function useRepCounter(
 
     // Guard: if range too small (person barely moving) skip
     const range = calibratedMax.current - calibratedMin.current
-    if (range < 0.02) return  // < 2% of frame height — effectively stationary
+    if (range < MIN_RANGE) return  // not enough movement to be a real rep
 
     // ── Normalise position within calibrated range (0 = top, 1 = bottom) ──
     const normalised = (y - calibratedMin.current) / range

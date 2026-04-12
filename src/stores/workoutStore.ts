@@ -62,18 +62,22 @@ export const useWorkoutStore = create<WorkoutState>()((set) => ({
     },
   })),
 
-  updateAnalysis: (result) => set((state) => ({
-    riskScores:    [...state.riskScores, result.riskScore],
-    // Prepend new suggestions so latest is first; cap at 10 total
-    suggestions: [
-      ...result.suggestions.map((text) => ({
-        text,
-        timestamp: Date.now(),
-      })),
-      ...state.suggestions,
-    ].slice(0, 10),
-    safetyConcerns: result.safetyConcerns,
-  })),
+  updateAnalysis: (result) => set((state) => {
+    const hasNewSuggestions = result.suggestions.length > 0
+    return {
+      riskScores: [...state.riskScores.slice(-50), result.riskScore],
+      // Only update suggestions when new ones arrive (not on every risk update)
+      suggestions: hasNewSuggestions
+        ? [
+            ...result.suggestions.map((text) => ({ text, timestamp: Date.now() })),
+            ...state.suggestions,
+          ].slice(0, 10)
+        : state.suggestions,
+      safetyConcerns: result.safetyConcerns.length > 0
+        ? result.safetyConcerns
+        : state.safetyConcerns,
+    }
+  }),
 
   setWarmupScore: (score) => set({ warmupScore: score }),
 
