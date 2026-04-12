@@ -65,14 +65,14 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EMA_ALPHA         = 0.2
-const CALIBRATION_MS    = 3000  // first 3 s used to calibrate range
-const DOWN_THRESHOLD    = 0.70
-const UP_THRESHOLD      = 0.30
-const DEBOUNCE_MS       = 1200  // min ms between reps
-const MIN_RANGE         = 0.06  // minimum movement range to count
-const CONFIDENCE_THRESH = 0.6
-const PAUSE_AFTER_MS    = 1000
+const EMA_ALPHA         = 0.2   // more smoothing = less twitchy
+const CALIBRATION_MS    = 1000  // first 1 s used to calibrate range
+const DOWN_THRESHOLD    = 0.70  // must go further down before "down" phase
+const UP_THRESHOLD      = 0.30  // must come further up before "up" phase
+const DEBOUNCE_MS       = 1200  // min ms between reps (was 800)
+const MIN_RANGE         = 0.06  // minimum movement range to count (was 0.02)
+const CONFIDENCE_THRESH = 0.6   // higher confidence required (was 0.5)
+const PAUSE_AFTER_MS    = 1000  // null-landmark gap before pausing
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -158,7 +158,8 @@ export function useRepCounter(
   const [repLog,           setRepLog]           = useState<RepLogEntry[]>([])
   const [isCalibrating,    setIsCalibrating]    = useState(true)
 
-  const repCountRef = useRef(0)
+  const repCountRef     = useRef(0)
+  const calibrateTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const reset = useCallback(() => {
     smoothedY.current      = null
@@ -175,6 +176,16 @@ export function useRepCounter(
     setLastRepTimestamp(null)
     setRepLog([])
     setIsCalibrating(true)
+    // Fallback: force calibration off after 2 s regardless of landmark confidence
+    if (calibrateTimer.current) clearTimeout(calibrateTimer.current)
+    calibrateTimer.current = setTimeout(() => setIsCalibrating(false), 2000)
+  }, [])
+
+  // Start the fallback timer on mount
+  useEffect(() => {
+    calibrateTimer.current = setTimeout(() => setIsCalibrating(false), 2000)
+    return () => { if (calibrateTimer.current) clearTimeout(calibrateTimer.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Reset when exercise changes

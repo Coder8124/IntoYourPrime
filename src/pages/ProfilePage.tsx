@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { hasApiKey } from '../lib/formAnalysis'
+import { signOutUser } from '../lib/firestoreUser'
 
 interface ProfileForm {
   name:         string
@@ -24,6 +25,7 @@ function loadProfile(): ProfileForm {
 }
 
 export function ProfilePage() {
+  const navigate = useNavigate()
   const [form,    setForm]    = useState<ProfileForm>(loadProfile)
   const [saved,   setSaved]   = useState(false)
 
@@ -47,12 +49,12 @@ export function ProfilePage() {
 
   const handleSaveKey = () => {
     const trimmed = apiKey.trim()
-    if (trimmed) localStorage.setItem('formAI_openai_key', trimmed)
-    else localStorage.removeItem('formAI_openai_key')
-    setKeyHasValue(trimmed.length > 0)
-    setApiKey('')
-    setKeySaved(true)
-    setTimeout(() => setKeySaved(false), 2500)
+    if (trimmed) {
+      localStorage.setItem('formAI_openai_key', trimmed)
+    } else {
+      localStorage.removeItem('formAI_openai_key')
+    }
+    window.location.reload()
   }
 
   const handleRemoveKey = () => {
@@ -165,6 +167,20 @@ export function ProfilePage() {
           <p className="text-[11px] text-gray-700 leading-relaxed">
             Key is stored only in this browser (localStorage) and sent directly to OpenAI. Never stored on any server.
           </p>
+        </div>
+
+        {/* Sign out */}
+        <div className="mt-8 border-t border-[#1e1e2e] pt-6">
+          <button
+            type="button"
+            onClick={async () => {
+              await signOutUser()
+              navigate('/auth', { replace: true })
+            }}
+            className="w-full rounded-xl border border-red-500/25 py-3 text-[13px] font-semibold text-red-400 transition hover:bg-red-500/10"
+          >
+            Sign out
+          </button>
         </div>
 
       </div>

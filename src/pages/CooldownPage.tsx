@@ -129,7 +129,7 @@ export function CooldownPage() {
                   strokeDasharray={2 * Math.PI * 28}
                   strokeDashoffset={2 * Math.PI * 28 * (1 - progress / 100)}
                   transform="rotate(-90 36 36)"
-                  style={{ transition: 'stroke-dashoffset 1s linear, stroke 0.3s ease' }}
+                  style={{ transition: running ? 'stroke-dashoffset 1s linear, stroke 0.3s ease' : 'stroke 0.3s ease' }}
                 />
                 <text x={36} y={40} textAnchor="middle" fill="white" fontSize={14} fontWeight={900} fontFamily="Inter,system-ui,sans-serif">
                   {fmt(timeLeft ?? exercise.durationSeconds)}

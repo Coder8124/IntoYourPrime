@@ -115,10 +115,26 @@ function riskLabel(score: number): string {
 // ── RiskGauge ──────────────────────────────────────────────────────────────
 
 function RiskGauge({ score }: { score: number }) {
+  const [display, setDisplay] = useState(score)
+
+  useEffect(() => {
+    let frame: number
+    const step = () => {
+      setDisplay(d => {
+        const diff = score - d
+        if (Math.abs(diff) < 0.5) return score
+        frame = requestAnimationFrame(step)
+        return d + diff * 0.12
+      })
+    }
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
+  }, [score])
+
   const R      = 40
   const circ   = 2 * Math.PI * R
-  const offset = circ * (1 - score / 100)
-  const color  = riskColor(score)
+  const offset = circ * (1 - display / 100)
+  const color  = riskColor(display)
 
   return (
     <div className="flex flex-col items-center gap-1">
@@ -135,7 +151,7 @@ function RiskGauge({ score }: { score: number }) {
           strokeDasharray={circ}
           strokeDashoffset={offset}
           transform="rotate(-90 52 52)"
-          style={{ transition: 'stroke-dashoffset 0.6s ease, stroke 0.4s ease' }}
+          style={{ transition: 'stroke 0.3s ease' }}
         />
         {/* Score number */}
         <text
@@ -145,9 +161,9 @@ function RiskGauge({ score }: { score: number }) {
           fontSize={20}
           fontWeight={900}
           fontFamily="Inter,system-ui,sans-serif"
-          style={{ transition: 'fill 0.4s ease' }}
+          style={{ transition: 'fill 0.3s ease' }}
         >
-          {score}
+          {Math.round(display)}
         </text>
         {/* Sub-label */}
         <text
@@ -268,6 +284,7 @@ export function WorkoutPage() {
   const videoRef            = useRef<HTMLVideoElement>(null)
   const canvasRef           = useRef<HTMLCanvasElement>(null)
   const cameraShellRef      = useRef<HTMLDivElement>(null)
+  const transcriptRef       = useRef<HTMLDivElement>(null)
   const analyzingRef        = useRef(false)
   const repCountRef         = useRef(0)
   const exerciseRef         = useRef('squat')
@@ -479,6 +496,11 @@ export function WorkoutPage() {
       }
     }
   }, [suggestions, voiceMuted])
+
+  // ── Auto-scroll transcript to top on new suggestion ─────────────────────
+  useEffect(() => {
+    if (transcriptRef.current) transcriptRef.current.scrollTop = 0
+  }, [suggestions])
 
   // ── Auto-fire warmup modal at 60 s (once per session) ─────────────────
   useEffect(() => {
@@ -791,13 +813,19 @@ export function WorkoutPage() {
   // ── Main render ────────────────────────────────────────────────────────
   return (
     <>
-      {/* Inline keyframe for suggestion slide-in */}
+      {/* Inline keyframes */}
       <style>{`
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-10px); }
           to   { opacity: 1; transform: translateY(0); }
         }
         .suggestion-enter { animation: slideDown 0.25s ease forwards; }
+        @keyframes repPulse {
+          0%   { transform: scale(1);    opacity: 1; }
+          30%  { transform: scale(1.18); opacity: 0.9; }
+          100% { transform: scale(1);    opacity: 1; }
+        }
+        .rep-pulse { animation: repPulse 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
       `}</style>
 
       {/* Warmup score modal */}
@@ -877,8 +905,9 @@ export function WorkoutPage() {
                 Current Reps
               </span>
               <div
-                className="font-black leading-none select-none text-white"
-                style={{ fontSize: 84, letterSpacing: -4 }}
+                key={lastRepTimestamp ?? 0}
+                className="font-black leading-none select-none text-white rep-pulse"
+                style={{ fontSize: 84, letterSpacing: -4, display: 'inline-block' }}
               >
                 {String(repCounts[currentExercise] ?? 0).padStart(2, '0')}
               </div>
@@ -1016,8 +1045,8 @@ export function WorkoutPage() {
                 </div>
               )}
 
-              {/* Reference photo prompt — shown once after pose is first detected */}
-              {!cameraLoading && cameraStarted && isTracking && !refCaptured && (
+              {/* Reference photo prompt — shown as soon as camera starts */}
+              {!cameraLoading && cameraStarted && !refCaptured && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
                   <div
                     className="mx-4 w-full max-w-sm rounded-2xl p-5 text-center pointer-events-auto"
@@ -1189,7 +1218,7 @@ export function WorkoutPage() {
                 Coach Feedback
               </span>
 
-              <div className="flex-1 overflow-y-auto space-y-2.5 min-h-0">
+              <div ref={transcriptRef} className="flex-1 overflow-y-auto space-y-2.5 min-h-0">
                 {latestSuggestions.length === 0 ? (
                   <div className="card-surface p-5 text-center mt-2">
                     <div className="text-2xl mb-2">🎯</div>

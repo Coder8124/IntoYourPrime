@@ -1,8 +1,53 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getPIBriefing, getDemoBriefing } from '../lib/primeIntelligence'
 import { hasApiKey } from '../lib/formAnalysis'
 import type { MemberData, PIBriefing, AvatarState } from '../lib/primeIntelligence'
+import { auth } from '../lib/firebase'
+
+const ADMIN_EMAILS = ['vishweshck3@gmail.com', 'pragun.hebbar@gmail.com']
+
+/** Estimate calories burned using MET formula: cal = MET × weight(kg) × hours */
+function estimateCalories(durationSec: number, avgRisk: number, weightKg: number): number {
+  const met = avgRisk >= 60 ? 8 : avgRisk >= 30 ? 5.5 : 3.5
+  return Math.round(met * weightKg * (durationSec / 3600))
+}
+
+/** Read the current user's data from the last saved session + streak */
+function loadMyData(): { calories: number; streakDays: number; sessionCompleted: boolean; intensity: MemberData['intensity'] } {
+  try {
+    const raw = localStorage.getItem('formAI_lastSession')
+    const profile = JSON.parse(localStorage.getItem('formAI_profile') ?? '{}') as Record<string, unknown>
+    const weightKg = Number(profile.weight ?? 70)
+    const streakDays = Number(localStorage.getItem('formAI_streak') ?? 0)
+
+    if (!raw) return { calories: 0, streakDays, sessionCompleted: false, intensity: 'N/A' }
+
+    const s = JSON.parse(raw) as Record<string, unknown>
+    const durationSec = typeof s.sessionEndedAt === 'number' && typeof s.sessionStartTime === 'number'
+      ? Math.floor((s.sessionEndedAt - s.sessionStartTime) / 1000)
+      : 0
+    const riskScores = Array.isArray(s.riskScores) ? (s.riskScores as number[]) : []
+    const avgRisk = riskScores.length ? riskScores.reduce((a, b) => a + b, 0) / riskScores.length : 0
+    const calories = estimateCalories(durationSec, avgRisk, weightKg)
+
+    // Determine intensity from avg risk
+    const intensity: MemberData['intensity'] = avgRisk >= 60 ? 'High' : avgRisk >= 30 ? 'Medium' : 'Low'
+
+    // Check if session was today
+    const sessionDate = typeof s.sessionEndedAt === 'number' ? new Date(s.sessionEndedAt) : null
+    const today = new Date()
+    const sessionCompleted = sessionDate
+      ? sessionDate.getDate() === today.getDate() &&
+        sessionDate.getMonth() === today.getMonth() &&
+        sessionDate.getFullYear() === today.getFullYear()
+      : false
+
+    return { calories, streakDays, sessionCompleted, intensity }
+  } catch {
+    return { calories: 0, streakDays: 0, sessionCompleted: false, intensity: 'N/A' }
+  }
+}
 
 // ── Avatar renderer ────────────────────────────────────────────────────────
 
@@ -163,23 +208,42 @@ function OptBar({ score, label }: { score: number; label: string }) {
 // ── Default demo members ───────────────────────────────────────────────────
 
 const DEFAULT_MEMBERS: MemberData[] = [
-  { name: 'You',    sessionCompleted: true,  calories: 520, intensity: 'High',   streakDays: 7 },
-  { name: 'Alex',   sessionCompleted: true,  calories: 340, intensity: 'Medium', streakDays: 5 },
-  { name: 'Jordan', sessionCompleted: false, calories: 0,   intensity: 'N/A',    streakDays: 2 },
+  { name: 'You',    sessionCompleted: false, calories: 0, intensity: 'N/A', streakDays: 0 },
+  { name: 'Alex',   sessionCompleted: false, calories: 0, intensity: 'N/A', streakDays: 0 },
+  { name: 'Jordan', sessionCompleted: false, calories: 0, intensity: 'N/A', streakDays: 0 },
 ]
 
 // ── FriendsPage ────────────────────────────────────────────────────────────
 
 export function FriendsPage() {
-  const [members,      setMembers]      = useState<MemberData[]>(DEFAULT_MEMBERS)
-  const [groupStreak,  setGroupStreak]  = useState(12)
+  const isAdmin = ADMIN_EMAILS.includes(auth.currentUser?.email ?? '')
+
+  const [members,      setMembers]      = useState<MemberData[]>(() => {
+    const myData = loadMyData()
+    return DEFAULT_MEMBERS.map((m, i) =>
+      i === 0 ? { ...m, ...myData } : m
+    )
+  })
+  const [groupStreak,  setGroupStreak]  = useState(0)
   const [briefing,     setBriefing]     = useState<PIBriefing | null>(null)
   const [loading,      setLoading]      = useState(false)
   const [error,        setError]        = useState<string | null>(null)
 
+  // Refresh "You" row whenever the page gains focus (after a workout)
+  useEffect(() => {
+    const refresh = () => {
+      const myData = loadMyData()
+      setMembers(prev => prev.map((m, i) => i === 0 ? { ...m, ...myData } : m))
+    }
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
+  }, [])
+
   // ── Member editor ──────────────────────────────────────────────────────
-  const updateMember = (i: number, patch: Partial<MemberData>) =>
+  const updateMember = (i: number, patch: Partial<MemberData>) => {
+    if (!isAdmin) return  // only admins can edit
     setMembers(prev => prev.map((m, idx) => idx === i ? { ...m, ...patch } : m))
+  }
 
   const addMember = () =>
     setMembers(prev => [...prev, { name: `Member ${prev.length + 1}`, sessionCompleted: false, calories: 0, intensity: 'N/A', streakDays: 0 }])
@@ -237,27 +301,40 @@ export function FriendsPage() {
               <input
                 type="number"
                 value={groupStreak}
-                onChange={e => setGroupStreak(Math.max(0, Number(e.target.value)))}
+                onChange={e => isAdmin && setGroupStreak(Math.max(0, Number(e.target.value)))}
                 className="input-dark w-16 text-center text-[13px] py-1"
                 min={0}
+                readOnly={!isAdmin}
               />
               <span className="text-[11px] text-gray-600">days</span>
             </div>
           </div>
 
+          {/* Column headers */}
+          <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 px-3 mb-1">
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600">Member</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600 w-[90px] text-center">Intensity</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600 w-20 text-center">Cal burned</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600 w-16 text-center">Streak</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600 w-16 text-center">Session</span>
+            <span className="w-5" />
+          </div>
+
           <div className="space-y-2">
             {members.map((m, i) => (
-              <div key={i} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 items-center p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+              <div key={i} className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 items-center p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
                 <input
                   value={m.name}
                   onChange={e => updateMember(i, { name: e.target.value })}
                   className="input-dark text-[13px] py-1.5"
                   placeholder="Name"
+                  readOnly={!isAdmin}
                 />
                 <select
                   value={m.intensity}
                   onChange={e => updateMember(i, { intensity: e.target.value as MemberData['intensity'] })}
-                  className="input-dark text-[12px] py-1.5"
+                  className="input-dark text-[12px] py-1.5 w-[90px]"
+                  disabled={!isAdmin}
                 >
                   <option value="High">High</option>
                   <option value="Medium">Medium</option>
@@ -269,20 +346,33 @@ export function FriendsPage() {
                   value={m.calories ?? 0}
                   onChange={e => updateMember(i, { calories: Number(e.target.value) })}
                   className="input-dark w-20 text-[12px] py-1.5 text-center"
-                  placeholder="kcal"
+                  placeholder="0"
                   min={0}
+                  readOnly={!isAdmin}
+                />
+                <input
+                  type="number"
+                  value={m.streakDays}
+                  onChange={e => updateMember(i, { streakDays: Number(e.target.value) })}
+                  className="input-dark w-16 text-[12px] py-1.5 text-center"
+                  placeholder="0"
+                  min={0}
+                  readOnly={!isAdmin}
                 />
                 <button
                   type="button"
-                  onClick={() => updateMember(i, { sessionCompleted: !m.sessionCompleted })}
+                  onClick={() => isAdmin && updateMember(i, { sessionCompleted: !m.sessionCompleted })}
                   className="px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors"
-                  style={m.sessionCompleted
-                    ? { background: 'rgba(34,197,94,0.15)', color: '#86efac', border: '1px solid rgba(34,197,94,0.3)' }
-                    : { background: 'rgba(239,68,68,0.10)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.2)' }}
+                  style={{
+                    ...(m.sessionCompleted
+                      ? { background: 'rgba(34,197,94,0.15)', color: '#86efac', border: '1px solid rgba(34,197,94,0.3)' }
+                      : { background: 'rgba(239,68,68,0.10)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.2)' }),
+                    ...(!isAdmin ? { cursor: 'default', opacity: 0.7 } : {}),
+                  }}
                 >
                   {m.sessionCompleted ? 'Done' : 'Missed'}
                 </button>
-                {members.length > 1 && (
+                {isAdmin && members.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeMember(i)}
@@ -291,15 +381,18 @@ export function FriendsPage() {
                     ×
                   </button>
                 )}
+                {!isAdmin && <span className="w-5" />}
               </div>
             ))}
           </div>
 
           <div className="flex gap-3">
-            <button type="button" onClick={addMember}
-              className="px-4 py-2 rounded-xl border border-[#2e2e3e] text-gray-500 text-[12px] font-semibold hover:border-gray-600 hover:text-gray-300 transition-colors">
-              + Add Member
-            </button>
+            {isAdmin && (
+              <button type="button" onClick={addMember}
+                className="px-4 py-2 rounded-xl border border-[#2e2e3e] text-gray-500 text-[12px] font-semibold hover:border-gray-600 hover:text-gray-300 transition-colors">
+                + Add Member
+              </button>
+            )}
             <button
               type="button"
               onClick={runPI}
