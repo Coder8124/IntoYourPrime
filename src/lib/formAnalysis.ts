@@ -91,6 +91,8 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
       deadlift:      'Check: flat/neutral back throughout (NO rounding — highest risk), bar close to legs, hips hinge properly, head neutral.',
       lunge:         'Check: front knee stays over ankle (not past toes), torso upright, back knee lowers toward floor, knee not caving inward.',
       shoulderpress: 'Check: no excessive lower back arch, elbows at ~90° at start, full lockout overhead, core braced.',
+      curlup:        'Check: chin tucked (not yanked forward), hands behind head (not pulling neck), lower back stays flat on floor, core doing the work not hip flexors.',
+      bicepcurl:     'Check: elbows pinned at sides (not swinging forward), full extension at bottom, squeeze at top, no body sway or momentum.',
     }
     const guide = exerciseGuides[params.exercise.toLowerCase()] ?? 'Check overall posture, alignment, and safe range of motion.'
 
