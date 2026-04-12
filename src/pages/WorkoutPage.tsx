@@ -480,7 +480,7 @@ export function WorkoutPage() {
         <div className="flex-1 flex overflow-hidden min-h-0">
 
           {/* ── LEFT PANEL (30%) ────────────────────────────────────── */}
-          <aside className="w-[30%] shrink-0 flex flex-col gap-3 p-4 border-r border-[#1e1e2e] overflow-y-auto">
+          <aside className="w-[22%] shrink-0 flex flex-col gap-3 p-4 border-r border-[#1e1e2e] overflow-y-auto">
 
             {/* Exercise selector */}
             <div className="card-surface p-4">
@@ -618,7 +618,7 @@ export function WorkoutPage() {
           </main>
 
           {/* ── RIGHT PANEL (30%) ──────────────────────────────────────── */}
-          <aside className="w-[30%] shrink-0 flex flex-col gap-3 p-4 border-l border-[#1e1e2e] overflow-hidden">
+          <aside className="w-[22%] shrink-0 flex flex-col gap-3 p-4 border-l border-[#1e1e2e] overflow-hidden">
 
             {/* Risk gauge */}
             <div className="card-surface p-5 flex flex-col items-center">

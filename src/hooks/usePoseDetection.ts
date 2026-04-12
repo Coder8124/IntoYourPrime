@@ -56,9 +56,9 @@ function ensureMediaPipePoseScript(): Promise<void> {
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const BUFFER_SIZE    = 120   // 4 s at 30 fps
-const FRAME_W        = 640
-const FRAME_H        = 480
-const JPEG_QUALITY   = 0.7
+const FRAME_W        = 960
+const FRAME_H        = 720
+const JPEG_QUALITY   = 0.85
 const TRACKING_THRESH = 0.5
 
 // ── Internal frame entry ───────────────────────────────────────────────────
