@@ -54,7 +54,7 @@ export function AuthPage() {
     <div className="min-h-screen bg-[#07070e] flex flex-col items-center justify-center px-5 text-white">
       {/* Logo */}
       <div className="mb-10 text-center">
-        <p className="text-[11px] font-black uppercase tracking-[0.3em] text-blue-400">FormIQ</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.3em] text-blue-400">IntoYourPrime</p>
         <h1 className="mt-3 text-3xl font-black tracking-tight">
           {mode === 'signin' ? 'Welcome back' : 'Create account'}
         </h1>

@@ -141,8 +141,8 @@ export function HomePage() {
       {/* ── Top nav ── */}
       <nav className="sticky top-0 z-30 flex items-center justify-between px-5 py-4"
         style={{ background: 'rgba(7,7,14,0.85)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <Link to="/home" className="text-[11px] font-black uppercase tracking-[0.28em] text-blue-400 hover:text-blue-300 transition-colors">
-          FormIQ
+        <Link to="/home" className="text-[14px] font-black uppercase tracking-[0.18em] text-blue-400 hover:text-blue-300 transition-colors">
+          IntoYourPrime
         </Link>
         <div className="flex items-center gap-3">
           {!apiKeySet && (
@@ -191,17 +191,17 @@ export function HomePage() {
       <div className="mx-auto max-w-lg px-5">
 
         {/* ── Hero ── */}
-        <header className="pt-10 pb-2">
-          <p className="text-[13px] text-gray-500">{timeGreeting()}</p>
-          <h1 className="mt-1 text-4xl font-black tracking-tight">{welcomeName}</h1>
+        <header className="pt-12 pb-2">
+          <p className="text-[15px] text-gray-400">{timeGreeting()}</p>
+          <h1 className="mt-1 text-6xl font-black tracking-tight">{welcomeName}</h1>
 
           {/* Streak pill */}
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2"
+          <div className="mt-5 inline-flex items-center gap-2.5 rounded-full px-5 py-2.5"
             style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
-            <Flame className="h-4 w-4 text-amber-400" />
-            <span className="text-[13px] font-semibold text-amber-200">
-              <span className="font-mono text-[15px] font-black">{streak}</span>
-              <span className="ml-1 text-amber-300/70"> day streak</span>
+            <Flame className="h-5 w-5 text-amber-400" />
+            <span className="text-[15px] font-semibold text-amber-200">
+              <span className="font-mono text-[18px] font-black">{streak}</span>
+              <span className="ml-1.5 text-amber-300/70"> day streak</span>
             </span>
           </div>
         </header>
@@ -242,7 +242,7 @@ export function HomePage() {
 
         {/* ── Recent sessions ── */}
         <section className="mt-10">
-          <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-gray-600">
+          <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.2em] text-gray-500">
             Recent sessions
           </h2>
           {loading ? (
@@ -254,7 +254,7 @@ export function HomePage() {
           ) : sessions.length === 0 ? (
             <div className="rounded-2xl p-6 text-center" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
               <p className="text-2xl mb-2">🏋️</p>
-              <p className="text-[13px] text-gray-500">No sessions yet — complete your first workout!</p>
+              <p className="text-[14px] text-gray-500">No sessions yet — complete your first workout!</p>
             </div>
           ) : (
             <ul className="space-y-2">
@@ -262,13 +262,13 @@ export function HomePage() {
                 <li key={s.id} className="rounded-xl px-4 py-3.5 transition-all hover:border-blue-500/30"
                   style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
                   <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-bold text-white">{formatSessionDate(s.date)}</span>
-                    <div className="flex items-center gap-3 text-[11px]">
+                    <span className="text-[15px] font-bold text-white">{formatSessionDate(s.date)}</span>
+                    <div className="flex items-center gap-3 text-[12px]">
                       <span className="text-amber-400 font-mono font-semibold">warmup {Math.round(s.warmupScore)}</span>
                       <span className="text-blue-400 font-mono font-semibold">risk {Math.round(s.avgRiskScore)}</span>
                     </div>
                   </div>
-                  <p className="mt-1 text-[12px] capitalize text-gray-500">
+                  <p className="mt-1 text-[13px] capitalize text-gray-500">
                     {s.exercises.length ? s.exercises.join(' · ') : '—'}
                   </p>
                 </li>
@@ -279,21 +279,21 @@ export function HomePage() {
 
         {/* ── Recovery insight ── */}
         <section className="mt-8">
-          <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-gray-600">
+          <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.2em] text-gray-500">
             Recovery insight
           </h2>
           <div className="rounded-2xl p-5" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
             {!sessionCountForInsight ? (
               <div className="flex items-start gap-3">
                 <span className="text-xl">🔒</span>
-                <p className="text-[13px] leading-relaxed text-gray-500">
+                <p className="text-[14px] leading-relaxed text-gray-500">
                   Complete 5 sessions to unlock personalized recovery insights.
                 </p>
               </div>
             ) : insightLoading ? (
               <p className="text-[13px] text-gray-500 animate-pulse">Generating insight…</p>
             ) : insight ? (
-              <p className="text-[14px] leading-relaxed text-gray-200">{insight}</p>
+              <p className="text-[15px] leading-relaxed text-gray-200">{insight}</p>
             ) : (
               <p className="text-[13px] text-gray-500">Add an OpenAI key to generate insights.</p>
             )}
@@ -303,7 +303,7 @@ export function HomePage() {
         {/* ── Friends feed ── */}
         <section className="mt-8">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-600">Friends</h2>
+            <h2 className="text-[13px] font-bold uppercase tracking-[0.2em] text-gray-500">Friends</h2>
             <Link to="/friends" className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition-colors">
               Prime Intelligence →
             </Link>
@@ -323,7 +323,7 @@ export function HomePage() {
                     style={{ background: 'linear-gradient(135deg,#3b82f6,#7c3aed)' }}>
                     {initials(item.displayName)}
                   </div>
-                  <p className="min-w-0 flex-1 text-[13px] leading-snug text-gray-300">{feedLine(item)}</p>
+                  <p className="min-w-0 flex-1 text-[14px] leading-snug text-gray-300">{feedLine(item)}</p>
                 </li>
               ))}
             </ul>
