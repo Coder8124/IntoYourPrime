@@ -22,33 +22,36 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
   const lKn = lms[25], rKn = lms[26], lAn = lms[27], rAn = lms[28]
   const ex = exercise.toLowerCase()
 
+  // Minimum baseline when tracked — even perfect form carries ~10 risk
+  const BASE = 10
+
   if (ex === 'pushup') {
     if (!vis(lSh) || !vis(lHip) || !vis(lAn)) return 0
     const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
     const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
     const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
     const dev = ptLineDist(shX, shY, anX, anY, hipX, hipY)
-    return Math.min(100, Math.round(dev * 700))
+    return Math.min(100, BASE + Math.round(dev * 1100))
   }
   if (ex === 'squat') {
     if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
     const valgus = Math.max(Math.abs(lKn.x - lAn.x), Math.abs(rKn.x - rAn.x))
-    return Math.min(100, Math.round(valgus * 500))
+    return Math.min(100, BASE + Math.round(valgus * 800))
   }
   if (ex === 'deadlift') {
     if (!vis(lSh) || !vis(lHip)) return 0
     const vertDist = Math.abs((lSh.y + rSh.y) / 2 - (lHip.y + rHip.y) / 2)
     if (vertDist < 0.05) return 0
     const horizDrift = Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) / vertDist
-    return Math.min(100, Math.round(horizDrift * 120))
+    return Math.min(100, BASE + Math.round(horizDrift * 200))
   }
   if (ex === 'lunge') {
     if (!vis(lKn) || !vis(lAn)) return 0
-    return Math.min(100, Math.round(Math.abs(lKn.x - lAn.x) * 500))
+    return Math.min(100, BASE + Math.round(Math.abs(lKn.x - lAn.x) * 800))
   }
   if (ex === 'shoulderpress') {
     if (!vis(lSh) || !vis(lHip)) return 0
-    return Math.min(100, Math.round(Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) * 600))
+    return Math.min(100, BASE + Math.round(Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) * 900))
   }
   return 0
 }
@@ -377,7 +380,10 @@ export function WorkoutPage() {
 
 
   // ── Derived ────────────────────────────────────────────────────────────
-  const latestRisk        = riskScores.length ? riskScores[riskScores.length - 1] : 0
+  // Smooth over last 8 frames to avoid jitter
+  const latestRisk = riskScores.length
+    ? Math.round(riskScores.slice(-8).reduce((a, b) => a + b, 0) / Math.min(riskScores.length, 8))
+    : 0
   const latestSuggestions = suggestions.slice(0, 3)
   const totalReps         = Object.values(repCounts).reduce((a, b) => a + b, 0)
 
