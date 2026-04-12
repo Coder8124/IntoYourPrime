@@ -1,15 +1,12 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
-import { analyzeForm } from '../lib/formAnalysis'
-
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress'] as const
-const ANALYSIS_INTERVAL_MS = 30000
-const DEMO_MODE = !import.meta.env.VITE_OPENAI_API_KEY
+const DEMO_MODE = true  // rep counter and suggestions always use local logic
 
 const DEMO_SUGGESTIONS = [
   'Keep your chest up and drive through your heels.',
@@ -185,7 +182,6 @@ export function WorkoutPage() {
   // ── Refs ───────────────────────────────────────────────────────────────
   const videoRef            = useRef<HTMLVideoElement>(null)
   const canvasRef           = useRef<HTMLCanvasElement>(null)
-  const analyzingRef        = useRef(false)
   const repCountRef         = useRef(0)
   const exerciseRef         = useRef('squat')
   const warmupModalFiredRef = useRef(false)
@@ -206,29 +202,12 @@ export function WorkoutPage() {
   const [cameraStarted, setCameraStarted] = useState(false)
   const [voiceMuted,    setVoiceMuted]    = useState(false)
 
-  // ── User profile ───────────────────────────────────────────────────────
-  const userProfile = useMemo(() => {
-    try {
-      const stored = localStorage.getItem('formAI_profile')
-      const p = stored ? (JSON.parse(stored) as Record<string, unknown>) : {}
-      const ageN = Number(p.age)
-      const weightN = Number(p.weight)
-      return {
-        age: Number.isFinite(ageN) && ageN > 0 ? ageN : 25,
-        weight: Number.isFinite(weightN) && weightN > 0 ? weightN : 70,
-        fitnessLevel:
-          typeof p.fitnessLevel === 'string' ? p.fitnessLevel : 'intermediate',
-      }
-    } catch {
-      return { age: 25, weight: 70, fitnessLevel: 'intermediate' }
-    }
-  }, [])
 
   // ── Pose detection hook ────────────────────────────────────────────────
   const {
     landmarks, isTracking,
     isLoading: cameraLoading, error: cameraError,
-    getBestFrames, startCamera, stopCamera,
+    startCamera, stopCamera,
   } = usePoseDetection(videoRef, canvasRef)
 
   // ── Rep counter hook ───────────────────────────────────────────────────
@@ -343,29 +322,6 @@ export function WorkoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Form analysis loop (every 2.5 s when tracking) ────────────────────
-  useEffect(() => {
-    const id = setInterval(async () => {
-      if (!isTracking || analyzingRef.current) return
-      const frames = getBestFrames(3)
-      if (!frames.length) return
-
-      analyzingRef.current = true
-      try {
-        const result = await analyzeForm({
-          frames,
-          exercise:    exerciseRef.current,
-          userProfile,
-          phase: (phase === 'warmup' ? 'warmup' : 'main'),
-        })
-        updateAnalysis(result)
-      } finally {
-        analyzingRef.current = false
-      }
-    }, ANALYSIS_INTERVAL_MS)
-
-    return () => clearInterval(id)
-  }, [isTracking, phase, getBestFrames, updateAnalysis, userProfile])
 
   // ── Derived ────────────────────────────────────────────────────────────
   const latestRisk        = riskScores.length ? riskScores[riskScores.length - 1] : 0
