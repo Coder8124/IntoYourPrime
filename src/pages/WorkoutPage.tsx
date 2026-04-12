@@ -8,7 +8,6 @@ import { analyzeForm } from '../lib/formAnalysis'
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress'] as const
-const ANALYSIS_INTERVAL_MS = 2500
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -266,18 +265,23 @@ export function WorkoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastRepTimestamp])
 
-  // ── Form analysis loop (every 2.5 s when tracking) ────────────────────
+  // ── Form analysis loop (faster + more frames for pushups in main) ─────
   useEffect(() => {
+    const intervalMs =
+      currentExercise === 'pushup' && phase === 'main' ? 2000 : 2500
+
     const id = setInterval(async () => {
       if (!isTracking || analyzingRef.current) return
-      const frames = getBestFrames(3)
+      const ex = exerciseRef.current
+      const nFrames = ex === 'pushup' ? 5 : 3
+      const frames = getBestFrames(nFrames, ex)
       if (!frames.length) return
 
       analyzingRef.current = true
       try {
         const result = await analyzeForm({
           frames,
-          exercise:    exerciseRef.current,
+          exercise:    ex,
           repCount:    repCountRef.current,
           userProfile,
           phase,
@@ -286,10 +290,10 @@ export function WorkoutPage() {
       } finally {
         analyzingRef.current = false
       }
-    }, ANALYSIS_INTERVAL_MS)
+    }, intervalMs)
 
     return () => clearInterval(id)
-  }, [isTracking, phase, getBestFrames, updateAnalysis, userProfile])
+  }, [isTracking, phase, currentExercise, getBestFrames, updateAnalysis, userProfile])
 
   // ── Derived ────────────────────────────────────────────────────────────
   const latestRisk        = riskScores.length ? riskScores[riskScores.length - 1] : 0
