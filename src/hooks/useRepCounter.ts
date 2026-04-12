@@ -14,6 +14,8 @@ const LM = {
   RIGHT_HIP:      24,
   LEFT_KNEE:      25,
   RIGHT_KNEE:     26,
+  LEFT_ANKLE:     27,
+  RIGHT_ANKLE:    28,
 } as const
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -163,6 +165,33 @@ function getElbowAngle(
 }
 
 /**
+ * Average knee angle (hip→knee→ankle) across visible legs.
+ * Standing: ~160–170°. Bottom of squat: ~80–100°.
+ * Large angle = standing (up), small angle = squatting (down).
+ */
+function getKneeAngle(
+  landmarks: NormalizedLandmark[],
+): { value: number; confidence: number } | null {
+  const lHip = landmarks[LM.LEFT_HIP],  lKn = landmarks[LM.LEFT_KNEE],  lAn = landmarks[LM.LEFT_ANKLE]
+  const rHip = landmarks[LM.RIGHT_HIP], rKn = landmarks[LM.RIGHT_KNEE], rAn = landmarks[LM.RIGHT_ANKLE]
+
+  const lConf = Math.min(lHip?.visibility ?? 0, lKn?.visibility ?? 0, lAn?.visibility ?? 0)
+  const rConf = Math.min(rHip?.visibility ?? 0, rKn?.visibility ?? 0, rAn?.visibility ?? 0)
+
+  const angles: number[] = []
+  const confs:  number[] = []
+  if (lConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(lHip, lKn, lAn)); confs.push(lConf) }
+  if (rConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(rHip, rKn, rAn)); confs.push(rConf) }
+  if (angles.length === 0) return null
+
+  const n = angles.length
+  return {
+    value:      angles.reduce((s, v) => s + v, 0) / n,
+    confidence: confs.reduce((s, v) => s + v, 0) / n,
+  }
+}
+
+/**
  * Curl-up signal: average of (hipY - shoulderY) across visible sides.
  * When flat on the floor: ~0. When curled up: positive (shoulder rises above hip).
  * Camera-position independent — no absolute Y needed.
@@ -274,7 +303,15 @@ export function useRepCounter(
     let rawSignal: number
     let invertSignal = false
 
-    if (exerciseKey === 'pushup') {
+    if (exerciseKey === 'squat') {
+      // hip→knee→ankle angle. Standing: ~165°, bottom of squat: ~90°.
+      // Large angle = standing (up), small angle = squatting (down).
+      // Invert so small angle → high normalised → "down" phase.
+      const result = getKneeAngle(landmarks)
+      if (!result || result.confidence < CONFIDENCE_THRESH) return
+      rawSignal    = result.value
+      invertSignal = true
+    } else if (exerciseKey === 'pushup') {
       // hip→shoulder→elbow angle. Large = arms extended (top), small = chest down.
       // Invert so small angle → high normalised → "down" phase.
       const angleResult = getPushupShoulderAngle(landmarks)
