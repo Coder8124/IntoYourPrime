@@ -1,6 +1,6 @@
 /**
  * Equivalent to the Firebase console “npm / modular” snippet:
- * initializeApp → getAnalytics, plus Auth + Firestore for FormIQ.
+ * initializeApp → getAnalytics, plus Auth + Firestore for IntoYourPrime.
  * Values come from `.env` (`VITE_FIREBASE_*`) so nothing secret is committed.
  * @see https://firebase.google.com/docs/web/setup
  */

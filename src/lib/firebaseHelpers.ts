@@ -39,13 +39,13 @@ async function effectiveUserId(requested: string): Promise<string> {
 
 function wrapError(op: string, err: unknown): never {
   const msg = err instanceof Error ? err.message : String(err)
-  throw new Error(`FormIQ Firestore (${op}): ${msg}`)
+  throw new Error(`IntoYourPrime Firestore (${op}): ${msg}`)
 }
 
 function assertSignedUid(uid: string, op: string): void {
   const current = auth.currentUser?.uid
   if (current && current !== uid) {
-    throw new Error(`FormIQ (${op}): signed-in user does not match target uid`)
+    throw new Error(`IntoYourPrime (${op}): signed-in user does not match target uid`)
   }
 }
 
@@ -95,7 +95,7 @@ function stripUndefined<T extends Record<string, unknown>>(obj: T): Record<strin
 function readTimestampAsDate(value: unknown, field: string): Date {
   if (value instanceof Timestamp) return value.toDate()
   if (value instanceof Date) return value
-  throw new Error(`FormIQ: expected Firestore Timestamp for ${field}`)
+  throw new Error(`IntoYourPrime: expected Firestore Timestamp for ${field}`)
 }
 
 function userProfileFromDoc(snap: DocumentSnapshot): UserProfile | null {

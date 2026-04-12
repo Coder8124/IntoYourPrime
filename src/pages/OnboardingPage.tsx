@@ -93,7 +93,7 @@ export function OnboardingPage() {
           <div className="flex flex-col items-center mb-8">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
               style={{ background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', boxShadow: '0 0 40px rgba(59,130,246,0.4)' }}>
-              <span className="text-white font-black select-none" style={{ fontSize: 28, letterSpacing: '-1px' }}>F</span>
+              <span className="text-white font-black select-none" style={{ fontSize: 20, letterSpacing: '-1px' }}>IYP</span>
             </div>
             <h1 className="text-[26px] font-black text-white tracking-tight">Enable AI Coaching</h1>
             <p className="mt-2 text-center text-gray-400 text-[13px] leading-relaxed max-w-[300px]">
@@ -191,14 +191,14 @@ export function OnboardingPage() {
           >
             <span
               className="text-white font-black select-none"
-              style={{ fontSize: 36, letterSpacing: '-2px', lineHeight: 1 }}
+              style={{ fontSize: 22, letterSpacing: '-1px', lineHeight: 1 }}
             >
-              F
+              IYP
             </span>
           </div>
 
           <h1 className="text-[32px] font-black text-white tracking-tight mb-3">
-            Form<span className="text-blue-400">AI</span>
+            Into<span className="text-blue-400">YourPrime</span>
           </h1>
 
           <p className="text-center text-gray-400 text-[13.5px] leading-relaxed max-w-[300px]">

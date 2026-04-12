@@ -894,9 +894,9 @@ export function WorkoutPage() {
               className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
               style={{ background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' }}
             >
-              <span className="text-white font-black text-[15px]" style={{ letterSpacing: -1 }}>F</span>
+              <span className="text-white font-black text-[11px]" style={{ letterSpacing: -0.5 }}>IYP</span>
             </div>
-            <span className="font-black text-white text-[14px] tracking-tight">FormAI</span>
+            <span className="font-black text-white text-[14px] tracking-tight">IntoYourPrime</span>
             <div className="w-px h-4 bg-[#1e1e2e]" />
             <span
               className="text-[11px] font-bold tracking-[0.13em] uppercase"
