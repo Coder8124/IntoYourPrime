@@ -14,6 +14,28 @@ import { getOrSignInUserId } from '../lib/firestoreUser'
 import { getOrCreateLocalUserId } from '../lib/localUserId'
 import type { ActivityFeedItem, Session } from '../types'
 
+const QUOTES = [
+  { text: "The only bad workout is the one that didn't happen.", author: "Unknown" },
+  { text: "Push yourself because no one else is going to do it for you.", author: "Unknown" },
+  { text: "Your body can stand almost anything. It's your mind you have to convince.", author: "Unknown" },
+  { text: "Strength does not come from the body. It comes from the will.", author: "Unknown" },
+  { text: "The pain you feel today will be the strength you feel tomorrow.", author: "Unknown" },
+  { text: "Don't stop when you're tired. Stop when you're done.", author: "Unknown" },
+  { text: "Fall in love with taking care of your body.", author: "Unknown" },
+  { text: "A one-hour workout is 4% of your day. No excuses.", author: "Unknown" },
+  { text: "Success starts with self-discipline.", author: "Unknown" },
+  { text: "Train insane or remain the same.", author: "Unknown" },
+  { text: "What seems impossible today will one day become your warm-up.", author: "Unknown" },
+  { text: "Your only competition is who you were yesterday.", author: "Unknown" },
+  { text: "Believe in yourself and all that you are.", author: "Christian D. Larson" },
+  { text: "It never gets easier. You just get stronger.", author: "Unknown" },
+]
+
+function getDailyQuote() {
+  const day = Math.floor(Date.now() / 86_400_000)
+  return QUOTES[day % QUOTES.length]
+}
+
 function timeGreeting(): string {
   const h = new Date().getHours()
   if (h < 12) return 'Good morning'
@@ -213,8 +235,22 @@ export function HomePage() {
           </div>
         </header>
 
+        {/* ── Daily quote ── */}
+        {(() => {
+          const q = getDailyQuote()
+          return (
+            <div className="mt-6 rounded-2xl px-5 py-4"
+              style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.15)' }}>
+              <p className="text-[14px] leading-relaxed text-gray-300 italic">&ldquo;{q.text}&rdquo;</p>
+              {q.author !== 'Unknown' && (
+                <p className="mt-1.5 text-[11px] font-semibold text-indigo-400">— {q.author}</p>
+              )}
+            </div>
+          )
+        })()}
+
         {/* ── CTA ── */}
-        <div className="mt-8">
+        <div className="mt-6">
           <button
             type="button"
             onClick={() => navigate('/workout')}
