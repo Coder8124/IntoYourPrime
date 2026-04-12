@@ -68,21 +68,33 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
     const imageBlocks: OpenAI.Chat.Completions.ChatCompletionContentPart[] =
       params.frames.map(frame => ({
         type:      'image_url' as const,
-        image_url: { url: frame, detail: 'low' as const },
+        image_url: { url: frame, detail: 'auto' as const },
       }))
+
+    const exerciseGuides: Record<string, string> = {
+      pushup:        'Check: elbows near body (not flared wide), body straight head-to-heel (no hip sag or pike), chest nearly touching floor at bottom, head neutral.',
+      squat:         'Check: knees tracking over toes (not caving in), thighs reach parallel or below, heels flat on floor, chest up with neutral spine.',
+      deadlift:      'Check: flat/neutral back throughout (NO rounding — highest risk), bar close to legs, hips hinge properly, head neutral.',
+      lunge:         'Check: front knee stays over ankle (not past toes), torso upright, back knee lowers toward floor, knee not caving inward.',
+      shoulderpress: 'Check: no excessive lower back arch, elbows at ~90° at start, full lockout overhead, core braced.',
+    }
+    const guide = exerciseGuides[params.exercise.toLowerCase()] ?? 'Check overall posture, alignment, and safe range of motion.'
 
     const textBlock: OpenAI.Chat.Completions.ChatCompletionContentPart = {
       type: 'text',
       text:
-        `Exercise: ${params.exercise}. Phase: ${params.phase}. ` +
-        `Rep count so far: ${params.repCount}. ` +
-        `User: ${params.userProfile.age}yo, ${params.userProfile.weight}kg, ` +
-        `fitness level: ${params.userProfile.fitnessLevel}.\n\n` +
-        `Analyze the form across these frames and respond with exactly this JSON:\n` +
+        `Exercise: ${params.exercise.toUpperCase()}. Phase: ${params.phase}. ` +
+        `Reps so far: ${params.repCount}. ` +
+        `Athlete: ${params.userProfile.age}yo, ${params.userProfile.weight}kg, level: ${params.userProfile.fitnessLevel}.\n\n` +
+        `${guide}\n\n` +
+        `Look at the images and judge the form visually. ` +
+        `riskScore should reflect real risk: good form = 0-25, minor issues = 26-55, bad form = 56-79, dangerous = 80-100. ` +
+        `Do NOT default to low scores — if form is off, say so.\n\n` +
+        `Respond with exactly this JSON (no markdown, no prose):\n` +
         `{\n` +
         `  "riskScore": number 0-100,\n` +
-        `  "suggestions": string[] (2-3 actionable cues, present tense),\n` +
-        `  "safetyConcerns": string[] (empty if none),\n` +
+        `  "suggestions": string[] (2-3 specific cues about what you actually see, present tense),\n` +
+        `  "safetyConcerns": string[] (empty array if none),\n` +
         `  "repCountEstimate": number,\n` +
         `  "dominantIssue": string | null,\n` +
         `  "warmupQuality": number | null (0-100 if warmup phase, else null)\n` +
@@ -90,13 +102,16 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
     }
 
     const completion = await client().chat.completions.create({
-      model:    'gpt-4o',
+      model:      'gpt-4o',
+      max_tokens: 400,
       messages: [
         {
           role:    'system',
-          content: 'You are an expert personal trainer and sports physiologist with 20 years of experience. ' +
-                   'Analyze exercise form from the provided frames. Be specific, actionable, and safety-focused. ' +
-                   'Always respond with valid JSON only — no prose, no markdown.',
+          content:
+            'You are an expert personal trainer. You are shown frames from a live workout. ' +
+            'Judge exercise form purely from what you see in the images. ' +
+            'Give honest, specific feedback — reference what you actually observe (e.g. "your hips are dropping", "knees are caving inward"). ' +
+            'Never give vague generic advice. Respond with valid JSON only.',
         },
         {
           role:    'user',
