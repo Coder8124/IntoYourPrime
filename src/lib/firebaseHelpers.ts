@@ -467,6 +467,15 @@ export async function getRecentLogs(uid: string, days: number): Promise<DailyLog
   }
 }
 
+export async function getAllUsers(): Promise<UserProfile[]> {
+  try {
+    const snap = await getDocs(collection(db, 'users'))
+    return snap.docs.map(d => userProfileFromDoc(d)).filter((p): p is UserProfile => p !== null)
+  } catch (e) {
+    wrapError('getAllUsers', e)
+  }
+}
+
 // ——— FRIENDS ———
 
 export async function searchUsersByDisplayName(searchTerm: string): Promise<UserProfile[]> {

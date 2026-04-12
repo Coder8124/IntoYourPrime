@@ -6,6 +6,7 @@ import type { MemberData, PIBriefing, AvatarState } from '../lib/primeIntelligen
 import { auth } from '../lib/firebase'
 import {
   searchUsersByDisplayName,
+  getAllUsers,
   addFriend,
   getFriends,
   getPendingFriendRequests,
@@ -247,11 +248,13 @@ export function FriendsPage() {
   const [searchResults,   setSearchResults]   = useState<UserProfile[]>([])
   const [searchBusy,      setSearchBusy]      = useState(false)
   const [sentTo,          setSentTo]          = useState<Set<string>>(new Set())
+  const [allUsers,        setAllUsers]        = useState<UserProfile[]>([])
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load friends + pending on mount
+  // Load friends, pending, and all users on mount
   useEffect(() => {
     if (!myUid) { setSquadLoading(false); return }
+    getAllUsers().then(users => setAllUsers(users)).catch(() => {})
     Promise.all([getFriends(myUid), getPendingFriendRequests(myUid)])
       .then(([friends, pending]) => {
         setMyFriends(friends)
@@ -448,11 +451,54 @@ export function FriendsPage() {
             </div>
           )}
 
+          {/* All users browse list — shown when search is empty */}
+          {!searchQuery.trim() && allUsers.length > 0 && (() => {
+            const browseable = allUsers.filter(u =>
+              u.uid !== myUid &&
+              !myFriends.some(f => f.friendId === u.uid)
+            )
+            if (browseable.length === 0) return null
+            return (
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600">All Users</p>
+                {browseable.map(u => {
+                  const sent = sentTo.has(u.uid)
+                  return (
+                    <div key={u.uid} className="flex items-center justify-between p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[12px] font-black text-gray-400">
+                          {(u.displayName || u.email || '?')[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-[13px] font-semibold text-white">{u.displayName || u.email}</p>
+                          {u.fitnessLevel && (
+                            <p className="text-[10px] text-gray-600 capitalize">{u.fitnessLevel}</p>
+                          )}
+                        </div>
+                      </div>
+                      {sent ? (
+                        <span className="text-[11px] font-bold text-amber-400">Sent</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleAddFriend(u)}
+                          className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-[12px] font-bold text-white transition-colors"
+                        >
+                          + Add
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+
           {/* Current squad */}
           {squadLoading ? (
             <p className="text-[12px] text-gray-600">Loading squad…</p>
           ) : myFriends.length === 0 && pendingRequests.length === 0 ? (
-            <p className="text-[12px] text-gray-600">No squad members yet — search above to add friends.</p>
+            <p className="text-[12px] text-gray-600">No squad members yet — add friends above.</p>
           ) : myFriends.length > 0 ? (
             <div className="space-y-2">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600">Members</p>
