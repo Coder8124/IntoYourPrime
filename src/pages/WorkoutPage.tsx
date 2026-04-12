@@ -183,7 +183,7 @@ export function WorkoutPage() {
   const {
     phase, currentExercise, repCounts,
     riskScores, suggestions, safetyConcerns, warmupScore, sessionStartTime,
-    setPhase, setExercise, addRep, updateAnalysis, setWarmupScore, resetSession,
+    setPhase, setExercise, addRep, updateAnalysis, setWarmupScore, endSession, resetSession,
   } = useWorkoutStore()
 
   // ── Local UI state ─────────────────────────────────────────────────────
@@ -314,8 +314,9 @@ export function WorkoutPage() {
   }, [setPhase])
 
   const handleEndWorkout = useCallback(() => {
+    endSession()
     navigate('/session-summary')
-  }, [navigate])
+  }, [endSession, navigate])
 
   // ── Camera error screen ────────────────────────────────────────────────
   if (cameraError && !cameraStarted) {

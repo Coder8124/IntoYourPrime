@@ -31,6 +31,13 @@ export function HomePage() {
             <span className="text-blue-400">→</span>
           </Link>
           <Link
+            to="/session-summary"
+            className="card-surface flex items-center justify-between px-5 py-4 font-bold transition hover:border-blue-500/40"
+          >
+            <span>Session summary</span>
+            <span className="text-blue-400">→</span>
+          </Link>
+          <Link
             to="/onboarding"
             className="rounded-xl border border-dashed border-gray-700 px-5 py-3 text-center text-sm font-semibold text-gray-500 hover:text-gray-300"
           >
