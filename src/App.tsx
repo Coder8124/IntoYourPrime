@@ -3,6 +3,7 @@ import { RootRedirect } from './components/RootRedirect'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { HomePage } from './pages/HomePage'
 import { WorkoutPage } from './pages/WorkoutPage'
+import { PipelineTestPage } from './pages/PipelineTestPage'
 import { SessionSummaryPage } from './pages/SessionSummaryPage'
 import { RecoveryLogPage } from './pages/RecoveryLogPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -15,8 +16,10 @@ export default function App() {
       <Route path="/onboarding" element={<OnboardingPage />} />
       <Route path="/home" element={<HomePage />} />
       <Route path="/workout" element={<WorkoutPage />} />
+      <Route path="/pipeline-test" element={<PipelineTestPage />} />
       <Route path="/session-summary" element={<SessionSummaryPage />} />
       <Route path="/recovery-log" element={<RecoveryLogPage />} />
+      <Route path="/recovery" element={<RecoveryLogPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/friends" element={<FriendsPage />} />
     </Routes>

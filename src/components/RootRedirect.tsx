@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom'
 
-/** No auth gate for now — send `/` straight to home. */
+/** Onboarding stores `formAI_profile` in localStorage; then workout unlocks. */
 export function RootRedirect() {
-  return <Navigate to="/home" replace />
+  const hasProfile = Boolean(localStorage.getItem('formAI_profile'))
+  return <Navigate to={hasProfile ? '/home' : '/onboarding'} replace />
 }

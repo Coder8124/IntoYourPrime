@@ -106,6 +106,8 @@ export interface FormAnalysisResult {
   safetyConcerns: string[]
   repCountEstimate: number
   dominantIssue: string | null
+  /** Populated by `/api/analyze` during warmup phase; otherwise null. */
+  warmupQuality?: number | null
 }
 
 const MUSCLE_GROUPS = new Set<MuscleGroup>([
