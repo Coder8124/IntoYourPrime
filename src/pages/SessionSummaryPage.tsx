@@ -229,7 +229,7 @@ export function SessionSummaryPage() {
               Home
             </Link>
             <Link
-              to="/recovery-log"
+              to={`/recovery-log?returnTo=${encodeURIComponent('/session-summary')}`}
               className="rounded-xl border border-[#2e2e3e] px-4 py-2.5 text-[13px] font-semibold text-gray-400 transition hover:border-gray-500 hover:text-gray-200"
             >
               Recovery log
