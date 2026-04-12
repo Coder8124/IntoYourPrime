@@ -32,7 +32,8 @@ export function AuthPage() {
           localStorage.setItem('formAI_profile', JSON.stringify(stub))
           localStorage.setItem(`formAI_profile_${cred.user.uid}`, JSON.stringify(stub))
         }
-        await upsertUserDisplayName(cred.user.uid, name.trim() || email, email)
+        // Fire-and-forget — don't block signup on Firestore write
+        upsertUserDisplayName(cred.user.uid, name.trim() || email, email).catch(() => {})
         navigate('/onboarding', { replace: true })
       } else {
         const cred = await signInWithEmailAndPassword(auth, email, password)
@@ -46,9 +47,12 @@ export function AuthPage() {
           return
         }
 
-        // 2. Try Firestore (covers signing in on a new device)
+        // 2. Try Firestore with a 4s timeout (covers signing in on a new device)
         try {
-          const fp = await getUserProfile(uid)
+          const fp = await Promise.race([
+            getUserProfile(uid),
+            new Promise<null>(resolve => setTimeout(() => resolve(null), 4000)),
+          ])
           if (fp?.displayName) {
             const local = JSON.stringify(firestoreProfileToLocal(fp))
             localStorage.setItem('formAI_profile', local)
