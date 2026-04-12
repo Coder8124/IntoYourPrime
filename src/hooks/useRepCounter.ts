@@ -6,12 +6,14 @@ import type { NormalizedLandmark } from '@mediapipe/pose'
 const LM = {
   LEFT_SHOULDER:  11,
   RIGHT_SHOULDER: 12,
+  LEFT_ELBOW:     13,
+  RIGHT_ELBOW:    14,
+  LEFT_WRIST:     15,
+  RIGHT_WRIST:    16,
   LEFT_HIP:       23,
   RIGHT_HIP:      24,
   LEFT_KNEE:      25,
   RIGHT_KNEE:     26,
-  LEFT_WRIST:     15,
-  RIGHT_WRIST:    16,
 } as const
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ export interface UseRepCounterReturn {
   phase:             MovementPhase
   lastRepTimestamp:  number | null
   repLog:            RepLogEntry[]
+  isCalibrating:     boolean
   reset:             () => void
 }
 
@@ -66,6 +69,46 @@ const CONFIDENCE_THRESH = 0.6
 const PAUSE_AFTER_MS    = 1000
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Angle in degrees at landmark b, given three landmarks a-b-c. */
+function calcAngle(
+  a: NormalizedLandmark,
+  b: NormalizedLandmark,
+  c: NormalizedLandmark,
+): number {
+  const ax = a.x - b.x, ay = a.y - b.y
+  const cx = c.x - b.x, cy = c.y - b.y
+  const dot = ax * cx + ay * cy
+  const mag = Math.sqrt((ax * ax + ay * ay) * (cx * cx + cy * cy))
+  if (mag === 0) return 180
+  return (Math.acos(Math.max(-1, Math.min(1, dot / mag))) * 180) / Math.PI
+}
+
+/**
+ * Average elbow angle (shoulder→elbow→wrist) across visible arms.
+ * Returns a value in degrees [0, 180].
+ */
+function getPushupElbowAngle(
+  landmarks: NormalizedLandmark[],
+): { value: number; confidence: number } | null {
+  const lSh = landmarks[LM.LEFT_SHOULDER],  lEl = landmarks[LM.LEFT_ELBOW],  lWr = landmarks[LM.LEFT_WRIST]
+  const rSh = landmarks[LM.RIGHT_SHOULDER], rEl = landmarks[LM.RIGHT_ELBOW], rWr = landmarks[LM.RIGHT_WRIST]
+
+  const lConf = Math.min(lSh?.visibility ?? 0, lEl?.visibility ?? 0, lWr?.visibility ?? 0)
+  const rConf = Math.min(rSh?.visibility ?? 0, rEl?.visibility ?? 0, rWr?.visibility ?? 0)
+
+  const angles: number[] = []
+  const confs:  number[] = []
+  if (lConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(lSh, lEl, lWr)); confs.push(lConf) }
+  if (rConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(rSh, rEl, rWr)); confs.push(rConf) }
+  if (angles.length === 0) return null
+
+  const n = angles.length
+  return {
+    value:      angles.reduce((s, v) => s + v, 0) / n,
+    confidence: confs.reduce((s, v)  => s + v, 0) / n,
+  }
+}
 
 function getJointY(
   landmarks: NormalizedLandmark[],
@@ -107,6 +150,7 @@ export function useRepCounter(
   const [phase,            setPhase]            = useState<MovementPhase>('unknown')
   const [lastRepTimestamp, setLastRepTimestamp] = useState<number | null>(null)
   const [repLog,           setRepLog]           = useState<RepLogEntry[]>([])
+  const [isCalibrating,    setIsCalibrating]    = useState(true)
 
   const repCountRef = useRef(0)
 
@@ -124,6 +168,7 @@ export function useRepCounter(
     setPhase('unknown')
     setLastRepTimestamp(null)
     setRepLog([])
+    setIsCalibrating(true)
   }, [])
 
   // Reset when exercise changes
@@ -148,10 +193,23 @@ export function useRepCounter(
     lastLandmarkTs.current = now
     isPaused.current = false
 
-    const joint = getJointY(landmarks, config.joints[0], config.joints[1])
-    if (!joint || joint.confidence < CONFIDENCE_THRESH) return
+    // ── Pushups: use elbow angle instead of shoulder Y-position ───────────
+    // Invert so that bent arms (low angle) → high normalised (= "down")
+    let rawSignal: number
+    let invertSignal = false
 
-    const rawY = joint.y
+    if (exerciseKey === 'pushup') {
+      const angleResult = getPushupElbowAngle(landmarks)
+      if (!angleResult || angleResult.confidence < CONFIDENCE_THRESH) return
+      rawSignal    = angleResult.value
+      invertSignal = true
+    } else {
+      const joint = getJointY(landmarks, config.joints[0], config.joints[1])
+      if (!joint || joint.confidence < CONFIDENCE_THRESH) return
+      rawSignal = joint.y
+    }
+
+    const rawY = rawSignal
 
     if (smoothedY.current === null) {
       smoothedY.current = rawY
@@ -166,13 +224,16 @@ export function useRepCounter(
     if (now < calibrationEnd.current) {
       calibratedMin.current = Math.min(calibratedMin.current, y)
       calibratedMax.current = Math.max(calibratedMax.current, y)
+      setIsCalibrating(true)
       return
     }
+    setIsCalibrating(false)
 
     const range = calibratedMax.current - calibratedMin.current
     if (range < MIN_RANGE) return
 
-    const normalised = (y - calibratedMin.current) / range
+    const normalisedRaw = (y - calibratedMin.current) / range
+    const normalised    = invertSignal ? 1 - normalisedRaw : normalisedRaw
 
     // Extend range live (never shrink)
     calibratedMin.current = Math.min(calibratedMin.current, y)
@@ -205,7 +266,8 @@ export function useRepCounter(
       phaseRef.current = newPhase
       setPhase(newPhase)
     }
-  }, [landmarks, config.joints, exerciseKey])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [landmarks, exerciseKey])
 
-  return { repCount, phase, lastRepTimestamp, repLog, reset }
+  return { repCount, phase, lastRepTimestamp, repLog, isCalibrating, reset }
 }

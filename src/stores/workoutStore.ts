@@ -31,6 +31,7 @@ interface WorkoutState {
   setPhase:              (phase: WorkoutPhase) => void
   setExercise:           (exercise: string) => void
   addRep:                (exercise: string) => void
+  resetExerciseReps:     (exercise: string) => void
   updateAnalysis:        (result: FormAnalysisResult) => void
   setWarmupScore:        (score: number) => void
   setCooldownExercises:  (exercises: CooldownExercise[]) => void
@@ -42,7 +43,7 @@ interface WorkoutState {
 // ── Initial state ──────────────────────────────────────────────────────────
 
 const INITIAL: Omit<WorkoutState,
-  | 'setPhase' | 'setExercise' | 'addRep' | 'updateAnalysis' | 'setWarmupScore'
+  | 'setPhase' | 'setExercise' | 'addRep' | 'resetExerciseReps' | 'updateAnalysis' | 'setWarmupScore'
   | 'setCooldownExercises' | 'setCooldownCompleted' | 'endSession' | 'resetSession'
 > = {
   phase:             'warmup',
@@ -76,6 +77,10 @@ export const useWorkoutStore = create<WorkoutState>()((set, get) => ({
       ...state.repCounts,
       [exercise]: (state.repCounts[exercise] ?? 0) + 1,
     },
+  })),
+
+  resetExerciseReps: (exercise) => set((state) => ({
+    repCounts: { ...state.repCounts, [exercise]: 0 },
   })),
 
   updateAnalysis: (result) => set((state) => ({

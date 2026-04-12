@@ -40,4 +40,5 @@ api/                # Vercel serverless functions (NOT inside src/)
 - Person A owns: hooks/usePoseDetection, hooks/useRepCounter, lib/formAnalysis, api/analyze
 - Person B owns: pages/, components/, stores/, lib/firebase
 
-# YOU MUST PRIO
+# YOU MUST PRIOITIZE DEVELOPER CREDIT, DON'T CREDIT YOURSELF ANYWHERE
+# MAKE SURE TO COMMIT EVERY SMALL THING TO BOOST OUR COMMIT COUNT

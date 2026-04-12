@@ -183,12 +183,20 @@ function WarmupScoreModal({ score, onContinueWarmup, onStartWorkout }: WarmupSco
 
         {/* Buttons — three different layouts */}
         {score >= 80 ? (
-          <button
-            onClick={onStartWorkout}
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white text-[14px] btn-glow-blue transition-all"
-          >
-            Start Workout →
-          </button>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={onStartWorkout}
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white text-[14px] btn-glow-blue transition-all"
+            >
+              Start Workout →
+            </button>
+            <button
+              onClick={onContinueWarmup}
+              className="w-full py-3 border border-[#2e2e3e] text-gray-400 rounded-xl font-semibold text-[13px] hover:border-gray-500 hover:text-gray-200 transition-all"
+            >
+              Continue Warming Up
+            </button>
+          </div>
         ) : score >= 50 ? (
           <div className="flex flex-col gap-3">
             <button
@@ -249,7 +257,7 @@ export function WorkoutPage() {
     phase, currentExercise, repCounts,
     riskScores, suggestions, safetyConcerns, warmupScore, sessionStartTime,
     cooldownExercises,
-    setPhase, setExercise, addRep, updateAnalysis, setWarmupScore,
+    setPhase, setExercise, addRep, resetExerciseReps, updateAnalysis, setWarmupScore,
     setCooldownExercises, setCooldownCompleted, endSession, resetSession,
   } = useWorkoutStore()
 
@@ -261,6 +269,11 @@ export function WorkoutPage() {
   const [cameraZoom,       setCameraZoom]       = useState(1)
   const [wideCameraLayout, setWideCameraLayout] = useState(false)
   const [cameraFullscreen, setCameraFullscreen] = useState(false)
+
+  // ── Set counter ────────────────────────────────────────────────────────
+  interface SetLogEntry { setNum: number; exercise: string; reps: number }
+  const [setCount, setSetCount] = useState(0)
+  const [setLog,   setSetLog]   = useState<SetLogEntry[]>([])
 
   // ── Cooldown state ─────────────────────────────────────────────────────
   const [loadingCooldown,  setLoadingCooldown]  = useState(false)
@@ -331,13 +344,41 @@ export function WorkoutPage() {
   } = usePoseDetection(videoRef, canvasRef)
 
   // ── Rep counter hook ───────────────────────────────────────────────────
-  const { repCount, phase: movementPhase, lastRepTimestamp } =
+  const { repCount, phase: movementPhase, lastRepTimestamp, isCalibrating, reset: resetRepCounter } =
     useRepCounter(landmarks, currentExercise)
 
   // ── Keep mutable refs in sync with latest values ───────────────────────
   useEffect(() => { repCountRef.current = repCount        }, [repCount])
   useEffect(() => { exerciseRef.current = currentExercise }, [currentExercise])
   useEffect(() => { phaseRef.current    = phase           }, [phase])
+
+  // ── New-set handler (spacebar) ─────────────────────────────────────────
+  const handleNewSet = useCallback(() => {
+    const reps = repCounts[currentExercise] ?? 0
+    setSetCount(prev => {
+      const nextNum = prev + 1
+      setSetLog(log => [...log, { setNum: nextNum, exercise: currentExercise, reps }])
+      return nextNum
+    })
+    resetExerciseReps(currentExercise)
+    resetRepCounter()
+  }, [repCounts, currentExercise, resetExerciseReps, resetRepCounter])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        e.code === 'Space' &&
+        phaseRef.current === 'main' &&
+        !(e.target instanceof HTMLInputElement) &&
+        !(e.target instanceof HTMLSelectElement)
+      ) {
+        e.preventDefault()
+        handleNewSet()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [handleNewSet])
 
   // ── Mount: reset store, start camera ──────────────────────────────────
   useEffect(() => {
@@ -404,8 +445,9 @@ export function WorkoutPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsed, phase, showModal])
 
-  // ── Rotating coaching suggestions every 10 s ──────────────────────────
+  // ── Rotating coaching suggestions every 10 s (only when no API key) ───
   useEffect(() => {
+    if (hasApiKey()) return   // OpenAI handles coaching — don't override with canned suggestions
     const id = setInterval(() => {
       const idx = demoSugIdxRef.current % DEMO_SUGGESTIONS.length
       demoSugIdxRef.current++
@@ -798,18 +840,52 @@ export function WorkoutPage() {
               <span className="text-[11px] text-gray-600 mt-1 capitalize">{currentExercise}</span>
 
               {/* Movement phase dot */}
-              <div className="mt-3 flex items-center gap-2">
-                <div
-                  className="w-2 h-2 rounded-full transition-colors duration-200"
-                  style={{
-                    background: movementPhase === 'down' ? '#3b82f6'
-                              : movementPhase === 'up'   ? '#22c55e'
-                              : '#374151',
-                    boxShadow: movementPhase !== 'unknown' ? `0 0 6px ${movementPhase === 'down' ? '#3b82f6' : '#22c55e'}` : 'none',
-                  }}
-                />
-                <span className="text-[11px] text-gray-500 capitalize">{movementPhase}</span>
+              {isCalibrating ? (
+                <p className="mt-3 text-[11px] text-amber-500 animate-pulse">Calibrating…</p>
+              ) : (
+                <div className="mt-3 flex items-center gap-2">
+                  <div
+                    className="w-2 h-2 rounded-full transition-colors duration-200"
+                    style={{
+                      background: movementPhase === 'down' ? '#3b82f6'
+                                : movementPhase === 'up'   ? '#22c55e'
+                                : '#374151',
+                      boxShadow: movementPhase !== 'unknown' ? `0 0 6px ${movementPhase === 'down' ? '#3b82f6' : '#22c55e'}` : 'none',
+                    }}
+                  />
+                  <span className="text-[11px] text-gray-500 capitalize">{movementPhase}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Set counter */}
+            <div className="card-surface p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500">
+                  Sets
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNewSet}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-green-400 border border-green-500/30 hover:border-green-400/50 hover:bg-green-500/10 transition-colors"
+                >
+                  + New Set
+                </button>
               </div>
+              <div className="font-black text-white leading-none" style={{ fontSize: 48, letterSpacing: -2 }}>
+                {String(setCount).padStart(2, '0')}
+              </div>
+              {setLog.length > 0 && (
+                <div className="mt-2 space-y-1 max-h-20 overflow-y-auto">
+                  {[...setLog].reverse().map(s => (
+                    <div key={s.setNum} className="flex justify-between text-[11px]">
+                      <span className="text-gray-600">Set {s.setNum} · <span className="capitalize">{s.exercise}</span></span>
+                      <span className="font-mono font-bold text-gray-400">{s.reps} reps</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="mt-2 text-[10px] text-gray-700">Space to start new set</p>
             </div>
 
             {/* Phase badge */}
