@@ -45,14 +45,20 @@ export interface UseRepCounterReturn {
 interface ExerciseConfig {
   /** Indices of the two landmarks whose Y positions are averaged */
   joints: [number, number]
+  /**
+   * Which phase transition completes a rep.
+   * 'down_to_up' — squat/pushup/deadlift/lunge: bottom → top = rep done
+   * 'up_to_down' — shoulderpress: overhead (up) → back down = rep done
+   */
+  repOn: 'down_to_up' | 'up_to_down'
 }
 
 const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
-  squat:         { joints: [LM.LEFT_HIP,       LM.RIGHT_HIP]       },
-  pushup:        { joints: [LM.LEFT_SHOULDER,   LM.RIGHT_SHOULDER]  },
-  lunge:         { joints: [LM.LEFT_KNEE,       LM.RIGHT_KNEE]      },
-  deadlift:      { joints: [LM.LEFT_HIP,        LM.RIGHT_HIP]       },
-  shoulderpress: { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST]     },
+  squat:         { joints: [LM.LEFT_HIP,       LM.RIGHT_HIP],      repOn: 'down_to_up' },
+  pushup:        { joints: [LM.LEFT_SHOULDER,   LM.RIGHT_SHOULDER], repOn: 'down_to_up' },
+  lunge:         { joints: [LM.LEFT_KNEE,       LM.RIGHT_KNEE],     repOn: 'down_to_up' },
+  deadlift:      { joints: [LM.LEFT_HIP,        LM.RIGHT_HIP],      repOn: 'down_to_up' },
+  shoulderpress: { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'up_to_down' },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -214,8 +220,13 @@ export function useRepCounter(
 
     const phaseChanged = newPhase !== phaseRef.current
 
-    // ── Rep counting: down → up transition = completed rep ────────────
-    if (phaseChanged && newPhase === 'up' && phaseRef.current === 'down') {
+    // ── Rep counting: direction depends on exercise ───────────────────
+    const isRepTransition =
+      config.repOn === 'down_to_up'
+        ? phaseChanged && newPhase === 'up'   && phaseRef.current === 'down'
+        : phaseChanged && newPhase === 'down' && phaseRef.current === 'up'
+
+    if (isRepTransition) {
       const timeSinceLast = lastRepTime.current ? now - lastRepTime.current : Infinity
 
       if (timeSinceLast >= DEBOUNCE_MS) {
@@ -227,7 +238,7 @@ export function useRepCounter(
         setLastRepTimestamp(now)
         setRepLog(prev => [
           ...prev,
-          { exercise: exerciseKey, timestamp: now, phase: 'up' },
+          { exercise: exerciseKey, timestamp: now, phase: newPhase },
         ])
       }
     }

@@ -51,8 +51,14 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, BASE + Math.round(Math.abs(lKn.x - lAn.x) * 800))
   }
   if (ex === 'shoulderpress') {
-    if (!vis(lSh) || !vis(lHip)) return 0
-    return Math.min(100, BASE + Math.round(Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) * 900))
+    // Use wrists instead of hips — hips are often out of frame during shoulder press
+    const lWr = lms[15], rWr = lms[16]
+    if (!vis(lSh, 0.3) || !vis(lWr, 0.3) || !vis(rWr, 0.3)) return BASE
+    // Asymmetry: one wrist significantly higher than the other = poor stability
+    const leftElev  = lSh.y - lWr.y   // positive = wrist above shoulder
+    const rightElev = rSh.y - rWr.y
+    const asymmetry = Math.abs(leftElev - rightElev)
+    return Math.min(100, BASE + Math.round(asymmetry * 700))
   }
   return 0
 }
@@ -385,9 +391,9 @@ export function WorkoutPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landmarks, isTracking])
 
-  // ── API risk call every 30 s ──────────────────────────────────────────
+  // ── API risk + suggestions call: first at 8 s, then every 30 s ──────
   useEffect(() => {
-    const id = setInterval(async () => {
+    const callApi = async () => {
       if (!isTracking || analyzingRef.current) return
       const frames = getBestFrames(2)
       if (!frames.length) return
@@ -400,13 +406,32 @@ export function WorkoutPage() {
           phase:       phaseRef.current === 'warmup' ? 'warmup' : 'main',
         })
         aiRiskRef.current = result.riskScore
+        // Push API suggestions into the coaching panel when they arrive
+        if (result.suggestions.length > 0) {
+          updateAnalysis({
+            riskScore:        result.riskScore,
+            suggestions:      result.suggestions,
+            safetyConcerns:   result.safetyConcerns,
+            repCountEstimate: 0,
+            dominantIssue:    result.dominantIssue,
+            warmupQuality:    result.warmupQuality,
+          })
+        }
       } catch {
         // keep using local score if API fails
       } finally {
         analyzingRef.current = false
       }
-    }, 30_000)
-    return () => clearInterval(id)
+    }
+
+    // First call shortly after tracking begins, then repeat every 30 s
+    const firstTimer = setTimeout(callApi, 8_000)
+    const interval   = setInterval(callApi, 30_000)
+    return () => {
+      clearTimeout(firstTimer)
+      clearInterval(interval)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTracking, getBestFrames])
 
   // ── Derived ────────────────────────────────────────────────────────────
