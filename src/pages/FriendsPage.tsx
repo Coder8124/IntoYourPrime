@@ -1,9 +1,17 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { getPIBriefing, getDemoBriefing } from '../lib/primeIntelligence'
 import { hasApiKey } from '../lib/formAnalysis'
 import type { MemberData, PIBriefing, AvatarState } from '../lib/primeIntelligence'
 import { auth } from '../lib/firebase'
+import {
+  searchUsersByDisplayName,
+  addFriend,
+  getFriends,
+  getPendingFriendRequests,
+  acceptFriendRequest,
+} from '../lib/firebaseHelpers'
+import type { FriendConnection, UserProfile } from '../types/index'
 
 const ADMIN_EMAILS = ['vishweshck3@gmail.com', 'pragun.hebbar@gmail.com']
 
@@ -217,6 +225,8 @@ const DEFAULT_MEMBERS: MemberData[] = [
 
 export function FriendsPage() {
   const isAdmin = ADMIN_EMAILS.includes(auth.currentUser?.email ?? '')
+  const myUid   = auth.currentUser?.uid ?? null
+  const myName  = (JSON.parse(localStorage.getItem('formAI_profile') ?? '{}') as Record<string, unknown>).name as string | undefined
 
   const [members,      setMembers]      = useState<MemberData[]>(() => {
     const myData = loadMyData()
@@ -228,6 +238,79 @@ export function FriendsPage() {
   const [briefing,     setBriefing]     = useState<PIBriefing | null>(null)
   const [loading,      setLoading]      = useState(false)
   const [error,        setError]        = useState<string | null>(null)
+
+  // ── Squad state ────────────────────────────────────────────────────────
+  const [myFriends,       setMyFriends]       = useState<FriendConnection[]>([])
+  const [pendingRequests, setPendingRequests] = useState<FriendConnection[]>([])
+  const [squadLoading,    setSquadLoading]    = useState(true)
+  const [searchQuery,     setSearchQuery]     = useState('')
+  const [searchResults,   setSearchResults]   = useState<UserProfile[]>([])
+  const [searchBusy,      setSearchBusy]      = useState(false)
+  const [sentTo,          setSentTo]          = useState<Set<string>>(new Set())
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Load friends + pending on mount
+  useEffect(() => {
+    if (!myUid) { setSquadLoading(false); return }
+    Promise.all([getFriends(myUid), getPendingFriendRequests(myUid)])
+      .then(([friends, pending]) => {
+        setMyFriends(friends)
+        setPendingRequests(pending)
+        if (friends.length > 0) {
+          const myData = loadMyData()
+          setMembers([
+            { name: myName || 'You', ...myData },
+            ...friends.map(f => ({
+              name: f.friendDisplayName || 'Friend',
+              sessionCompleted: false,
+              calories: 0,
+              intensity: 'N/A' as MemberData['intensity'],
+              streakDays: 0,
+            })),
+          ])
+        }
+      })
+      .catch(() => {})
+      .finally(() => setSquadLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myUid])
+
+  // Debounced displayName search
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (!searchQuery.trim()) { setSearchResults([]); return }
+    searchTimer.current = setTimeout(async () => {
+      setSearchBusy(true)
+      try {
+        const results = await searchUsersByDisplayName(searchQuery)
+        setSearchResults(results.filter(u => u.uid !== myUid))
+      } catch { /* ignore */ } finally {
+        setSearchBusy(false)
+      }
+    }, 350)
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current) }
+  }, [searchQuery, myUid])
+
+  const handleAddFriend = async (profile: UserProfile) => {
+    if (!myUid) return
+    setSentTo(prev => new Set(prev).add(profile.uid))
+    try { await addFriend(myUid, profile) } catch { /* ignore */ }
+  }
+
+  const handleAccept = async (conn: FriendConnection) => {
+    try {
+      await acceptFriendRequest(conn.id)
+      setPendingRequests(prev => prev.filter(r => r.id !== conn.id))
+      setMyFriends(prev => [...prev, { ...conn, status: 'accepted' }])
+      setMembers(prev => [...prev, {
+        name: conn.friendDisplayName || 'Friend',
+        sessionCompleted: false,
+        calories: 0,
+        intensity: 'N/A' as MemberData['intensity'],
+        streakDays: 0,
+      }])
+    } catch { /* ignore */ }
+  }
 
   // Refresh "You" row whenever the page gains focus (after a workout)
   useEffect(() => {
@@ -291,6 +374,104 @@ export function FriendsPage() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 pt-6 space-y-6">
+
+        {/* ── Squad / Friends ──────────────────────────────────────────── */}
+        <div className="card-surface p-5 space-y-4">
+          <p className="text-[11px] font-bold tracking-[0.15em] uppercase text-gray-500">Your Squad</p>
+
+          {/* Search bar */}
+          {myUid ? (
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search by display name…"
+                className="input-dark w-full pr-10 text-[13px]"
+                autoComplete="off"
+              />
+              {searchBusy && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-[11px]">…</span>
+              )}
+            </div>
+          ) : (
+            <p className="text-[12px] text-gray-600">Sign in to search for friends.</p>
+          )}
+
+          {/* Search results */}
+          {searchResults.length > 0 && (
+            <div className="space-y-2">
+              {searchResults.map(u => {
+                const alreadyFriend = myFriends.some(f => f.friendId === u.uid)
+                const sent = sentTo.has(u.uid)
+                return (
+                  <div key={u.uid} className="flex items-center justify-between p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+                    <div>
+                      <p className="text-[13px] font-semibold text-white">{u.displayName}</p>
+                      <p className="text-[11px] text-gray-600">{u.email}</p>
+                    </div>
+                    {alreadyFriend ? (
+                      <span className="text-[11px] font-bold text-green-400">In squad</span>
+                    ) : sent ? (
+                      <span className="text-[11px] font-bold text-amber-400">Sent</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleAddFriend(u)}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-[12px] font-bold text-white transition-colors"
+                      >
+                        + Add
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Pending incoming requests */}
+          {pendingRequests.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-400">Incoming Requests</p>
+              {pendingRequests.map(req => (
+                <div key={req.id} className="flex items-center justify-between p-3 rounded-xl bg-[#0f0f1a] border border-amber-900/30">
+                  <p className="text-[13px] font-semibold text-white">{req.friendDisplayName || req.friendEmail || 'Someone'}</p>
+                  <button
+                    type="button"
+                    onClick={() => handleAccept(req)}
+                    className="px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-[12px] font-bold text-white transition-colors"
+                  >
+                    Accept
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Current squad */}
+          {squadLoading ? (
+            <p className="text-[12px] text-gray-600">Loading squad…</p>
+          ) : myFriends.length === 0 && pendingRequests.length === 0 ? (
+            <p className="text-[12px] text-gray-600">No squad members yet — search above to add friends.</p>
+          ) : myFriends.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600">Members</p>
+              {myFriends.map(f => (
+                <div key={f.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+                  <div className="w-7 h-7 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center text-[12px] font-black text-blue-400">
+                    {(f.friendDisplayName || '?')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-semibold text-white">{f.friendDisplayName}</p>
+                    {f.sharedStreak > 0 && (
+                      <p className="text-[11px] text-amber-400">{f.sharedStreak}-day shared streak</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
         {/* ── Group setup ─────────────────────────────────────────────── */}
         <div className="card-surface p-5 space-y-4">

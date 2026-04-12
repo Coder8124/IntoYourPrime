@@ -290,6 +290,27 @@ export async function updateUserProfile(
   }
 }
 
+/**
+ * Upsert just displayName + email into the users collection (merge, won't overwrite other fields).
+ * Safe to call on sign-up when we don't yet have age/weight etc.
+ */
+export async function upsertUserDisplayName(
+  uid: string,
+  displayName: string,
+  email: string,
+): Promise<void> {
+  try {
+    const id = await effectiveUserId(uid)
+    await setDoc(
+      doc(db, 'users', id),
+      { uid: id, displayName: displayName.trim(), email: email.trim().toLowerCase() },
+      { merge: true },
+    )
+  } catch (e) {
+    wrapError('upsertUserDisplayName', e)
+  }
+}
+
 export async function updateStreak(uid: string): Promise<void> {
   try {
     const id = await effectiveUserId(uid)
@@ -447,6 +468,65 @@ export async function getRecentLogs(uid: string, days: number): Promise<DailyLog
 }
 
 // ——— FRIENDS ———
+
+export async function searchUsersByDisplayName(searchTerm: string): Promise<UserProfile[]> {
+  if (!searchTerm.trim()) return []
+  const term = searchTerm.trim()
+  try {
+    const q = query(
+      collection(db, 'users'),
+      where('displayName', '>=', term),
+      where('displayName', '<=', term + '\uf8ff'),
+      limit(10),
+    )
+    const snap = await getDocs(q)
+    return snap.docs.map(d => userProfileFromDoc(d)).filter((p): p is UserProfile => p !== null)
+  } catch (e) {
+    wrapError('searchUsersByDisplayName', e)
+  }
+}
+
+export async function addFriend(
+  fromUid: string,
+  toProfile: UserProfile,
+): Promise<'sent' | 'already_friends'> {
+  try {
+    const fromId = await effectiveUserId(fromUid)
+    assertSignedUid(fromId, 'addFriend')
+    const toUid = toProfile.uid
+    if (toUid === fromId) return 'already_friends'
+    if (await acceptedConnectionExists(fromId, toUid)) return 'already_friends'
+    if (await pendingConnectionExists(fromId, toUid)) return 'sent'
+    await addDoc(collection(db, 'friendConnections'), {
+      userId: fromId,
+      friendId: toUid,
+      friendDisplayName: toProfile.displayName,
+      friendEmail: toProfile.email,
+      status: 'pending',
+      sharedStreak: 0,
+      lastSharedWorkoutDate: null,
+      createdAt: Timestamp.now(),
+    })
+    return 'sent'
+  } catch (e) {
+    wrapError('addFriend', e)
+  }
+}
+
+export async function getPendingFriendRequests(uid: string): Promise<FriendConnection[]> {
+  try {
+    const id = await effectiveUserId(uid)
+    const q = query(
+      collection(db, 'friendConnections'),
+      where('friendId', '==', id),
+      where('status', '==', 'pending'),
+    )
+    const snap = await getDocs(q)
+    return snap.docs.map(d => friendFromDoc(d, id, null))
+  } catch (e) {
+    wrapError('getPendingFriendRequests', e)
+  }
+}
 
 export async function sendFriendRequest(
   fromUid: string,

@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users — any signed-in user can read (for friend search)
+    // Only the owner can write their own doc
+    match /users/{uid} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Friend connections — participants can read/write
+    match /friendConnections/{connId} {
+      allow read:  if request.auth != null &&
+                     (resource.data.userId == request.auth.uid ||
+                      resource.data.friendId == request.auth.uid);
+      allow create: if request.auth != null &&
+                      request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null &&
+                      (resource.data.userId  == request.auth.uid ||
+                       resource.data.friendId == request.auth.uid);
+    }
+
+    // Sessions — owner only
+    match /sessions/{sessionId} {
+      allow read, write: if request.auth != null &&
+                            resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null &&
+                       request.resource.data.userId == request.auth.uid;
+    }
+
+    // Daily logs — owner only
+    match /dailyLogs/{logId} {
+      allow read, write: if request.auth != null &&
+                            resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null &&
+                       request.resource.data.userId == request.auth.uid;
+    }
+
+    // Activity feed — friends can read
+    match /activityFeed/{itemId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null &&
+                       request.resource.data.userId == request.auth.uid;
+    }
+  }
+}

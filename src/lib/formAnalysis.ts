@@ -1,29 +1,23 @@
 /**
- * formAnalysis.ts — client-side AI calls (all via OpenAI)
+ * formAnalysis.ts — client-side AI calls via OpenAI SDK
  *
- * analyzeForm          → gpt-4o vision (VITE_OPENAI_API_KEY)
- * generateCooldown     → gpt-4o-mini   (VITE_OPENAI_API_KEY)
- * generateRecoveryInsight → gpt-4o-mini (VITE_OPENAI_API_KEY)
- *
+ * Key priority: user-saved key in localStorage > VITE_OPENAI_API_KEY env var
  * SDK runs in-browser with dangerouslyAllowBrowser: true.
- * Key lives in .env as VITE_OPENAI_API_KEY.
  */
 
 import OpenAI from 'openai'
 import type { FormAnalysisResult, CooldownExercise, Session, DailyLog, UserProfile } from '../types/index'
 
 // ── Key resolution ─────────────────────────────────────────────────────────
-// Priority: user-saved key in localStorage > build-time VITE_OPENAI_API_KEY
 
 function getApiKey(): string {
   try {
     const stored = localStorage.getItem('formAI_openai_key')?.trim()
     if (stored) return stored
-  } catch { /* localStorage unavailable in SSR / tests */ }
+  } catch { /* localStorage unavailable */ }
   return import.meta.env.VITE_OPENAI_API_KEY ?? ''
 }
 
-/** Returns true when an OpenAI key is available (user-provided or env var). */
 export function hasApiKey(): boolean {
   return getApiKey().length > 0
 }
@@ -140,7 +134,7 @@ async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-// ── analyzeForm — gpt-4o vision ───────────────────────────────────────────
+// ── analyzeForm ────────────────────────────────────────────────────────────
 
 export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisResult> {
   const c = client()
@@ -168,51 +162,143 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
     for (const frame of params.frames) {
       imageBlocks.push({
         type:      'image_url' as const,
-        image_url: { url: frame, detail: 'auto' as const },
+        image_url: { url: frame, detail: 'high' as const },
       })
     }
 
+    // Per-exercise coaching rubrics: what to look for, ranked by injury risk
     const exerciseGuides: Record<string, string> = {
-      pushup:        'Check: elbows near body (not flared wide), body straight head-to-heel (no hip sag or pike), chest nearly touching floor at bottom, head neutral.',
-      squat:         'Check: knees tracking over toes (not caving in), thighs reach parallel or below, heels flat on floor, chest up with neutral spine.',
-      deadlift:      'Check: flat/neutral back throughout (NO rounding — highest risk), bar close to legs, hips hinge properly, head neutral.',
-      lunge:         'Check: front knee stays over ankle (not past toes), torso upright, back knee lowers toward floor, knee not caving inward.',
-      shoulderpress: 'Check: no excessive lower back arch, elbows at ~90° at start, full lockout overhead, core braced.',
-      curlup:        'Check: chin tucked (not yanked forward), hands behind head (not pulling neck), lower back stays flat on floor, core doing the work not hip flexors.',
-      bicepcurl:     'Check: elbows pinned at sides (not swinging forward), full extension at bottom, squeeze at top, no body sway or momentum.',
+      pushup: [
+        'BODY ALIGNMENT (highest priority): body must form a straight line ear→shoulder→hip→ankle.',
+        '  - Hip sag (hips drop below line) = lower back compression. Score 60+ if sagging.',
+        '  - Hip pike (butt in the air) = avoiding the hard part, not engaging core. Score 40+.',
+        'ELBOW POSITION: elbows should track at ~45° from torso, NOT flaring out wide (shoulder impingement risk).',
+        'DEPTH: chest should nearly touch the floor at the bottom. Partial reps that stop halfway = score 35+.',
+        'HEAD: neutral — eyes looking slightly ahead of hands, not drooping or craning up.',
+      ].join('\n'),
+
+      squat: [
+        'KNEE TRACKING (highest priority): knees must travel in line with toes, NOT caving inward (valgus).',
+        '  - Knee valgus = ACL/MCL injury risk. Score 65+ if knees are clearly caving.',
+        'DEPTH: hip crease should reach at or below knee level (parallel). Stopping high = score 40+.',
+        'SPINE: neutral curve throughout. No butt wink (lower back rounds at the bottom) — score 55+ if present.',
+        'HEELS: must stay flat on the floor. Heels rising = ankle mobility issue, forward lean compensation.',
+        'TORSO: upright. Excessive forward lean (chest toward knees) shifts load to lower back — score 45+.',
+      ].join('\n'),
+
+      deadlift: [
+        '⚠️ SPINE (CRITICAL — highest injury risk in all of fitness):',
+        '  - ANY lower back rounding (lumbar flexion under load) = score 75+. This causes disc herniation.',
+        '  - Upper back rounding (thoracic) = score 55+.',
+        '  - Flat/neutral back with natural lumbar curve = correct.',
+        'HIP HINGE: hips should push back, not squat down. Bar stays close to legs throughout.',
+        'LOCKOUT: at the top, stand fully upright — no hyperextension (leaning back), no soft knees.',
+        'HEAD: neutral in line with spine. Do not crane neck up or let head drop.',
+      ].join('\n'),
+
+      lunge: [
+        'FRONT KNEE: must stay directly over the ankle — not caving inward (valgus) and not shooting past toes.',
+        '  - Knee past toes = patellar stress. Score 50+ if excessive.',
+        '  - Knee valgus (caving in) = ACL risk. Score 65+ if present.',
+        'TORSO: upright, not leaning forward over the front thigh. Lean = hip flexor strain, score 45+.',
+        'BACK KNEE: lowers toward (not slamming into) the floor, hovering 1–2 inches off.',
+        'STEP WIDTH: feet should be hip-width apart (not a tightrope), for balance and hip alignment.',
+        'BACK FOOT: toes pointed forward or slightly out — not turned wildly sideways.',
+      ].join('\n'),
+
+      shoulderpress: [
+        'LOWER BACK (highest priority): pressing overhead with an arched lower back = lumbar disc risk.',
+        '  - Excessive arch = score 65+. Core should be braced, slight forward lean is OK.',
+        'ELBOW START POSITION: elbows at ~90°, roughly in line with shoulders — not too far forward.',
+        'PRESS PATH: bar/wrists move straight up, tracking over the shoulder joint.',
+        'LOCKOUT: full extension overhead — elbows straight, shrug traps slightly at the top.',
+        'SYMMETRY: both arms pressing equally. Lopsided lockout = weak side compensation, score 40+.',
+        'WRIST: neutral — not bent back under the load.',
+      ].join('\n'),
+
+      curlup: [
+        'NECK (highest priority): hands should REST lightly behind the head — not pull the neck forward.',
+        '  - If chin is jutting forward or neck is straining, score 60+.',
+        'LOWER BACK: must stay pressed into the floor throughout. If lower back arches up = hip flexors dominating, score 55+.',
+        'RANGE OF MOTION: shoulder blades should lift off the floor (concentric), then lower with control.',
+        'FEET: can be flat on floor or raised — as long as lower back stays down.',
+        'SYMMETRY: both shoulders rise equally. One-sided crunch = neck strain on the tighter side.',
+      ].join('\n'),
+
+      bicepcurl: [
+        'ELBOW POSITION (highest priority): elbows must stay pinned at the sides of the torso throughout.',
+        '  - Elbows swinging forward at the top = front deltoid taking over, reduces bicep stimulus. Score 50+.',
+        'BODY SWAY: torso must be still. Leaning/swinging back to help lift = momentum cheat, lower back risk. Score 55+.',
+        'FULL RANGE: arm should fully extend at the bottom (no partial reps that stop short). Score 35+ if always partial.',
+        'WRIST: neutral or slightly supinated — not bent back under load.',
+        'SQUEEZE: wrist should rotate supinated at the top, peak contraction.',
+      ].join('\n'),
     }
-    const guide = exerciseGuides[params.exercise.toLowerCase()] ?? 'Check overall posture, alignment, and safe range of motion.'
+
+    const guide = exerciseGuides[params.exercise.toLowerCase()]
+      ?? 'Check posture, joint alignment, spine neutrality, and full range of motion. Flag any rounding, collapsing, or compensatory movement patterns.'
+
+    const repInfo = params.repCount != null ? ` (${params.repCount} reps completed so far)` : ''
+    const levelMap: Record<string, string> = {
+      beginner:     'beginner — be encouraging but very direct about safety issues',
+      intermediate: 'intermediate — be direct and technically precise',
+      advanced:     'advanced — be concise, assume they know the basics, focus only on what is actually off',
+    }
+    const levelNote = levelMap[params.userProfile.fitnessLevel] ?? 'intermediate'
 
     const textBlock: OpenAI.Chat.Completions.ChatCompletionContentPart = {
       type: 'text',
-      text:
-        `Exercise: ${params.exercise.toUpperCase()}. Phase: ${params.phase}. ` +
-        `Athlete: ${params.userProfile.age}yo, ${params.userProfile.weight}kg, level: ${params.userProfile.fitnessLevel}.\n\n` +
-        `${guide}\n\n` +
-        `Look at the images and judge the form visually. ` +
-        `riskScore should reflect real risk: good form = 0-25, minor issues = 26-55, bad form = 56-79, dangerous = 80-100. ` +
-        `Do NOT default to low scores — if form is off, say so.\n\n` +
-        `Respond with exactly this JSON (no markdown, no prose):\n` +
-        `{\n` +
-        `  "riskScore": number 0-100,\n` +
-        `  "suggestions": string[] (2-3 specific cues about what you actually see, present tense),\n` +
-        `  "safetyConcerns": string[] (empty array if none),\n` +
-        `  "dominantIssue": string | null,\n` +
-        `  "warmupQuality": number | null (0-100 if warmup phase, else null)\n` +
-        `}`,
+      text: [
+        `EXERCISE: ${params.exercise.toUpperCase()} | PHASE: ${params.phase}${repInfo}`,
+        `ATHLETE: ${params.userProfile.age} yrs, ${params.userProfile.weight} kg, ${levelNote}`,
+        '',
+        'FORM RUBRIC:',
+        guide,
+        '',
+        'SCORING:',
+        '  0–20 = excellent form, keep going',
+        '  21–40 = minor issues, worth correcting',
+        '  41–60 = clear form breakdown, injury risk building',
+        '  61–80 = significant fault, stop and correct',
+        '  81–100 = dangerous, high injury risk right now',
+        '',
+        'IMPORTANT RULES:',
+        '- Base riskScore ONLY on what you can clearly see in the images.',
+        '- If the camera angle hides a critical checkpoint, note it in suggestions but do not penalize.',
+        '- Do NOT default to a low score out of uncertainty — if you see a fault, score it accordingly.',
+        '- suggestions must be specific coaching cues in second person present tense, as if speaking to the athlete right now.',
+        '  Example: "Your left knee is caving inward — press it out over your pinky toe."',
+        '  NOT: "Make sure knees track over toes." (too generic)',
+        '- safetyConcerns is only for genuinely dangerous patterns (score 65+). Empty array otherwise.',
+        `- warmupQuality: ${params.phase === 'warmup' ? 'rate 0–100 how well warmed up this person looks (range of motion, pace, engagement)' : 'null'}`,
+        '',
+        'Respond with ONLY this JSON — no markdown, no prose:',
+        '{',
+        '  "riskScore": number,',
+        '  "suggestions": string[],',
+        '  "safetyConcerns": string[],',
+        '  "dominantIssue": string | null,',
+        `  "warmupQuality": ${params.phase === 'warmup' ? 'number' : 'null'}`,
+        '}',
+      ].join('\n'),
     }
 
     const completion = await c.chat.completions.create({
-      model:      'gpt-4o-mini',
-      max_tokens: 400,
+      model:      'gpt-4o',
+      max_tokens: 500,
       messages: [
         {
-          role:    'system',
-          content:
-            'You are an expert personal trainer. You are shown frames from a live workout. ' +
-            'Judge exercise form purely from what you see in the images. ' +
-            'Give honest, specific feedback — reference what you actually observe (e.g. "your hips are dropping", "knees are caving inward"). ' +
-            'Never give vague generic advice. Respond with valid JSON only.',
+          role: 'system',
+          content: [
+            'You are an elite personal trainer and movement specialist with 15+ years of experience.',
+            'You are watching live workout footage and giving real-time coaching feedback.',
+            'Your feedback must be:',
+            '  - SPECIFIC: reference exactly what you see (e.g. "your left knee", "the bottom of rep 3")',
+            '  - ACTIONABLE: tell them what to DO, not just what is wrong',
+            '  - HONEST: if form is dangerous, say so clearly — do not soften safety issues',
+            '  - CONCISE: each suggestion is 1 sentence max, spoken naturally as a coach',
+            'Respond with valid JSON only. No markdown fences, no explanatory text.',
+          ].join('\n'),
         },
         {
           role:    'user',
@@ -225,20 +311,11 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
     return JSON.parse(stripJsonFences(raw)) as FormAnalysisResult
   }
 
-  try {
-    return await attempt()
-  } catch {
-    await sleep(500)
-  }
-
-  try {
-    return await attempt()
-  } catch {
-    return { ...DEFAULT_FORM_RESULT }
-  }
+  try { return await attempt() } catch { await sleep(500) }
+  try { return await attempt() } catch { return { ...DEFAULT_FORM_RESULT } }
 }
 
-// ── generateCooldown — gpt-4o-mini ────────────────────────────────────────
+// ── generateCooldown ───────────────────────────────────────────────────────
 
 export async function generateCooldown(
   session:     Partial<Session>,
@@ -259,8 +336,7 @@ export async function generateCooldown(
         {
           role:    'user',
           content:
-            `Session: ${JSON.stringify(session)}\n` +
-            `User: ${JSON.stringify(userProfile)}\n\n` +
+            `Session: ${JSON.stringify(session)}\nUser: ${JSON.stringify(userProfile)}\n\n` +
             `Return a JSON array of 4-6 cooldown exercises:\n` +
             `[{\n` +
             `  "name": string,\n` +
@@ -271,7 +347,6 @@ export async function generateCooldown(
         },
       ],
     })
-
     const raw = completion.choices[0]?.message?.content ?? ''
     return JSON.parse(stripJsonFences(raw)) as CooldownExercise[]
   } catch {
@@ -279,7 +354,7 @@ export async function generateCooldown(
   }
 }
 
-// ── generateRecoveryInsight — gpt-4o-mini ─────────────────────────────────
+// ── generateRecoveryInsight ────────────────────────────────────────────────
 
 export async function generateRecoveryInsight(context: {
   sessions: Session[]
@@ -299,13 +374,10 @@ export async function generateRecoveryInsight(context: {
         },
         {
           role:    'user',
-          content:
-            `Sessions: ${JSON.stringify(context.sessions)}\n` +
-            `Recovery logs: ${JSON.stringify(context.logs)}`,
+          content: `Sessions: ${JSON.stringify(context.sessions)}\nRecovery logs: ${JSON.stringify(context.logs)}`,
         },
       ],
     })
-
     return completion.choices[0]?.message?.content ?? ''
   } catch {
     return ''
