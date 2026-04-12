@@ -1,3 +1,102 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+    background-color: #0a0a0f;
+    color: white;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Subtle custom scrollbar */
+  ::-webkit-scrollbar       { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #1e1e2e; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
+
+  /* Hide number spinners */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+
+  /* Select custom arrow */
+  select {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234a4a6a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px !important;
+  }
+
+  select option {
+    background: #0f0f1a;
+    color: white;
+  }
+}
+
+@layer components {
+  .card-surface {
+    background: #13131f;
+    border: 1px solid #1e1e2e;
+    border-radius: 12px;
+  }
+
+  .input-dark {
+    background: #0f0f1a;
+    border: 1px solid #1e1e2e;
+    color: white;
+    border-radius: 8px;
+    padding: 10px 14px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    font-size: 14px;
+  }
+
+  .input-dark:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  }
+
+  .input-dark::placeholder {
+    color: #3a3a5a;
+  }
+}
+
+@layer utilities {
+  .text-glow-blue {
+    text-shadow: 0 0 24px rgba(59, 130, 246, 0.7);
+  }
+
+  .btn-glow-blue {
+    box-shadow: 0 0 24px rgba(59, 130, 246, 0.35), 0 4px 16px rgba(59, 130, 246, 0.2);
+  }
+  .btn-glow-blue:hover:not(:disabled) {
+    box-shadow: 0 0 36px rgba(59, 130, 246, 0.55), 0 4px 24px rgba(59, 130, 246, 0.3);
+    transform: translateY(-1px);
+  }
+
+  /* Animated grid — used on onboarding */
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(59,130,246,0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.055) 1px, transparent 1px);
+    background-size: 60px 60px;
+    background-position: -1px -1px;
+    animation: gridScrollY 22s linear infinite;
+  }
+
+  @keyframes gridScrollY {
+    from { transform: translateY(0); }
+    to   { transform: translateY(60px); }
+  }
+}
