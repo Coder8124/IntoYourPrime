@@ -462,7 +462,7 @@ export function WorkoutPage() {
                 className="font-black leading-none select-none text-white"
                 style={{ fontSize: 84, letterSpacing: -4 }}
               >
-                {String(repCount).padStart(2, '0')}
+                {String(repCounts[currentExercise] ?? 0).padStart(2, '0')}
               </div>
               <span className="text-[11px] text-gray-600 mt-1 capitalize">{currentExercise}</span>
 
