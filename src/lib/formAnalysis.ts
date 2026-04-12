@@ -1,24 +1,22 @@
 /**
- * formAnalysis.ts — client-side AI calls
+ * formAnalysis.ts — client-side AI calls (all via OpenAI)
  *
- * analyzeForm        → OpenAI gpt-4o  (vision, needs VITE_OPENAI_API_KEY)
- * generateCooldown   → Anthropic Claude (needs VITE_ANTHROPIC_API_KEY)
- * generateRecoveryInsight → Anthropic Claude (needs VITE_ANTHROPIC_API_KEY)
+ * analyzeForm          → gpt-4o vision (VITE_OPENAI_API_KEY)
+ * generateCooldown     → gpt-4o-mini   (VITE_OPENAI_API_KEY)
+ * generateRecoveryInsight → gpt-4o-mini (VITE_OPENAI_API_KEY)
  *
- * Both SDKs run in-browser with dangerouslyAllowBrowser: true.
- * Keys live in .env as VITE_* so Vite inlines them at build time.
+ * SDK runs in-browser with dangerouslyAllowBrowser: true.
+ * Key lives in .env as VITE_OPENAI_API_KEY.
  */
 
 import OpenAI from 'openai'
-import Anthropic from '@anthropic-ai/sdk'
 import type { FormAnalysisResult, CooldownExercise, Session, DailyLog, UserProfile } from '../types/index'
 
-// ── SDK instances (lazy so missing keys don't crash on import) ─────────────
+// ── SDK instance (lazy) ────────────────────────────────────────────────────
 
 let _openai: OpenAI | null = null
-let _anthropic: Anthropic | null = null
 
-function openaiClient(): OpenAI {
+function client(): OpenAI {
   if (!_openai) {
     _openai = new OpenAI({
       apiKey: import.meta.env.VITE_OPENAI_API_KEY ?? '',
@@ -26,16 +24,6 @@ function openaiClient(): OpenAI {
     })
   }
   return _openai
-}
-
-function anthropicClient(): Anthropic {
-  if (!_anthropic) {
-    _anthropic = new Anthropic({
-      apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY ?? '',
-      dangerouslyAllowBrowser: true,
-    })
-  }
-  return _anthropic
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -73,7 +61,7 @@ async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-// ── analyzeForm — OpenAI gpt-4o vision ────────────────────────────────────
+// ── analyzeForm — gpt-4o vision ───────────────────────────────────────────
 
 export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisResult> {
   const attempt = async (): Promise<FormAnalysisResult> => {
@@ -101,7 +89,7 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
         `}`,
     }
 
-    const completion = await openaiClient().chat.completions.create({
+    const completion = await client().chat.completions.create({
       model:    'gpt-4o',
       messages: [
         {
@@ -117,18 +105,16 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
       ],
     })
 
-    const raw  = completion.choices[0]?.message?.content ?? ''
+    const raw = completion.choices[0]?.message?.content ?? ''
     return JSON.parse(stripJsonFences(raw)) as FormAnalysisResult
   }
 
-  // First attempt
   try {
     return await attempt()
   } catch {
     await sleep(500)
   }
 
-  // One retry
   try {
     return await attempt()
   } catch {
@@ -136,20 +122,22 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
   }
 }
 
-// ── generateCooldown — Anthropic Claude ───────────────────────────────────
+// ── generateCooldown — gpt-4o-mini ────────────────────────────────────────
 
 export async function generateCooldown(
   session:     Partial<Session>,
   userProfile: UserProfile,
 ): Promise<CooldownExercise[]> {
   try {
-    const response = await anthropicClient().messages.create({
-      model:      'claude-haiku-4-5-20251001',
+    const completion = await client().chat.completions.create({
+      model:      'gpt-4o-mini',
       max_tokens: 600,
-      system:
-        'You are an expert personal trainer. Generate targeted cooldown exercises ' +
-        'based on the workout session. Always respond with valid JSON only — no prose, no markdown.',
       messages: [
+        {
+          role:    'system',
+          content: 'You are an expert personal trainer. Generate targeted cooldown exercises ' +
+                   'based on the workout session. Always respond with valid JSON only — no prose, no markdown.',
+        },
         {
           role:    'user',
           content:
@@ -166,28 +154,29 @@ export async function generateCooldown(
       ],
     })
 
-    const block = response.content[0]
-    if (block.type !== 'text') return []
-    return JSON.parse(stripJsonFences(block.text)) as CooldownExercise[]
+    const raw = completion.choices[0]?.message?.content ?? ''
+    return JSON.parse(stripJsonFences(raw)) as CooldownExercise[]
   } catch {
     return []
   }
 }
 
-// ── generateRecoveryInsight — Anthropic Claude ────────────────────────────
+// ── generateRecoveryInsight — gpt-4o-mini ─────────────────────────────────
 
 export async function generateRecoveryInsight(context: {
   sessions: Session[]
   logs:     DailyLog[]
 }): Promise<string> {
   try {
-    const response = await anthropicClient().messages.create({
-      model:      'claude-haiku-4-5-20251001',
+    const completion = await client().chat.completions.create({
+      model:      'gpt-4o-mini',
       max_tokens: 200,
-      system:
-        'You are a sports recovery specialist. Analyze training patterns ' +
-        'and return a 2-3 sentence plain-English insight. No JSON, just plain text.',
       messages: [
+        {
+          role:    'system',
+          content: 'You are a sports recovery specialist. Analyze training patterns ' +
+                   'and return a 2-3 sentence plain-English insight. No JSON, just plain text.',
+        },
         {
           role:    'user',
           content:
@@ -197,8 +186,7 @@ export async function generateRecoveryInsight(context: {
       ],
     })
 
-    const block = response.content[0]
-    return block.type === 'text' ? block.text : ''
+    return completion.choices[0]?.message?.content ?? ''
   } catch {
     return ''
   }
