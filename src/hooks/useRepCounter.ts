@@ -312,11 +312,12 @@ export function useRepCounter(
       rawSignal    = result.value
       invertSignal = true
     } else if (exerciseKey === 'pushup') {
-      // hip→shoulder→elbow angle. Large = arms extended (top), small = chest down.
-      // Invert so small angle → high normalised → "down" phase.
-      const angleResult = getPushupShoulderAngle(landmarks)
-      if (!angleResult || angleResult.confidence < CONFIDENCE_THRESH) return
-      rawSignal    = angleResult.value
+      // Elbow angle (shoulder→elbow→wrist). Extended arms (top): ~160-170°. Chest down (bottom): ~70-90°.
+      // Only needs upper-body landmarks — much more reliable than hip-dependent signal in prone position.
+      // Invert: large angle (extended/top) → low normalised → "up" phase.
+      const result = getElbowAngle(landmarks)
+      if (!result || result.confidence < 0.4) return   // lower threshold — prone reduces confidence
+      rawSignal    = result.value
       invertSignal = true
     } else if (exerciseKey === 'bicepcurl') {
       // Elbow angle: extended (~160°) = bottom, contracted (~40°) = top.
