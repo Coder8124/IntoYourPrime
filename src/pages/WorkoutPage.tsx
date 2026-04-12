@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
@@ -8,6 +9,11 @@ import { analyzeForm } from '../lib/formAnalysis'
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress'] as const
+
+/** Optional center-crop so a small subject fills more of the preview (pose still uses full camera). */
+const CAMERA_ZOOM_MIN = 1
+const CAMERA_ZOOM_MAX = 2.75
+const CAMERA_ZOOM_STEP = 0.125
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -172,8 +178,9 @@ export function WorkoutPage() {
   const navigate = useNavigate()
 
   // ── Refs ───────────────────────────────────────────────────────────────
-  const videoRef     = useRef<HTMLVideoElement>(null)
-  const canvasRef    = useRef<HTMLCanvasElement>(null)
+  const videoRef       = useRef<HTMLVideoElement>(null)
+  const canvasRef      = useRef<HTMLCanvasElement>(null)
+  const cameraShellRef = useRef<HTMLDivElement>(null)
   const analyzingRef = useRef(false)
   const repCountRef  = useRef(0)
   const exerciseRef  = useRef('squat')
@@ -190,6 +197,9 @@ export function WorkoutPage() {
   const [showModal,     setShowModal]     = useState(false)
   const [cameraStarted, setCameraStarted] = useState(false)
   const [voiceMuted,    setVoiceMuted]    = useState(false)
+  const [cameraZoom,       setCameraZoom]       = useState(1)
+  const [wideCameraLayout, setWideCameraLayout] = useState(false)
+  const [cameraFullscreen, setCameraFullscreen] = useState(false)
 
   // ── User profile ───────────────────────────────────────────────────────
   const userProfile = useMemo(() => {
@@ -206,6 +216,44 @@ export function WorkoutPage() {
       }
     } catch {
       return { age: 25, weight: 70, fitnessLevel: 'intermediate' }
+    }
+  }, [])
+
+  const nudgeCameraZoom = useCallback((delta: number) => {
+    setCameraZoom((z) => {
+      const next = z + delta
+      const clamped = Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, next))
+      return Math.round(clamped * 1000) / 1000
+    })
+  }, [])
+
+  const onCameraPreviewWheel = useCallback(
+    (e: React.WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const step = e.ctrlKey || e.metaKey ? CAMERA_ZOOM_STEP * 1.5 : CAMERA_ZOOM_STEP
+      nudgeCameraZoom(e.deltaY > 0 ? -step : step)
+    },
+    [nudgeCameraZoom],
+  )
+
+  useEffect(() => {
+    const sync = () => {
+      setCameraFullscreen(document.fullscreenElement === cameraShellRef.current)
+    }
+    document.addEventListener('fullscreenchange', sync)
+    return () => document.removeEventListener('fullscreenchange', sync)
+  }, [])
+
+  const toggleCameraFullscreen = useCallback(() => {
+    const el = cameraShellRef.current
+    if (!el) return
+    if (!document.fullscreenElement) {
+      void el.requestFullscreen().catch(() => {
+        /* Safari / blocked */
+      })
+    } else {
+      void document.exitFullscreen()
     }
   }, [])
 
@@ -399,8 +447,14 @@ export function WorkoutPage() {
         {/* ── THREE COLUMNS ───────────────────────────────────────────── */}
         <div className="flex-1 flex overflow-hidden min-h-0">
 
-          {/* ── LEFT PANEL (30%) ────────────────────────────────────── */}
-          <aside className="w-[30%] shrink-0 flex flex-col gap-3 p-4 border-r border-[#1e1e2e] overflow-y-auto">
+          {/* ── LEFT PANEL ───────────────────────────────────────────── */}
+          <aside
+            className={[
+              'shrink-0 flex flex-col gap-3 border-r border-[#1e1e2e] overflow-y-auto',
+              wideCameraLayout ? 'p-3' : 'p-4',
+              wideCameraLayout ? 'w-[min(13.5rem,22vw)]' : 'w-[30%]',
+            ].join(' ')}
+          >
 
             {/* Exercise selector */}
             <div className="card-surface p-4">
@@ -502,8 +556,15 @@ export function WorkoutPage() {
           </aside>
 
           {/* ── CENTER (40%) ───────────────────────────────────────────── */}
-          <main className="flex-1 flex flex-col p-4 min-w-0 overflow-hidden">
-            <div className="relative flex-1 rounded-xl overflow-hidden bg-[#050508] min-h-0 shadow-[0_0_0_1px_#1e1e2e]">
+          <main className={`flex-1 flex flex-col min-w-0 overflow-hidden ${wideCameraLayout ? 'p-3' : 'p-4'}`}>
+            <div
+              ref={cameraShellRef}
+              className={[
+                'relative flex-1 overflow-hidden bg-[#050508] min-h-0 shadow-[0_0_0_1px_#1e1e2e]',
+                cameraFullscreen ? 'rounded-none' : 'rounded-xl',
+              ].join(' ')}
+              onWheel={onCameraPreviewWheel}
+            >
 
               {/* Camera initialising */}
               {cameraLoading && (
@@ -522,23 +583,106 @@ export function WorkoutPage() {
                 </div>
               )}
 
-              {/* Video — mirrored with CSS so it feels like a mirror */}
-              <video
-                ref={videoRef}
-                className="absolute inset-0 w-full h-full object-cover"
-                style={{ transform: 'scaleX(-1)' }}
-                playsInline muted autoPlay
-              />
-              {/* Canvas — skeleton drawn mirrored inside usePoseDetection */}
-              <canvas
-                ref={canvasRef}
-                className="absolute inset-0 w-full h-full"
-              />
+              {/* Scaled preview (crop to center when zoomed in) */}
+              <div className="absolute inset-0 overflow-hidden">
+                <div
+                  className="absolute inset-0 will-change-transform"
+                  style={{
+                    transform: `scale(${cameraZoom})`,
+                    transformOrigin: 'center center',
+                  }}
+                >
+                  <video
+                    ref={videoRef}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    style={{ transform: 'scaleX(-1)' }}
+                    playsInline
+                    muted
+                    autoPlay
+                  />
+                  <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+                </div>
+              </div>
+
+              {/* Display + magnify controls */}
+              {!cameraLoading && cameraStarted && (
+                <>
+                  <div className="absolute right-2 top-2 z-20 flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={toggleCameraFullscreen}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-gray-200 backdrop-blur-md transition hover:bg-white/10"
+                      title={cameraFullscreen ? 'Exit fullscreen' : 'Fullscreen camera'}
+                      aria-label={cameraFullscreen ? 'Exit fullscreen' : 'Fullscreen camera'}
+                    >
+                      {cameraFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWideCameraLayout((w) => !w)}
+                      className={[
+                        'rounded-lg border px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide backdrop-blur-md transition',
+                        wideCameraLayout
+                          ? 'border-blue-500/50 bg-blue-600/30 text-blue-100'
+                          : 'border-white/15 bg-black/70 text-gray-300 hover:bg-white/10',
+                      ].join(' ')}
+                      title="Give the camera column more space (narrow side panels)"
+                    >
+                      {wideCameraLayout ? 'Wide on' : 'Wide view'}
+                    </button>
+                  </div>
+
+                  <div className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-col items-center gap-1.5 sm:max-w-none">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500">
+                      Magnify center (optional)
+                    </span>
+                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/65 px-2 py-1.5 backdrop-blur-md">
+                      <button
+                        type="button"
+                        aria-label="Magnify less"
+                        disabled={cameraZoom <= CAMERA_ZOOM_MIN}
+                        onClick={() => nudgeCameraZoom(-CAMERA_ZOOM_STEP)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-300 transition hover:bg-white/10 disabled:opacity-30"
+                      >
+                        <ZoomOut className="h-4 w-4" />
+                      </button>
+                      <input
+                        type="range"
+                        aria-label="Magnify center"
+                        min={CAMERA_ZOOM_MIN}
+                        max={CAMERA_ZOOM_MAX}
+                        step={CAMERA_ZOOM_STEP}
+                        value={cameraZoom}
+                        onChange={(e) => setCameraZoom(Number(e.target.value))}
+                        className="h-1 w-[72px] cursor-pointer accent-blue-500 sm:w-[120px]"
+                      />
+                      <button
+                        type="button"
+                        aria-label="Magnify more"
+                        disabled={cameraZoom >= CAMERA_ZOOM_MAX}
+                        onClick={() => nudgeCameraZoom(CAMERA_ZOOM_STEP)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-300 transition hover:bg-white/10 disabled:opacity-30"
+                      >
+                        <ZoomIn className="h-4 w-4" />
+                      </button>
+                      <span className="hidden min-w-[2.5rem] pr-0.5 text-center font-mono text-[10px] text-gray-400 sm:inline">
+                        {cameraZoom.toFixed(2)}×
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </main>
 
-          {/* ── RIGHT PANEL (30%) ──────────────────────────────────────── */}
-          <aside className="w-[30%] shrink-0 flex flex-col gap-3 p-4 border-l border-[#1e1e2e] overflow-hidden">
+          {/* ── RIGHT PANEL ─────────────────────────────────────────────── */}
+          <aside
+            className={[
+              'shrink-0 flex flex-col gap-3 border-l border-[#1e1e2e] overflow-hidden',
+              wideCameraLayout ? 'p-3' : 'p-4',
+              wideCameraLayout ? 'w-[min(13.5rem,22vw)]' : 'w-[30%]',
+            ].join(' ')}
+          >
 
             {/* Risk gauge */}
             <div className="card-surface p-5 flex flex-col items-center">
