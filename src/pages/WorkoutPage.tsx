@@ -8,7 +8,7 @@ import { analyzeForm } from '../lib/formAnalysis'
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress'] as const
-const ANALYSIS_INTERVAL_MS = 5000
+const ANALYSIS_INTERVAL_MS = 30000
 const DEMO_MODE = !import.meta.env.VITE_OPENAI_API_KEY
 
 const DEMO_SUGGESTIONS = [
