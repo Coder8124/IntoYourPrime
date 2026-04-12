@@ -46,11 +46,13 @@ function client(): OpenAI | null {
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface AnalyzeParams {
-  frames:      string[]    // base64 data URLs (jpeg)
-  exercise:    string
-  repCount?:   number
-  userProfile: { age: number; weight: number; fitnessLevel: string }
-  phase:       'warmup' | 'main'
+  frames:          string[]         // base64 data URLs (jpeg)
+  exercise:        string
+  repCount?:       number
+  userProfile:     { age: number; weight: number; fitnessLevel: string }
+  phase:           'warmup' | 'main'
+  /** Optional reference photo taken at session start — tells the AI which person to focus on. */
+  referenceFrame?: string | null
 }
 
 // ── Defaults ───────────────────────────────────────────────────────────────
@@ -85,11 +87,30 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
   if (!c) return { ...DEFAULT_FORM_RESULT }
 
   const attempt = async (): Promise<FormAnalysisResult> => {
-    const imageBlocks: OpenAI.Chat.Completions.ChatCompletionContentPart[] =
-      params.frames.map(frame => ({
+    // If a reference frame exists, prepend it with a label so the model knows who to track
+    const imageBlocks: OpenAI.Chat.Completions.ChatCompletionContentPart[] = []
+
+    if (params.referenceFrame) {
+      imageBlocks.push({
+        type: 'text',
+        text: 'REFERENCE PHOTO — this is the athlete you must analyze throughout. If other people appear in later frames, ignore them.',
+      })
+      imageBlocks.push({
+        type:      'image_url' as const,
+        image_url: { url: params.referenceFrame, detail: 'auto' as const },
+      })
+      imageBlocks.push({
+        type: 'text',
+        text: 'WORKOUT FRAMES — analyze the form of the person above:',
+      })
+    }
+
+    for (const frame of params.frames) {
+      imageBlocks.push({
         type:      'image_url' as const,
         image_url: { url: frame, detail: 'auto' as const },
-      }))
+      })
+    }
 
     const exerciseGuides: Record<string, string> = {
       pushup:        'Check: elbows near body (not flared wide), body straight head-to-heel (no hip sag or pike), chest nearly touching floor at bottom, head neutral.',
