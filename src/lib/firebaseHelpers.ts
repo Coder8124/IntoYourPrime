@@ -29,6 +29,13 @@ import {
   toFirestoreSession,
 } from '../types'
 import { auth, db } from './firebase'
+import { waitForAuthReady } from './firestoreUser'
+
+/** Prefer Firebase Auth uid when signed in so paths match Firestore rules and assertSignedUid. */
+async function effectiveUserId(requested: string): Promise<string> {
+  await waitForAuthReady()
+  return auth.currentUser?.uid ?? requested
+}
 
 function wrapError(op: string, err: unknown): never {
   const msg = err instanceof Error ? err.message : String(err)
@@ -51,6 +58,11 @@ function toYyyyMmDdLocal(d: Date): string {
 
 function todayLocal(): string {
   return toYyyyMmDdLocal(new Date())
+}
+
+/** Local calendar date `YYYY-MM-DD` for the user (browser timezone). */
+export function getTodayLocalDateString(): string {
+  return todayLocal()
 }
 
 function yesterdayLocal(): string {
@@ -237,10 +249,11 @@ export async function createUserProfile(
   data: Omit<UserProfile, 'uid' | 'createdAt' | 'streakCount' | 'lastWorkoutDate'>,
 ): Promise<void> {
   try {
-    assertSignedUid(uid, 'createUserProfile')
+    const id = await effectiveUserId(uid)
+    assertSignedUid(id, 'createUserProfile')
     const email = data.email.trim().toLowerCase()
-    await setDoc(doc(db, 'users', uid), {
-      uid,
+    await setDoc(doc(db, 'users', id), {
+      uid: id,
       ...data,
       email,
       createdAt: Timestamp.now(),
@@ -254,7 +267,8 @@ export async function createUserProfile(
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   try {
-    const snap = await getDoc(doc(db, 'users', uid))
+    const id = await effectiveUserId(uid)
+    const snap = await getDoc(doc(db, 'users', id))
     return userProfileFromDoc(snap)
   } catch (e) {
     wrapError('getUserProfile', e)
@@ -266,10 +280,11 @@ export async function updateUserProfile(
   updates: Partial<UserProfile>,
 ): Promise<void> {
   try {
-    assertSignedUid(uid, 'updateUserProfile')
+    const id = await effectiveUserId(uid)
+    assertSignedUid(id, 'updateUserProfile')
     const payload = profileUpdatesToFirestore(updates)
     if (Object.keys(payload).length === 0) return
-    await updateDoc(doc(db, 'users', uid), payload)
+    await updateDoc(doc(db, 'users', id), payload)
   } catch (e) {
     wrapError('updateUserProfile', e)
   }
@@ -277,8 +292,9 @@ export async function updateUserProfile(
 
 export async function updateStreak(uid: string): Promise<void> {
   try {
-    assertSignedUid(uid, 'updateStreak')
-    const userRef = doc(db, 'users', uid)
+    const id = await effectiveUserId(uid)
+    assertSignedUid(id, 'updateStreak')
+    const userRef = doc(db, 'users', id)
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(userRef)
       if (!snap.exists()) {
@@ -316,10 +332,11 @@ export async function updateStreak(uid: string): Promise<void> {
 
 export async function saveSession(session: Omit<Session, 'id'>): Promise<string> {
   try {
-    assertSignedUid(session.userId, 'saveSession')
-    const col = collection(db, 'users', session.userId, 'sessions')
+    const uid = await effectiveUserId(session.userId)
+    assertSignedUid(uid, 'saveSession')
+    const col = collection(db, 'users', uid, 'sessions')
     const ref = doc(col)
-    const full: Session = { ...session, id: ref.id }
+    const full: Session = { ...session, userId: uid, id: ref.id }
     await setDoc(ref, toFirestoreSession(full))
     return ref.id
   } catch (e) {
@@ -348,8 +365,9 @@ export async function getUserSessions(
   limitCount = 20,
 ): Promise<Session[]> {
   try {
+    const id = await effectiveUserId(uid)
     const q = query(
-      collection(db, 'users', uid, 'sessions'),
+      collection(db, 'users', id, 'sessions'),
       orderBy('date', 'desc'),
       limit(limitCount),
     )
@@ -365,9 +383,10 @@ export async function getUserSessions(
 export async function getRecentSessions(uid: string, days: number): Promise<Session[]> {
   try {
     if (days <= 0) return []
+    const id = await effectiveUserId(uid)
     const cutoff = cutoffDateString(days)
     const q = query(
-      collection(db, 'users', uid, 'sessions'),
+      collection(db, 'users', id, 'sessions'),
       where('date', '>=', cutoff),
       orderBy('date', 'desc'),
     )
@@ -384,10 +403,11 @@ export async function getRecentSessions(uid: string, days: number): Promise<Sess
 
 export async function saveDailyLog(log: Omit<DailyLog, 'id'>): Promise<string> {
   try {
-    assertSignedUid(log.userId, 'saveDailyLog')
+    const uid = await effectiveUserId(log.userId)
+    assertSignedUid(uid, 'saveDailyLog')
     const docId = log.date
-    const ref = doc(db, 'users', log.userId, 'logs', docId)
-    const full: DailyLog = { ...log, id: docId }
+    const ref = doc(db, 'users', uid, 'logs', docId)
+    const full: DailyLog = { ...log, userId: uid, id: docId }
     await setDoc(ref, toFirestoreLog(full))
     return docId
   } catch (e) {
@@ -397,8 +417,9 @@ export async function saveDailyLog(log: Omit<DailyLog, 'id'>): Promise<string> {
 
 export async function getTodayLog(uid: string): Promise<DailyLog | null> {
   try {
+    const userId = await effectiveUserId(uid)
     const id = todayLocal()
-    const snap = await getDoc(doc(db, 'users', uid, 'logs', id))
+    const snap = await getDoc(doc(db, 'users', userId, 'logs', id))
     if (!snap.exists()) return null
     return fromFirestoreLog({ ...snap.data(), id: snap.id })
   } catch (e) {
@@ -409,9 +430,10 @@ export async function getTodayLog(uid: string): Promise<DailyLog | null> {
 export async function getRecentLogs(uid: string, days: number): Promise<DailyLog[]> {
   try {
     if (days <= 0) return []
+    const userId = await effectiveUserId(uid)
     const cutoff = cutoffDateString(days)
     const q = query(
-      collection(db, 'users', uid, 'logs'),
+      collection(db, 'users', userId, 'logs'),
       where('date', '>=', cutoff),
       orderBy('date', 'desc'),
     )
@@ -431,21 +453,22 @@ export async function sendFriendRequest(
   toEmail: string,
 ): Promise<'sent' | 'already_friends' | 'not_found'> {
   try {
-    assertSignedUid(fromUid, 'sendFriendRequest')
+    const fromId = await effectiveUserId(fromUid)
+    assertSignedUid(fromId, 'sendFriendRequest')
     const toProfile = await findUserByEmail(toEmail)
     if (!toProfile) return 'not_found'
     const toUid = toProfile.uid
-    if (toUid === fromUid) return 'not_found'
+    if (toUid === fromId) return 'not_found'
 
-    if (await acceptedConnectionExists(fromUid, toUid)) {
+    if (await acceptedConnectionExists(fromId, toUid)) {
       return 'already_friends'
     }
-    if (await pendingConnectionExists(fromUid, toUid)) {
+    if (await pendingConnectionExists(fromId, toUid)) {
       return 'sent'
     }
 
     await addDoc(collection(db, 'friendConnections'), {
-      userId: fromUid,
+      userId: fromId,
       friendId: toUid,
       friendDisplayName: toProfile.displayName,
       friendEmail: toProfile.email,
@@ -478,14 +501,15 @@ export async function acceptFriendRequest(connectionId: string): Promise<void> {
 
 export async function getFriends(uid: string): Promise<FriendConnection[]> {
   try {
+    const id = await effectiveUserId(uid)
     const q1 = query(
       collection(db, 'friendConnections'),
-      where('userId', '==', uid),
+      where('userId', '==', id),
       where('status', '==', 'accepted'),
     )
     const q2 = query(
       collection(db, 'friendConnections'),
-      where('friendId', '==', uid),
+      where('friendId', '==', id),
       where('status', '==', 'accepted'),
     )
     const [s1, s2] = await Promise.all([getDocs(q1), getDocs(q2)])
@@ -499,8 +523,8 @@ export async function getFriends(uid: string): Promise<FriendConnection[]> {
       const userId = String(data.userId)
       const friendId = String(data.friendId)
       const otherProfile =
-        friendId === uid ? await getUserProfile(userId) : null
-      out.push(friendFromDoc(d, uid, otherProfile))
+        friendId === id ? await getUserProfile(userId) : null
+      out.push(friendFromDoc(d, id, otherProfile))
     }
     return out
   } catch (e) {
@@ -512,8 +536,9 @@ const IN_QUERY_MAX = 10
 
 export async function getActivityFeed(uid: string): Promise<ActivityFeedItem[]> {
   try {
-    const friends = await getFriends(uid)
-    const uids = [uid, ...friends.map((f) => f.friendId)]
+    const id = await effectiveUserId(uid)
+    const friends = await getFriends(id)
+    const uids = [id, ...friends.map((f) => f.friendId)]
     const uniqueUids = [...new Set(uids)]
 
     const chunks: string[][] = []
@@ -550,8 +575,12 @@ export async function getActivityFeed(uid: string): Promise<ActivityFeedItem[]> 
 
 export async function postActivityItem(item: Omit<ActivityFeedItem, 'id'>): Promise<void> {
   try {
-    assertSignedUid(item.userId, 'postActivityItem')
-    await addDoc(collection(db, 'activityFeed'), toFirestoreActivityItem(item))
+    const uid = await effectiveUserId(item.userId)
+    assertSignedUid(uid, 'postActivityItem')
+    await addDoc(
+      collection(db, 'activityFeed'),
+      toFirestoreActivityItem({ ...item, userId: uid }),
+    )
   } catch (e) {
     wrapError('postActivityItem', e)
   }
