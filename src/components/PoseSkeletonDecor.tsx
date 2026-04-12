@@ -2,7 +2,7 @@
  * Decorative MediaPipe-style pose skeleton for the home page hero.
  * Static SVG of a person in a squat, styled to match the app's blue/purple palette.
  */
-export function PoseSkeletonDecor() {
+export function PoseSkeletonDecor({ size = 140 }: { size?: number }) {
   // Landmark positions (viewBox 160 × 290) — squat pose
   const pts = {
     nose:   [80, 14],
@@ -42,8 +42,8 @@ export function PoseSkeletonDecor() {
   return (
     <svg
       viewBox="0 0 160 290"
-      width="140"
-      height="253"
+      width={size}
+      height={Math.round(size * 253 / 140)}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       style={{ filter: 'drop-shadow(0 0 18px rgba(99,102,241,0.45))' }}

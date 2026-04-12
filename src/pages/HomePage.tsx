@@ -192,27 +192,24 @@ export function HomePage() {
       <div className="mx-auto max-w-lg px-5">
 
         {/* ── Hero ── */}
-        <header className="pt-12 pb-2 flex items-center justify-between gap-4">
-          {/* Left: text */}
-          <div className="flex-1 min-w-0">
-            <p className="text-[15px] text-gray-400">{timeGreeting()}</p>
-            <h1 className="mt-1 text-6xl font-black tracking-tight leading-none">{welcomeName}</h1>
+        <header className="relative pt-12 pb-2">
+          <p className="text-[15px] text-gray-400">{timeGreeting()}</p>
+          <h1 className="mt-1 text-6xl font-black tracking-tight leading-none">{welcomeName}</h1>
 
-            {/* Streak pill */}
-            <div className="mt-5 inline-flex items-center gap-2.5 rounded-full px-5 py-2.5"
-              style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
-              <Flame className="h-5 w-5 text-amber-400" />
-              <span className="text-[15px] font-semibold text-amber-200">
-                <span className="font-mono text-[18px] font-black">{streak}</span>
-                <span className="ml-1.5 text-amber-300/70"> day streak</span>
-              </span>
-            </div>
+          {/* Streak pill */}
+          <div className="mt-5 inline-flex items-center gap-2.5 rounded-full px-5 py-2.5"
+            style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
+            <Flame className="h-5 w-5 text-amber-400" />
+            <span className="text-[15px] font-semibold text-amber-200">
+              <span className="font-mono text-[18px] font-black">{streak}</span>
+              <span className="ml-1.5 text-amber-300/70"> day streak</span>
+            </span>
           </div>
 
-          {/* Right: pose skeleton */}
-          <div className="shrink-0 flex items-center justify-center rounded-2xl p-3"
+          {/* Pose skeleton — absolutely positioned, doesn't affect text layout */}
+          <div className="absolute top-8 -right-6 opacity-70 rounded-2xl p-2"
             style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.14)' }}>
-            <PoseSkeletonDecor />
+            <PoseSkeletonDecor size={110} />
           </div>
         </header>
 
