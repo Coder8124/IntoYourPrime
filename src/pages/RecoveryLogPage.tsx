@@ -1,274 +1,382 @@
-import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useWorkoutStore } from '../stores/workoutStore'
-import { generateRecoveryInsight } from '../lib/formAnalysis'
-import type { DailyLog } from '../types/index'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import { Star } from 'lucide-react'
+import {
+  getTodayLocalDateString,
+  getTodayLog,
+  saveDailyLog,
+} from '../lib/firebaseHelpers'
+import { getOrSignInUserId } from '../lib/firestoreUser'
+import { loadRecoveryLogLocal, saveRecoveryLogLocal } from '../lib/recoveryLogLocal'
+import type { DailyLog } from '../types'
+import { BodySorenessMap } from '../components/BodySorenessMap'
+import { RECOVERY_MUSCLE_GROUPS, type RecoveryMuscle } from '../lib/recoveryMuscles'
 
-// ── Star-rating widget ─────────────────────────────────────────────────────
+const TRAINING_TYPES = [
+  'Upper',
+  'Lower',
+  'Full body',
+  'Cardio',
+  'Rest day',
+  'Other',
+] as const
 
-function StarRating({ value, onChange, max = 5 }: { value: number; onChange: (v: number) => void; max?: number }) {
-  return (
-    <div className="flex gap-1.5">
-      {Array.from({ length: max }, (_, i) => i + 1).map(n => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          className="text-[22px] transition-transform hover:scale-110 active:scale-95"
-          style={{ color: n <= value ? '#eab308' : '#1e1e2e' }}
-        >
-          ★
-        </button>
-      ))}
-    </div>
-  )
+const ENERGY_EMOJI = ['😫', '😕', '😐', '🙂', '🔥'] as const
+const MOOD_EMOJI = ['😣', '😔', '😐', '😊', '🌟'] as const
+
+const RPE_LABELS: Record<number, string> = {
+  1: 'Very easy',
+  2: 'Easy',
+  3: 'Light',
+  4: 'Moderate',
+  5: 'Challenging',
+  6: 'Hard',
+  7: 'Very hard',
+  8: 'Near limit',
+  9: 'Near maximal',
+  10: 'Maximal effort',
 }
 
-// ── RPE dot-scale ──────────────────────────────────────────────────────────
-
-function RpeScale({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  return (
-    <div className="flex gap-1">
-      {Array.from({ length: 10 }, (_, i) => i + 1).map(n => {
-        const active = n <= value
-        const color  = n <= 3 ? '#22c55e' : n <= 6 ? '#f59e0b' : '#ef4444'
-        return (
-          <button
-            key={n}
-            type="button"
-            onClick={() => onChange(n)}
-            className="w-8 h-8 rounded-md text-[11px] font-black transition-all hover:scale-105"
-            style={{
-              background: active ? color + '22' : '#0f0f1a',
-              border:     `1px solid ${active ? color : '#1e1e2e'}`,
-              color:      active ? color : '#374151',
-            }}
-          >
-            {n}
-          </button>
-        )
-      })}
-    </div>
-  )
+function safeReturnPath(raw: string | null): '/session-summary' | '/home' | null {
+  if (raw === '/session-summary' || raw === '/home') return raw
+  return null
 }
 
-// ── Field wrapper ──────────────────────────────────────────────────────────
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <div>
-        <label className="text-[11px] font-bold tracking-[0.14em] uppercase text-gray-400">{label}</label>
-        {hint && <span className="text-[11px] text-gray-600 ml-2">{hint}</span>}
-      </div>
-      {children}
-    </div>
-  )
+function computeOverallSoreness(map: Partial<Record<RecoveryMuscle, number>>): DailyLog['overallSoreness'] {
+  const vals = RECOVERY_MUSCLE_GROUPS.map((k) => map[k] ?? 0)
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length
+  return Math.max(1, Math.min(5, Math.round(avg))) as DailyLog['overallSoreness']
 }
 
-// ── RecoveryLogPage ────────────────────────────────────────────────────────
+function cleanSorenessForFirestore(
+  map: Partial<Record<RecoveryMuscle, number>>,
+): Partial<Record<RecoveryMuscle, number>> {
+  const out: Partial<Record<RecoveryMuscle, number>> = {}
+  for (const k of RECOVERY_MUSCLE_GROUPS) {
+    const v = map[k]
+    if (v !== undefined && v > 0) out[k] = v
+  }
+  return out
+}
+
+function logToSorenessState(log: DailyLog): Partial<Record<RecoveryMuscle, number>> {
+  const out: Partial<Record<RecoveryMuscle, number>> = {}
+  for (const k of RECOVERY_MUSCLE_GROUPS) {
+    const v = log.sorenessMap[k]
+    if (v !== undefined) out[k] = v
+  }
+  return out
+}
 
 export function RecoveryLogPage() {
-  const navigate   = useNavigate()
-  const sessions   = useWorkoutStore(s => s.riskScores)   // used for insight context
-
-  // Form state
-  const [sleepHours,    setSleepHours]    = useState(7)
-  const [sleepQuality,  setSleepQuality]  = useState(3)
-  const [energyLevel,   setEnergyLevel]   = useState(3)
-  const [mood,          setMood]          = useState(3)
-  const [overallSoreness, setOverallSoreness] = useState(2)
-  const [rpe,           setRpe]           = useState(6)
-  const [notes,         setNotes]         = useState('')
-
-  // AI insight
-  const [insight,       setInsight]       = useState<string | null>(null)
-  const [loadingInsight, setLoadingInsight] = useState(false)
-
-  // Save state
-  const [saving,  setSaving]  = useState(false)
-  const [saved,   setSaved]   = useState(false)
-  const [saveErr, setSaveErr] = useState<string | null>(null)
-
-  const riskScores = sessions  // alias
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    setSaveErr(null)
-
-    const storedUid = (() => {
-      try { return (JSON.parse(localStorage.getItem('formAI_profile') ?? '{}') as Record<string, unknown>).uid as string | undefined }
-      catch { return undefined }
-    })()
-
-    const log: Omit<DailyLog, 'id'> = {
-      userId:          storedUid ?? 'anonymous',
-      date:            new Date().toISOString().slice(0, 10),
-      sleepHours,
-      sleepQuality:    sleepQuality    as DailyLog['sleepQuality'],
-      energyLevel:     energyLevel     as DailyLog['energyLevel'],
-      mood:            mood            as DailyLog['mood'],
-      overallSoreness: overallSoreness as DailyLog['overallSoreness'],
-      sorenessMap:     {},
-      rpe:             rpe             as DailyLog['rpe'],
-      trainingType:    'strength',
-      notes,
-    }
-
-    // AI insight (non-blocking)
-    setLoadingInsight(true)
-    generateRecoveryInsight({ sessions: [], logs: [{ ...log, id: '' }] })
-      .then(text => setInsight(text || null))
-      .catch(() => {/* ignore */})
-      .finally(() => setLoadingInsight(false))
-
-    // Firestore save — optional, may fail if no Firebase credentials
-    try {
-      if (storedUid) {
-        const { saveDailyLog } = await import('../lib/firebaseHelpers')
-        await saveDailyLog(log)
-      }
-    } catch {
-      // Firebase not configured or user not signed in — silently continue
-    }
-
-    setSaving(false)
-    setSaved(true)
-  }
-
-  // ── Render ─────────────────────────────────────────────────────────────
-
-  const avgRisk = useMemo(
-    () => riskScores.length ? Math.round(riskScores.reduce((a, b) => a + b, 0) / riskScores.length) : null,
-    [riskScores],
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const returnTo = useMemo(
+    () => safeReturnPath(searchParams.get('returnTo')),
+    [searchParams],
   )
 
-  return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      <div className="max-w-xl mx-auto px-4 pt-10 pb-16">
+  const [uid, setUid] = useState<string | null>(null)
 
-        {/* Header */}
-        <div className="mb-8">
-          <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-gray-500 mb-1">Recovery</p>
-          <h1 className="text-3xl font-black tracking-tight">How are you feeling?</h1>
-          {avgRisk !== null && (
-            <p className="text-[13px] text-gray-500 mt-2">
-              Session avg risk: <span className="font-bold text-white">{avgRisk}</span>
-            </p>
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  const [sleepHours, setSleepHours] = useState(7)
+  const [sleepQuality, setSleepQuality] = useState<DailyLog['sleepQuality']>(3)
+  const [energyLevel, setEnergyLevel] = useState<DailyLog['energyLevel']>(3)
+  const [mood, setMood] = useState<DailyLog['mood']>(3)
+  const [trainingType, setTrainingType] = useState<string>('Full body')
+  const [rpe, setRpe] = useState(5)
+  const [sorenessMap, setSorenessMap] = useState<Partial<Record<RecoveryMuscle, number>>>({})
+  const [notes, setNotes] = useState('')
+
+  const isRestDay = trainingType === 'Rest day'
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const id = await getOrSignInUserId()
+      if (cancelled) return
+      setUid(id)
+
+      const today = getTodayLocalDateString()
+      let existing: DailyLog | null = null
+      try {
+        existing = await getTodayLog(id)
+      } catch {
+        /* permission / network */
+      }
+      if (!existing) existing = loadRecoveryLogLocal(id, today)
+
+      if (cancelled) return
+      if (existing) {
+        setSleepHours(
+          Number.isFinite(existing.sleepHours) ? existing.sleepHours : 7,
+        )
+        setSleepQuality(existing.sleepQuality)
+        setEnergyLevel(existing.energyLevel)
+        setMood(existing.mood)
+        setTrainingType(existing.trainingType)
+        setRpe(existing.rpe)
+        setSorenessMap(logToSorenessState(existing))
+        setNotes(existing.notes ?? '')
+      }
+      setLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const handleSubmit = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault()
+      if (saving || !uid) return
+
+      const rawH = Number(sleepHours)
+      const hours = Number.isFinite(rawH)
+        ? Math.min(12, Math.max(4, Math.round(rawH * 2) / 2))
+        : 7
+      const overallSoreness = computeOverallSoreness(sorenessMap)
+      const sorenessFirestore = cleanSorenessForFirestore(sorenessMap)
+      const rpeVal = isRestDay ? 0 : Math.min(10, Math.max(1, Math.round(rpe)))
+
+      const payload: Omit<DailyLog, 'id'> = {
+        userId: uid,
+        date: getTodayLocalDateString(),
+        sleepHours: hours,
+        sleepQuality,
+        energyLevel,
+        mood,
+        overallSoreness,
+        sorenessMap: sorenessFirestore,
+        rpe: rpeVal,
+        trainingType,
+        notes: notes.trim(),
+      }
+
+      const fullLog: DailyLog = { ...payload, id: payload.date }
+      saveRecoveryLogLocal(uid, fullLog)
+
+      setSaving(true)
+      let cloudOk = false
+      try {
+        await saveDailyLog(payload)
+        cloudOk = true
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Save failed'
+        toast.error(
+          `${msg} — your answers are still saved on this device. Check Firestore rules (allow auth uid) and Anonymous sign-in.`,
+          { duration: 8000 },
+        )
+      } finally {
+        setSaving(false)
+      }
+
+      if (cloudOk) {
+        toast.success('Saved today’s recovery log')
+      }
+      navigate(returnTo ?? '/home', { replace: true })
+    },
+    [
+      energyLevel,
+      isRestDay,
+      mood,
+      navigate,
+      notes,
+      returnTo,
+      rpe,
+      saving,
+      sleepHours,
+      sleepQuality,
+      sorenessMap,
+      trainingType,
+      uid,
+    ],
+  )
+
+  if (loading || !uid) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0a0a0f] text-gray-500">
+        Loading…
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0f] px-4 py-8 text-white pb-24">
+      <div className="mx-auto max-w-lg">
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <Link
+            to="/home"
+            className="text-[13px] font-semibold text-gray-500 transition hover:text-gray-300"
+          >
+            ← Home
+          </Link>
+          {returnTo === '/session-summary' && (
+            <span className="text-[11px] text-gray-600">Returns to session summary after save</span>
           )}
         </div>
 
-        {/* AI insight card (appears after submit) */}
-        {(insight || loadingInsight) && (
-          <div
-            className="rounded-xl p-5 mb-6"
-            style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.25)' }}
-          >
-            <p className="text-[10.5px] font-black tracking-[0.15em] uppercase text-blue-400 mb-2">AI Recovery Insight</p>
-            {loadingInsight ? (
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 border-2 border-blue-500/40 border-t-blue-400 rounded-full animate-spin" />
-                <span className="text-gray-500 text-[13px]">Analysing your session…</span>
-              </div>
-            ) : (
-              <p className="text-[13px] text-gray-200 leading-relaxed">{insight}</p>
-            )}
-          </div>
-        )}
+        <h1 className="text-2xl font-black tracking-tight">Daily recovery log</h1>
+        <p className="mt-1 text-[13px] text-gray-500">
+          {getTodayLocalDateString()} · one entry per day (updates overwrite)
+        </p>
 
-        {/* Success banner */}
-        {saved && (
-          <div
-            className="rounded-xl p-4 mb-6 flex items-center gap-3"
-            style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)' }}
-          >
-            <span className="text-green-400 text-lg">✓</span>
-            <p className="text-[13px] text-green-300 font-semibold">Recovery log saved.</p>
-          </div>
-        )}
-
-        {saveErr && (
-          <div
-            className="rounded-xl p-4 mb-6"
-            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)' }}
-          >
-            <p className="text-[13px] text-red-300">{saveErr}</p>
-          </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-7">
-
-          {/* Sleep hours */}
-          <Field label="Sleep" hint="hours last night">
-            <div className="flex items-center gap-4">
+        <form onSubmit={handleSubmit} className="mt-8 space-y-8">
+          {/* Sleep */}
+          <section className="card-surface space-y-4 p-5">
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.15em] text-gray-500">Sleep</h2>
+            <div>
+              <label className="mb-2 block text-[12px] text-gray-400">Hours (4–12, step 0.5)</label>
               <input
-                type="range"
-                min={0} max={12} step={0.5}
+                type="number"
+                min={4}
+                max={12}
+                step={0.5}
                 value={sleepHours}
-                onChange={e => setSleepHours(Number(e.target.value))}
-                className="flex-1 accent-blue-500"
+                onChange={(e) => setSleepHours(Number(e.target.value))}
+                className="input-dark max-w-[140px]"
               />
-              <span className="text-white font-black text-[18px] w-12 text-right tabular-nums">
-                {sleepHours}h
-              </span>
             </div>
-          </Field>
-
-          {/* Sleep quality */}
-          <Field label="Sleep Quality" hint="1 = terrible · 5 = amazing">
-            <StarRating value={sleepQuality} onChange={setSleepQuality} />
-          </Field>
+            <div>
+              <span className="mb-2 block text-[12px] text-gray-400">Quality (1–5)</span>
+              <div className="flex gap-1">
+                {([1, 2, 3, 4, 5] as const).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setSleepQuality(n)}
+                    className="rounded-lg p-1.5 transition hover:bg-white/5"
+                    aria-label={`Sleep quality ${n}`}
+                  >
+                    <Star
+                      size={28}
+                      className={
+                        n <= sleepQuality ? 'fill-amber-400 text-amber-400' : 'text-gray-600'
+                      }
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
 
           {/* Energy */}
-          <Field label="Energy Level" hint="right now">
-            <StarRating value={energyLevel} onChange={setEnergyLevel} />
-          </Field>
+          <section className="card-surface space-y-3 p-5">
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.15em] text-gray-500">
+              Energy level
+            </h2>
+            <div className="flex justify-between gap-2">
+              {([1, 2, 3, 4, 5] as const).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setEnergyLevel(n)}
+                  className={[
+                    'flex flex-1 flex-col items-center rounded-xl border py-3 text-2xl transition',
+                    energyLevel === n
+                      ? 'border-blue-500/60 bg-blue-500/10'
+                      : 'border-[#2e2e3e] bg-[#0f0f1a] hover:border-gray-600',
+                  ].join(' ')}
+                >
+                  <span>{ENERGY_EMOJI[n - 1]}</span>
+                  <span className="mt-1 text-[10px] font-bold text-gray-500">{n}</span>
+                </button>
+              ))}
+            </div>
+          </section>
 
           {/* Mood */}
-          <Field label="Mood">
-            <StarRating value={mood} onChange={setMood} />
-          </Field>
+          <section className="card-surface space-y-3 p-5">
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.15em] text-gray-500">Mood</h2>
+            <div className="flex justify-between gap-2">
+              {([1, 2, 3, 4, 5] as const).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setMood(n)}
+                  className={[
+                    'flex flex-1 flex-col items-center rounded-xl border py-3 text-2xl transition',
+                    mood === n
+                      ? 'border-violet-500/60 bg-violet-500/10'
+                      : 'border-[#2e2e3e] bg-[#0f0f1a] hover:border-gray-600',
+                  ].join(' ')}
+                >
+                  <span>{MOOD_EMOJI[n - 1]}</span>
+                  <span className="mt-1 text-[10px] font-bold text-gray-500">{n}</span>
+                </button>
+              ))}
+            </div>
+          </section>
 
-          {/* Soreness */}
-          <Field label="Overall Soreness" hint="1 = none · 5 = very sore">
-            <StarRating value={overallSoreness} onChange={setOverallSoreness} />
-          </Field>
+          {/* Training */}
+          <section className="card-surface space-y-4 p-5">
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.15em] text-gray-500">
+              Today&apos;s training
+            </h2>
+            <select
+              value={trainingType}
+              onChange={(e) => setTrainingType(e.target.value)}
+              className="input-dark"
+            >
+              {TRAINING_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
 
-          {/* RPE */}
-          <Field label="Session RPE" hint="Rate of Perceived Exertion · 1-10">
-            <RpeScale value={rpe} onChange={setRpe} />
-          </Field>
+            {!isRestDay && (
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-[12px] text-gray-400">Session RPE (1–10)</label>
+                  <span className="text-[12px] font-mono font-bold text-blue-400">{rpe}</span>
+                </div>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={rpe}
+                  onChange={(e) => setRpe(Number(e.target.value))}
+                  className="w-full accent-blue-500"
+                />
+                <p className="mt-1 text-[11px] text-gray-600">{RPE_LABELS[rpe]}</p>
+              </div>
+            )}
+          </section>
+
+          {/* Soreness map */}
+          <section className="card-surface p-5">
+            <h2 className="mb-1 text-[11px] font-bold uppercase tracking-[0.15em] text-gray-500">
+              Soreness map
+            </h2>
+            <BodySorenessMap value={sorenessMap} onChange={setSorenessMap} />
+          </section>
 
           {/* Notes */}
-          <Field label="Notes" hint="optional">
+          <section className="card-surface p-5">
+            <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.15em] text-gray-500">
+              Notes (optional)
+            </h2>
             <textarea
               value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="How did the workout feel? Any pain or discomfort?"
-              rows={3}
-              className="w-full bg-[#0f0f1a] border border-[#1e1e2e] rounded-xl px-4 py-3 text-[13px] text-white placeholder-gray-700 resize-none focus:outline-none focus:border-blue-500/50 transition-colors"
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              placeholder="Anything else about today…"
+              className="input-dark resize-y min-h-[100px]"
             />
-          </Field>
+          </section>
 
-          {/* Submit */}
-          <div className="flex gap-3 pt-2">
-            <button
-              type="submit"
-              disabled={saving || saved}
-              className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 rounded-xl font-bold text-[14px] text-white transition-all"
-            >
-              {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Log & Get Insight'}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/home')}
-              className="px-5 py-3.5 border border-[#1e1e2e] text-gray-500 rounded-xl font-semibold text-[13px] hover:text-gray-300 hover:border-[#2e2e3e] transition-all"
-            >
-              Home
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full rounded-xl bg-blue-600 py-3.5 text-[15px] font-bold text-white transition hover:bg-blue-500 disabled:opacity-50 btn-glow-blue"
+          >
+            {saving ? 'Saving…' : 'Save log'}
+          </button>
         </form>
       </div>
     </div>

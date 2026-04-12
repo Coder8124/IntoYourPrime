@@ -249,7 +249,7 @@ function readSorenessMap(value: unknown): Partial<Record<MuscleGroup, number>> {
   const out: Partial<Record<MuscleGroup, number>> = {}
   for (const [k, v] of Object.entries(value)) {
     if (!MUSCLE_GROUPS.has(k as MuscleGroup)) continue
-    const rating = readIntInRange(v, `sorenessMap.${k}`, 1, 5)
+    const rating = readIntInRange(v, `sorenessMap.${k}`, 0, 5)
     out[k as MuscleGroup] = rating
   }
   return out
