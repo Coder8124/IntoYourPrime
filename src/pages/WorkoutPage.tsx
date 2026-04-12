@@ -301,8 +301,7 @@ export function WorkoutPage() {
   // ── Store ──────────────────────────────────────────────────────────────
   const {
     phase, currentExercise, repCounts,
-    riskScores, liveRisk, aiRisk, aiRiskAt,
-    suggestions, safetyConcerns, warmupScore, sessionStartTime,
+    riskScores, liveRisk, suggestions, safetyConcerns, warmupScore, sessionStartTime,
     setPhase, setExercise, addRep, updateAnalysis, setLiveRisk, setWarmupScore, resetSession,
   } = useWorkoutStore()
 
@@ -482,9 +481,7 @@ export function WorkoutPage() {
   }, [isTracking, phase, getBestFrames, updateAnalysis, userProfile])
 
   // ── Derived ────────────────────────────────────────────────────────────
-  // Use AI risk if it arrived within the last 35 s, otherwise live local score
-  const aiRiskFresh = aiRiskAt > 0 && (Date.now() - aiRiskAt) < 35_000
-  const latestRisk  = aiRiskFresh ? aiRisk : liveRisk
+  const latestRisk        = liveRisk
   const latestSuggestions = suggestions.slice(0, 3)
   const totalReps         = Object.values(repCounts).reduce((a, b) => a + b, 0)
 

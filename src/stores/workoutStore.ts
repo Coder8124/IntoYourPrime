@@ -15,9 +15,7 @@ interface WorkoutState {
   currentExercise:  string
   repCounts:        Record<string, number>
   riskScores:       number[]
-  liveRisk:         number   // local pose-based, updates every frame
-  aiRisk:           number   // last value from OpenAI
-  aiRiskAt:         number   // timestamp of last AI response
+  liveRisk:         number
   suggestions:      SuggestionEntry[]
   safetyConcerns:   string[]
   warmupScore:      number | null
@@ -44,8 +42,6 @@ const INITIAL: Omit<WorkoutState, 'setPhase' | 'setExercise' | 'addRep' | 'updat
   repCounts:         {},
   riskScores:        [],
   liveRisk:          0,
-  aiRisk:            0,
-  aiRiskAt:          0,
   suggestions:       [],
   safetyConcerns:    [],
   warmupScore:       null,
@@ -70,9 +66,7 @@ export const useWorkoutStore = create<WorkoutState>()((set) => ({
   })),
 
   updateAnalysis: (result) => set((state) => ({
-    riskScores: [...state.riskScores, result.riskScore],
-    aiRisk: result.riskScore,
-    aiRiskAt: Date.now(),
+    riskScores:    [...state.riskScores, result.riskScore],
     // Prepend new suggestions so latest is first; cap at 10 total
     suggestions: [
       ...result.suggestions.map((text) => ({
