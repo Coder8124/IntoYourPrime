@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
+import { useHoldTimer, HOLD_EXERCISES } from '../hooks/useHoldTimer'
 import { useWorkoutStore } from '../stores/workoutStore'
 import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI, cancelTTS } from '../lib/formAnalysis'
 import type { CooldownExercise, UserProfile } from '../types/index'
@@ -119,12 +120,38 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, 10 + Math.round(Math.max(lDrift, rDrift) * 480 + sway * 360))
   }
 
+  const BASE = 10
+
   if (ex === 'jumpingjack') {
     // Check arm symmetry — both wrists should be at similar heights
-    const lWr = lms[15], rWr = lms[16]
     if (!vis(lWr, 0.3) || !vis(rWr, 0.3)) return 0
     const asymmetry = Math.abs(lWr.y - rWr.y)
     return Math.min(100, BASE + Math.round(asymmetry * 600))
+  }
+
+  if (ex === 'plank') {
+    if (!vis(lSh) || !vis(rSh) || !vis(lHip) || !vis(rHip) || !vis(lAn) || !vis(rAn)) return 0
+    // Hip sag/pike from shoulder–ankle straight line (same as push-up)
+    const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
+    const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
+    const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
+    const sagPike = ptLineDist(shX, shY, anX, anY, hipX, hipY)
+    return Math.min(100, BASE + Math.round(sagPike * 850))
+  }
+
+  if (ex === 'wallsit') {
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    // Knee valgus (same as squat)
+    const lValgus = Math.max(0, lAn.x - lKn.x)
+    const rValgus = Math.max(0, rKn.x - rAn.x)
+    const valgus  = Math.max(lValgus, rValgus)
+    // Forward lean — torso should stay upright
+    let lean = 0
+    if (vis(lSh) && vis(rSh) && vis(lHip) && vis(rHip)) {
+      const shMx = (lSh.x + rSh.x) / 2, hipMx = (lHip.x + rHip.x) / 2
+      lean = Math.max(0, Math.abs(shMx - hipMx) - 0.06)
+    }
+    return Math.min(100, BASE + Math.round(valgus * 650 + lean * 380))
   }
 
   return 0
@@ -132,7 +159,7 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack'] as const
+const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'plank', 'wallsit'] as const
 
 const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   squat:         'Squat',
@@ -143,6 +170,8 @@ const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   curlup:        'Curl-Up',
   bicepcurl:     'Bicep Curl',
   jumpingjack:   'Jumping Jack',
+  plank:         'Plank',
+  wallsit:       'Wall Sit',
 }
 
 const DEMO_SUGGESTIONS = [
@@ -474,6 +503,11 @@ export function WorkoutPage() {
   const { repCount, phase: movementPhase, lastRepTimestamp, isCalibrating, reset: resetRepCounter } =
     useRepCounter(landmarks, currentExercise)
 
+  // ── Hold timer hook (plank / wall sit) ────────────────────────────────
+  const isHoldExercise = HOLD_EXERCISES.includes(currentExercise)
+  const { holdSeconds, isInPosition, reset: resetHoldTimer } =
+    useHoldTimer(landmarks, currentExercise)
+
   // ── Keep mutable refs in sync with latest values ───────────────────────
   useEffect(() => { repCountRef.current = repCount        }, [repCount])
   useEffect(() => { exerciseRef.current = currentExercise }, [currentExercise])
@@ -481,7 +515,7 @@ export function WorkoutPage() {
 
   // ── New-set handler (spacebar) ─────────────────────────────────────────
   const handleNewSet = useCallback(() => {
-    const reps = repCounts[currentExercise] ?? 0
+    const reps = isHoldExercise ? holdSeconds : (repCounts[currentExercise] ?? 0)
     setSetCount(prev => {
       const nextNum = prev + 1
       setSetLog(log => [...log, { setNum: nextNum, exercise: currentExercise, reps }])
@@ -489,7 +523,8 @@ export function WorkoutPage() {
     })
     resetExerciseReps(currentExercise)
     resetRepCounter()
-  }, [repCounts, currentExercise, resetExerciseReps, resetRepCounter])
+    resetHoldTimer()
+  }, [repCounts, currentExercise, resetExerciseReps, resetRepCounter, resetHoldTimer, isHoldExercise, holdSeconds])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -960,36 +995,76 @@ export function WorkoutPage() {
               </select>
             </div>
 
-            {/* Rep counter */}
+            {/* Rep counter / Hold timer */}
             <div className="card-surface p-5 flex flex-col items-center">
-              <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2">
-                Current Reps
-              </span>
-              <div
-                key={lastRepTimestamp ?? 0}
-                className="font-black leading-none select-none text-white rep-pulse"
-                style={{ fontSize: 84, letterSpacing: -4, display: 'inline-block' }}
-              >
-                {String(repCounts[currentExercise] ?? 0).padStart(2, '0')}
-              </div>
-              <span className="text-[11px] text-gray-600 mt-1">{EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}</span>
-
-              {/* Movement phase dot */}
-              {isCalibrating ? (
-                <p className="mt-3 text-[11px] text-amber-500 animate-pulse">Calibrating…</p>
-              ) : (
-                <div className="mt-3 flex items-center gap-2">
+              {isHoldExercise ? (
+                <>
+                  <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2">
+                    Hold Time
+                  </span>
                   <div
-                    className="w-2 h-2 rounded-full transition-colors duration-200"
+                    className="font-black leading-none select-none"
                     style={{
-                      background: movementPhase === 'down' ? '#3b82f6'
-                                : movementPhase === 'up'   ? '#22c55e'
-                                : '#374151',
-                      boxShadow: movementPhase !== 'unknown' ? `0 0 6px ${movementPhase === 'down' ? '#3b82f6' : '#22c55e'}` : 'none',
+                      fontSize: 72,
+                      letterSpacing: -3,
+                      display: 'inline-block',
+                      color: isInPosition ? '#22c55e' : '#374151',
+                      transition: 'color 0.3s ease',
                     }}
-                  />
-                  <span className="text-[11px] text-gray-500 capitalize">{movementPhase}</span>
-                </div>
+                  >
+                    {fmt(holdSeconds)}
+                  </div>
+                  <span className="text-[11px] text-gray-600 mt-1">
+                    {EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}
+                  </span>
+                  <div className="mt-3 flex items-center gap-2">
+                    <div
+                      className="w-2 h-2 rounded-full transition-colors duration-300"
+                      style={{
+                        background: isInPosition ? '#22c55e' : '#374151',
+                        boxShadow: isInPosition ? '0 0 6px #22c55e' : 'none',
+                      }}
+                    />
+                    <span
+                      className="text-[11px] font-semibold transition-colors duration-300"
+                      style={{ color: isInPosition ? '#22c55e' : '#6b7280' }}
+                    >
+                      {isInPosition ? 'In position' : 'Get in position'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2">
+                    Current Reps
+                  </span>
+                  <div
+                    key={lastRepTimestamp ?? 0}
+                    className="font-black leading-none select-none text-white rep-pulse"
+                    style={{ fontSize: 84, letterSpacing: -4, display: 'inline-block' }}
+                  >
+                    {String(repCounts[currentExercise] ?? 0).padStart(2, '0')}
+                  </div>
+                  <span className="text-[11px] text-gray-600 mt-1">{EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}</span>
+
+                  {/* Movement phase dot */}
+                  {isCalibrating ? (
+                    <p className="mt-3 text-[11px] text-amber-500 animate-pulse">Calibrating…</p>
+                  ) : (
+                    <div className="mt-3 flex items-center gap-2">
+                      <div
+                        className="w-2 h-2 rounded-full transition-colors duration-200"
+                        style={{
+                          background: movementPhase === 'down' ? '#3b82f6'
+                                    : movementPhase === 'up'   ? '#22c55e'
+                                    : '#374151',
+                          boxShadow: movementPhase !== 'unknown' ? `0 0 6px ${movementPhase === 'down' ? '#3b82f6' : '#22c55e'}` : 'none',
+                        }}
+                      />
+                      <span className="text-[11px] text-gray-500 capitalize">{movementPhase}</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -1015,7 +1090,9 @@ export function WorkoutPage() {
                   {[...setLog].reverse().map(s => (
                     <div key={s.setNum} className="flex justify-between text-[11px]">
                       <span className="text-gray-600">Set {s.setNum} · <span className="capitalize">{s.exercise}</span></span>
-                      <span className="font-mono font-bold text-gray-400">{s.reps} reps</span>
+                      <span className="font-mono font-bold text-gray-400">
+                        {HOLD_EXERCISES.includes(s.exercise) ? `${s.reps}s` : `${s.reps} reps`}
+                      </span>
                     </div>
                   ))}
                 </div>

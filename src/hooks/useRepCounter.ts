@@ -29,6 +29,8 @@ export type SupportedExercise =
   | 'curlup'
   | 'bicepcurl'
   | 'jumpingjack'
+  | 'plank'
+  | 'wallsit'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -72,6 +74,9 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Jumping jack: track wrists — arms go overhead (low Y) then back to sides (high Y)
   // Rep counted on up_to_down: when arms come back down = one full jack completed
   jumpingjack:   { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'up_to_down' },
+  // Hold exercises — no reps counted; useHoldTimer handles timing
+  plank:         { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
+  wallsit:       { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -264,6 +269,9 @@ export function useRepCounter(
   }, [exerciseKey, reset])
 
   useEffect(() => {
+    // Hold exercises (plank, wallsit) don't count reps — useHoldTimer handles them
+    if (exerciseKey === 'plank' || exerciseKey === 'wallsit') return
+
     if (!landmarks) {
       if (lastLandmarkTs.current != null) {
         const gap = Date.now() - lastLandmarkTs.current
