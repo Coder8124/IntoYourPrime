@@ -458,6 +458,59 @@ export function SessionSummaryPage() {
           )}
         </section>
 
+        {/* Progressive overload recommendations */}
+        {exercisesWithReps.length > 0 && (
+          <section
+            className="rounded-2xl p-5"
+            style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.2)' }}
+          >
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-400 mb-4">
+              Next Session Targets
+            </h2>
+            <ul className="space-y-3">
+              {exercisesWithReps.map(([exName, count]) => {
+                const risk = Math.round(avgRisk)
+                let target: number
+                let message: string
+                let color: string
+                let arrow: string
+                if (risk < 45) {
+                  target = count + 2
+                  message = `Form was clean — push to ${target} reps`
+                  color = '#22c55e'
+                  arrow = '↑'
+                } else if (risk < 65) {
+                  target = count
+                  message = `Solid — maintain ${target} reps, tighten your form`
+                  color = '#f59e0b'
+                  arrow = '→'
+                } else {
+                  target = Math.max(1, count - 2)
+                  message = `Drop to ${target} reps and lock in technique first`
+                  color = '#ef4444'
+                  arrow = '↓'
+                }
+                return (
+                  <li key={exName} className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-white capitalize">{exName}</p>
+                      <p className="text-[12px] text-gray-500 mt-0.5">{message}</p>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      <span className="text-[11px] font-bold" style={{ color }}>{arrow}</span>
+                      <span className="font-mono font-black text-[20px]" style={{ color }}>{target}</span>
+                      <span className="text-[11px] text-gray-600">reps</span>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="mt-4 text-[11px] text-gray-600 border-t border-[#1e1e2e] pt-3">
+              Based on your avg form risk score of {Math.round(avgRisk)} this session.
+            </p>
+          </section>
+        )}
+
         {/* Safety */}
         {snapshot.safetyConcerns.length > 0 && (
           <section

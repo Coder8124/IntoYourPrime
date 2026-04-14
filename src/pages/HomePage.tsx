@@ -387,6 +387,45 @@ export function HomePage() {
           </div>
         </section>
 
+        {/* ── Pro subscription (coming soon) ── */}
+        <section className="mt-8">
+          <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(99,102,241,0.3)' }}>
+            <div className="px-5 py-4 flex items-center justify-between"
+              style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(124,58,237,0.12) 100%)' }}>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400">IntoYourPrime Pro</span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    Coming Soon
+                  </span>
+                </div>
+                <p className="text-[13px] font-bold text-white">$15 / month</p>
+              </div>
+              <div className="text-2xl opacity-60">🔒</div>
+            </div>
+            <div className="px-5 py-4 space-y-2" style={{ background: 'rgba(10,10,20,0.8)' }}>
+              {[
+                { icon: '🧠', text: 'GPT-4o real-time form analysis' },
+                { icon: '🎙️', text: 'AI voice coaching during workouts' },
+                { icon: '📊', text: 'Progress analytics & form trends' },
+                { icon: '📋', text: 'Personalized workout programs' },
+              ].map(({ icon, text }) => (
+                <div key={text} className="flex items-center gap-3">
+                  <span className="text-base">{icon}</span>
+                  <span className="text-[13px] text-gray-400">{text}</span>
+                </div>
+              ))}
+              <button
+                className="w-full mt-3 py-3 rounded-xl text-[13px] font-bold text-indigo-300 transition-all"
+                style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)' }}
+                onClick={() => alert('Pro plan launching soon — stay tuned!')}
+              >
+                Notify me when it launches →
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* ── Friends feed ── */}
         <section className="mt-8">
           <div className="mb-3 flex items-center justify-between">

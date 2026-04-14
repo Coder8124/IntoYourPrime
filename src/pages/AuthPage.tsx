@@ -28,9 +28,10 @@ export function AuthPage() {
         const cred = await createUserWithEmailAndPassword(auth, email, password)
         if (name.trim()) await updateProfile(cred.user, { displayName: name.trim() })
         if (name.trim()) {
-          const stub = { name: name.trim() }
-          localStorage.setItem('formAI_profile', JSON.stringify(stub))
-          localStorage.setItem(`formAI_profile_${cred.user.uid}`, JSON.stringify(stub))
+          // Only store a stub in generic key — NOT in uid-keyed cache.
+          // The uid-keyed cache is reserved for the full profile saved after onboarding
+          // so sign-in on any device only loads a complete profile, never a stub.
+          localStorage.setItem('formAI_profile', JSON.stringify({ name: name.trim() }))
         }
         // Fire-and-forget — don't block signup on Firestore write
         upsertUserDisplayName(cred.user.uid, name.trim() || email, email).catch(() => {})
@@ -53,7 +54,8 @@ export function AuthPage() {
             getUserProfile(uid),
             new Promise<null>(resolve => setTimeout(() => resolve(null), 4000)),
           ])
-          if (fp?.displayName) {
+          // Only trust Firestore profile if it has real data, not just a display name
+          if (fp?.displayName && fp.age && fp.weightKg) {
             const local = JSON.stringify(firestoreProfileToLocal(fp))
             localStorage.setItem('formAI_profile', local)
             localStorage.setItem(`formAI_profile_${uid}`, local)

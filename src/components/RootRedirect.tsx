@@ -23,7 +23,16 @@ export function RootRedirect() {
     return null
   }
 
-  const hasProfile = Boolean(localStorage.getItem('formAI_profile'))
+  // A profile stub with just { name } (saved during signup) is not complete —
+  // require at least name + age + sex before skipping onboarding
+  const hasProfile = (() => {
+    try {
+      const raw = localStorage.getItem('formAI_profile')
+      if (!raw) return false
+      const p = JSON.parse(raw) as Record<string, unknown>
+      return Boolean(p.name) && Boolean(p.age) && Boolean(p.sex)
+    } catch { return false }
+  })()
 
   if (!isAuthed)   return <Navigate to="/auth"       replace />
   if (!hasProfile) return <Navigate to="/onboarding" replace />
