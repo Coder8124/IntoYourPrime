@@ -327,6 +327,105 @@ export function HomePage() {
           </div>
         </div>
 
+        {/* ── Features ── */}
+        <section className="mt-10">
+          <h2 className="mb-4 text-[13px] font-bold uppercase tracking-[0.2em] text-gray-500">
+            What IntoYourPrime does
+          </h2>
+
+          {/* Core AI row */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="rounded-2xl p-4" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <div className="text-2xl mb-2">🤖</div>
+              <p className="text-[14px] font-black text-white">AI Form Analysis</p>
+              <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">
+                GPT-4o vision watches your technique every 15s and gives real coaching feedback
+              </p>
+            </div>
+            <div className="rounded-2xl p-4" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <div className="text-2xl mb-2">⚡</div>
+              <p className="text-[14px] font-black text-white">Injury Risk Score</p>
+              <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">
+                Real-time geometry scoring blended with AI — turns red when your form breaks down
+              </p>
+            </div>
+          </div>
+
+          {/* Rep counting — full width featured card */}
+          <div className="rounded-2xl p-4 mb-3"
+            style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(124,58,237,0.08) 100%)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-2xl mb-2">🔢</div>
+                <p className="text-[14px] font-black text-white">Automatic Rep Counting</p>
+                <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">
+                  MediaPipe tracks 33 body landmarks at 30fps — reps count themselves
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {['Squat','Push-Up','Lunge','Deadlift','Shoulder Press','Curl-Up','Bicep Curl','Jumping Jack','High Knees'].map(ex => (
+                <span key={ex} className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-blue-300 bg-blue-500/10 border border-blue-500/20">
+                  {ex}
+                </span>
+              ))}
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold text-indigo-300 bg-indigo-500/10 border border-indigo-500/20">
+                + Plank & Wall Sit timers
+              </span>
+            </div>
+          </div>
+
+          {/* 4-feature grid */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="rounded-2xl p-4" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <div className="text-2xl mb-2">🎙️</div>
+              <p className="text-[14px] font-black text-white">Voice Coaching</p>
+              <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">
+                OpenAI TTS speaks feedback out loud so you never break your flow
+              </p>
+            </div>
+            <div className="rounded-2xl p-4" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <div className="text-2xl mb-2">🔥</div>
+              <p className="text-[14px] font-black text-white">Fatigue Detection</p>
+              <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">
+                Alerts you when form degrades mid-set before injury happens
+              </p>
+            </div>
+            <div className="rounded-2xl p-4" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <div className="text-2xl mb-2">📈</div>
+              <p className="text-[14px] font-black text-white">Progress Dashboard</p>
+              <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">
+                Form trends, volume charts, personal bests across all sessions
+              </p>
+            </div>
+            <div className="rounded-2xl p-4" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <div className="text-2xl mb-2">🎯</div>
+              <p className="text-[14px] font-black text-white">Progressive Overload</p>
+              <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">
+                AI suggests next session's rep targets based on your form score
+              </p>
+            </div>
+          </div>
+
+          {/* Bottom row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl p-4" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <div className="text-2xl mb-2">🧘</div>
+              <p className="text-[14px] font-black text-white">AI Cooldown</p>
+              <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">
+                Personalized stretches generated based on what you actually trained
+              </p>
+            </div>
+            <div className="rounded-2xl p-4" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <div className="text-2xl mb-2">📓</div>
+              <p className="text-[14px] font-black text-white">Recovery Log</p>
+              <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">
+                Track sleep, soreness, energy — AI cross-references with your workouts
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* ── Recent sessions ── */}
         <section className="mt-10">
           <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.2em] text-gray-500">
