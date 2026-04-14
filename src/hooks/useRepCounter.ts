@@ -84,14 +84,15 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EMA_ALPHA         = 0.2   // more smoothing = less twitchy
-const CALIBRATION_MS    = 1000  // first 1 s used to calibrate range
-const DOWN_THRESHOLD    = 0.70  // must go further down before "down" phase
-const UP_THRESHOLD      = 0.30  // must come further up before "up" phase
-const DEBOUNCE_MS       = 1200  // min ms between reps (was 800)
-const MIN_RANGE         = 0.06  // minimum movement range to count (was 0.02)
-const CONFIDENCE_THRESH = 0.6   // higher confidence required (was 0.5)
+const EMA_ALPHA         = 0.2    // more smoothing = less twitchy
+const CALIBRATION_MS    = 800   // first 0.8 s used to calibrate range
+const DOWN_THRESHOLD    = 0.65  // slightly more permissive (was 0.70)
+const UP_THRESHOLD      = 0.35  // slightly more permissive (was 0.30)
+const DEBOUNCE_MS       = 1200  // min ms between reps
+const MIN_RANGE         = 0.04  // lower = catches smaller movements (was 0.06)
+const CONFIDENCE_THRESH = 0.6
 const PAUSE_AFTER_MS    = 1000  // null-landmark gap before pausing
+const RECAL_AFTER_MS    = 2500  // if range still too small after this long, recalibrate
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -372,15 +373,30 @@ export function useRepCounter(
     }
     setIsCalibrating(false)
 
+    // ── Always extend range live BEFORE the MIN_RANGE gate ───────────────
+    // Previously this came AFTER the gate, so if the user was still during
+    // calibration, range stayed 0 forever and every frame returned early.
+    // Now movement after calibration self-heals the range.
+    calibratedMin.current = Math.min(calibratedMin.current, y)
+    calibratedMax.current = Math.max(calibratedMax.current, y)
+
     const range = calibratedMax.current - calibratedMin.current
-    if (range < MIN_RANGE) return  // not enough movement to be a real rep
+
+    if (range < MIN_RANGE) {
+      // Still not enough movement — if this has been going on too long,
+      // reset so calibration restarts fresh on the next landmark.
+      if (now - calibrationEnd.current > RECAL_AFTER_MS) {
+        smoothedY.current      = null
+        calibratedMin.current  = Infinity
+        calibratedMax.current  = -Infinity
+        calibrationEnd.current = 0
+        setIsCalibrating(true)
+      }
+      return
+    }
 
     const normalisedRaw = (y - calibratedMin.current) / range
     const normalised    = invertSignal ? 1 - normalisedRaw : normalisedRaw
-
-    // Extend range live (never shrink)
-    calibratedMin.current = Math.min(calibratedMin.current, y)
-    calibratedMax.current = Math.max(calibratedMax.current, y)
 
     let newPhase = phaseRef.current
     if (normalised > DOWN_THRESHOLD) newPhase = 'down'

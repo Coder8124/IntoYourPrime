@@ -1095,6 +1095,8 @@ export function WorkoutPage() {
                   {/* Movement phase dot */}
                   {isCalibrating ? (
                     <p className="mt-3 text-[11px] text-amber-500 animate-pulse">Calibrating…</p>
+                  ) : movementPhase === 'unknown' ? (
+                    <p className="mt-3 text-[11px] text-blue-400 animate-pulse">Move to start tracking</p>
                   ) : (
                     <div className="mt-3 flex items-center gap-2">
                       <div
