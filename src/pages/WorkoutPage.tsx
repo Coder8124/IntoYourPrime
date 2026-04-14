@@ -531,19 +531,26 @@ export function WorkoutPage() {
   useEffect(() => { phaseRef.current    = phase           }, [phase])
 
   // ── New-set handler (spacebar) ─────────────────────────────────────────
+  // Read repCounts from getState() at call time so we always snapshot the
+  // freshest zustand value — avoids stale-closure bugs when a rep lands just
+  // before S is pressed and the useCallback hasn't re-created yet.
+  const holdSecondsRef = useRef(holdSeconds)
+  useEffect(() => { holdSecondsRef.current = holdSeconds }, [holdSeconds])
+
   const handleNewSet = useCallback(() => {
-    const reps = isHoldExercise ? holdSeconds : (repCounts[currentExercise] ?? 0)
+    const liveReps = useWorkoutStore.getState().repCounts[exerciseRef.current] ?? 0
+    const reps = isHoldExercise ? holdSecondsRef.current : liveReps
     setSetCount(prev => {
       const nextNum = prev + 1
-      setSetLog(log => [...log, { setNum: nextNum, exercise: currentExercise, reps }])
+      setSetLog(log => [...log, { setNum: nextNum, exercise: exerciseRef.current, reps }])
       return nextNum
     })
-    resetExerciseReps(currentExercise)
+    resetExerciseReps(exerciseRef.current)
     resetRepCounter()
     resetHoldTimer()
     sessionRiskLog.current = []
     setFatigueWarning(null)
-  }, [repCounts, currentExercise, resetExerciseReps, resetRepCounter, resetHoldTimer, isHoldExercise, holdSeconds])
+  }, [resetExerciseReps, resetRepCounter, resetHoldTimer, isHoldExercise])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
