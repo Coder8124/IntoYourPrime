@@ -404,6 +404,7 @@ export function WorkoutPage() {
   const aiRiskRef           = useRef<number | null>(null)
   const referenceFrameRef   = useRef<string | null>(null)   // reference photo for AI person tracking
   const isTrackingRef       = useRef(false)
+  const sessionRiskLog      = useRef<number[]>([])          // all blended scores this session
 
   // ── Store ──────────────────────────────────────────────────────────────
   const {
@@ -430,6 +431,7 @@ export function WorkoutPage() {
   const [setLog,   setSetLog]   = useState<SetLogEntry[]>([])
 
   // ── Cooldown state ─────────────────────────────────────────────────────
+  const [fatigueWarning,   setFatigueWarning]   = useState<string | null>(null)
   const [loadingCooldown,  setLoadingCooldown]  = useState(false)
   const [cooldownIdx,      setCooldownIdx]      = useState(0)
   const [cooldownTimeLeft, setCooldownTimeLeft] = useState(0)
@@ -539,6 +541,8 @@ export function WorkoutPage() {
     resetExerciseReps(currentExercise)
     resetRepCounter()
     resetHoldTimer()
+    sessionRiskLog.current = []
+    setFatigueWarning(null)
   }, [repCounts, currentExercise, resetExerciseReps, resetRepCounter, resetHoldTimer, isHoldExercise, holdSeconds])
 
   useEffect(() => {
@@ -657,6 +661,25 @@ export function WorkoutPage() {
       dominantIssue:    null,
       warmupQuality:    null,
     })
+
+    // ── Fatigue detection (main phase only) ───────────────────────────
+    if (phaseRef.current === 'main' && blended > 0) {
+      sessionRiskLog.current.push(blended)
+      const log = sessionRiskLog.current
+      // Need at least 50 samples (≈5-6 s at 30fps with EMA) before evaluating
+      if (log.length >= 50) {
+        const baselineAvg = log.slice(0, 20).reduce((a, b) => a + b, 0) / 20
+        const recentAvg   = log.slice(-15).reduce((a, b) => a + b, 0)  / 15
+        const degradation = recentAvg - baselineAvg
+        if (degradation >= 22 && recentAvg >= 40) {
+          setFatigueWarning(
+            `Form has dropped ${Math.round(degradation)} points since you started this set. Consider resting.`
+          )
+        } else if (degradation < 10) {
+          setFatigueWarning(null)
+        }
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landmarks, isTracking])
 
@@ -1346,6 +1369,22 @@ export function WorkoutPage() {
               </span>
               <RiskGauge score={latestRisk} />
             </div>
+
+            {/* Fatigue warning banner */}
+            {fatigueWarning && phase === 'main' && (
+              <div
+                className="rounded-xl p-4 shrink-0"
+                style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)' }}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                  <span className="text-[10.5px] font-black tracking-wider uppercase text-amber-400">
+                    Fatigue Detected
+                  </span>
+                </div>
+                <p className="text-[12px] text-amber-300 leading-relaxed">{fatigueWarning}</p>
+              </div>
+            )}
 
             {/* Safety concern banner */}
             {safetyConcerns.length > 0 && (

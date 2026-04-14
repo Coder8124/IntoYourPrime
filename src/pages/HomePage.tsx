@@ -172,9 +172,9 @@ export function HomePage() {
             <button
               type="button"
               onClick={() => setShowKeyInput(v => !v)}
-              className="rounded-full border border-amber-500/40 px-3 py-1 text-[11px] font-bold text-amber-300 hover:bg-amber-500/10 transition-colors"
+              className="rounded-full border border-amber-500/40 px-3 py-1.5 text-[12px] font-bold text-amber-300 hover:bg-amber-500/10 transition-colors"
             >
-              {showKeyInput ? 'Cancel' : '⚡ Add AI key'}
+              {showKeyInput ? '✕ Cancel' : '⚡ Add AI key'}
             </button>
           )}
           <Link to="/profile" className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-black text-white transition-opacity hover:opacity-70"
@@ -184,29 +184,66 @@ export function HomePage() {
         </div>
       </nav>
 
-      {/* ── API key input (dropdown from nav) ── */}
+      {/* ── API key banner (shown when no key set) ── */}
+      {!apiKeySet && !showKeyInput && (
+        <div
+          className="mx-auto max-w-lg px-5 pt-3"
+          onClick={() => setShowKeyInput(true)}
+          style={{ cursor: 'pointer' }}
+        >
+          <div
+            className="flex items-center gap-4 rounded-2xl px-5 py-4 transition-all hover:opacity-90"
+            style={{
+              background: 'linear-gradient(135deg, rgba(245,158,11,0.14) 0%, rgba(234,88,12,0.12) 100%)',
+              border: '1px solid rgba(245,158,11,0.35)',
+              boxShadow: '0 0 28px rgba(245,158,11,0.1)',
+            }}
+          >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-xl"
+              style={{ background: 'rgba(245,158,11,0.18)' }}>
+              ⚡
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[14px] font-black text-amber-200">Add your OpenAI API key</p>
+              <p className="text-[12px] text-amber-400/70 mt-0.5">
+                Unlock real-time form analysis, AI coaching &amp; voice feedback
+              </p>
+            </div>
+            <span className="text-amber-400 text-[18px]">→</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── API key input (expanded) ── */}
       {showKeyInput && (
         <div className="mx-auto max-w-lg px-5 pt-3">
-          <div className="flex gap-2">
-            <input
-              type="password"
-              value={apiKeyInput}
-              onChange={e => setApiKeyInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSaveApiKey()}
-              placeholder="sk-proj-…"
-              className="input-dark flex-1 font-mono text-[13px]"
-              autoComplete="off"
-              spellCheck={false}
-              autoFocus
-            />
-            <button
-              type="button"
-              onClick={handleSaveApiKey}
-              disabled={!apiKeyInput.trim()}
-              className="shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 px-4 py-2.5 text-[13px] font-bold text-white transition-colors"
-            >
-              Save
-            </button>
+          <div
+            className="rounded-2xl p-5"
+            style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}
+          >
+            <p className="text-[12px] font-bold text-amber-300 mb-3">⚡ Add OpenAI API Key</p>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={apiKeyInput}
+                onChange={e => setApiKeyInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSaveApiKey()}
+                placeholder="sk-proj-…"
+                className="input-dark flex-1 font-mono text-[13px]"
+                autoComplete="off"
+                spellCheck={false}
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={handleSaveApiKey}
+                disabled={!apiKeyInput.trim()}
+                className="shrink-0 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 px-5 py-2.5 text-[13px] font-black text-black transition-colors"
+              >
+                Save
+              </button>
+            </div>
+            <p className="mt-2 text-[11px] text-amber-600/70">Stored locally — never sent to any server.</p>
           </div>
         </div>
       )}
@@ -265,17 +302,24 @@ export function HomePage() {
               style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' }} />
           </button>
 
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="mt-3 grid grid-cols-3 gap-3">
             <Link
               to="/session-summary"
-              className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-semibold text-gray-400 transition-all hover:text-white"
+              className="flex items-center justify-center gap-1 rounded-xl py-3 text-[12px] font-semibold text-gray-400 transition-all hover:text-white"
               style={{ background: '#111119', border: '1px solid #1e1e2e' }}
             >
               Last session →
             </Link>
             <Link
+              to="/progress"
+              className="flex items-center justify-center gap-1 rounded-xl py-3 text-[12px] font-semibold text-gray-400 transition-all hover:text-white"
+              style={{ background: '#111119', border: '1px solid #1e1e2e' }}
+            >
+              Progress →
+            </Link>
+            <Link
               to="/friends"
-              className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-semibold text-gray-400 transition-all hover:text-white"
+              className="flex items-center justify-center gap-1 rounded-xl py-3 text-[12px] font-semibold text-gray-400 transition-all hover:text-white"
               style={{ background: '#111119', border: '1px solid #1e1e2e' }}
             >
               Squad →
