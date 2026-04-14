@@ -119,12 +119,20 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, 10 + Math.round(Math.max(lDrift, rDrift) * 480 + sway * 360))
   }
 
+  if (ex === 'jumpingjack') {
+    // Check arm symmetry — both wrists should be at similar heights
+    const lWr = lms[15], rWr = lms[16]
+    if (!vis(lWr, 0.3) || !vis(rWr, 0.3)) return 0
+    const asymmetry = Math.abs(lWr.y - rWr.y)
+    return Math.min(100, BASE + Math.round(asymmetry * 600))
+  }
+
   return 0
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl'] as const
+const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack'] as const
 
 const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   squat:         'Squat',
@@ -134,6 +142,7 @@ const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   shoulderpress: 'Shoulder Press',
   curlup:        'Curl-Up',
   bicepcurl:     'Bicep Curl',
+  jumpingjack:   'Jumping Jack',
 }
 
 const DEMO_SUGGESTIONS = [

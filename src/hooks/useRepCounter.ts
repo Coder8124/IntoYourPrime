@@ -28,6 +28,7 @@ export type SupportedExercise =
   | 'shoulderpress'
   | 'curlup'
   | 'bicepcurl'
+  | 'jumpingjack'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -68,6 +69,9 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   curlup:        { joints: [LM.LEFT_SHOULDER,   LM.RIGHT_SHOULDER], repOn: 'down_to_up' },
   // Bicep curl: track wrists — they rise toward shoulder at top, rep counted on down→up
   bicepcurl:     { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'down_to_up' },
+  // Jumping jack: track wrists — arms go overhead (low Y) then back to sides (high Y)
+  // Rep counted on up_to_down: when arms come back down = one full jack completed
+  jumpingjack:   { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'up_to_down' },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -308,6 +312,14 @@ export function useRepCounter(
       if (!result || result.confidence < CONFIDENCE_THRESH) return
       rawSignal    = result.value
       invertSignal = true   // large diff (curled) → low normalised → "up" phase
+    } else if (exerciseKey === 'jumpingjack') {
+      // Average wrist Y position. Arms at sides: wrists low (high Y). Arms overhead: wrists high (low Y).
+      // Lower confidence threshold (0.35) — wrists can lose confidence when fully overhead.
+      // No inversion: high Y (arms down) → "down" phase; low Y (arms up) → "up" phase.
+      // Rep counted on up_to_down: arms come back down = one full jack done.
+      const joint = getJointY(landmarks, config.joints[0], config.joints[1])
+      if (!joint || joint.confidence < 0.35) return
+      rawSignal = joint.y
     } else {
       const joint = getJointY(landmarks, config.joints[0], config.joints[1])
       if (!joint || joint.confidence < CONFIDENCE_THRESH) return
