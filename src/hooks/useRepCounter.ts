@@ -29,6 +29,7 @@ export type SupportedExercise =
   | 'curlup'
   | 'bicepcurl'
   | 'jumpingjack'
+  | 'highnees'
   | 'plank'
   | 'wallsit'
 
@@ -74,6 +75,8 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Jumping jack: track wrists — arms go overhead (low Y) then back to sides (high Y)
   // Rep counted on up_to_down: when arms come back down = one full jack completed
   jumpingjack:   { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'up_to_down' },
+  // High knees: track minimum knee Y (the currently-raised knee). Each knee raise = 1 rep.
+  highnees:      { joints: [LM.LEFT_KNEE,        LM.RIGHT_KNEE],     repOn: 'down_to_up' },
   // Hold exercises — no reps counted; useHoldTimer handles timing
   plank:         { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
   wallsit:       { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
@@ -328,6 +331,21 @@ export function useRepCounter(
       const joint = getJointY(landmarks, config.joints[0], config.joints[1])
       if (!joint || joint.confidence < 0.35) return
       rawSignal = joint.y
+    } else if (exerciseKey === 'highnees') {
+      // Track the MINIMUM knee Y (the highest knee at any moment).
+      // Alternating: left knee up → min drops; right knee up → min drops again.
+      // Each raise gets its own up/down cycle → each knee lift counts as 1 rep.
+      // invertSignal=true: low Y (knee high) → low normalised → "up" phase.
+      const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
+      const lConf = lKn?.visibility ?? 0
+      const rConf = rKn?.visibility ?? 0
+      if (lConf < 0.3 && rConf < 0.3) return
+      // Use whichever knee is most visible; if both visible, take the min (highest knee)
+      rawSignal    = Math.min(
+        lConf >= 0.3 ? lKn.y : 1,
+        rConf >= 0.3 ? rKn.y : 1,
+      )
+      invertSignal = true  // low Y (knee up) → low normalised → "up" phase
     } else {
       const joint = getJointY(landmarks, config.joints[0], config.joints[1])
       if (!joint || joint.confidence < CONFIDENCE_THRESH) return

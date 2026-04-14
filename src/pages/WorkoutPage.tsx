@@ -129,6 +129,20 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, BASE + Math.round(asymmetry * 600))
   }
 
+  if (ex === 'highnees') {
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 0
+    // Torso sway: shoulders should stay centred over hips, not leaning side-to-side
+    let sway = 0
+    if (vis(lHip, 0.3) && vis(rHip, 0.3)) {
+      const shMx  = (lSh.x + rSh.x) / 2
+      const hipMx = (lHip.x + rHip.x) / 2
+      sway = Math.max(0, Math.abs(shMx - hipMx) - 0.04)
+    }
+    // Shoulder symmetry: hunching to one side stresses the neck
+    const shAsym = Math.abs(lSh.y - rSh.y)
+    return Math.min(100, BASE + Math.round(sway * 420 + shAsym * 380))
+  }
+
   if (ex === 'plank') {
     if (!vis(lSh) || !vis(rSh) || !vis(lHip) || !vis(rHip) || !vis(lAn) || !vis(rAn)) return 0
     // Hip sag/pike from shoulder–ankle straight line (same as push-up)
@@ -159,7 +173,7 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'plank', 'wallsit'] as const
+const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'highnees', 'plank', 'wallsit'] as const
 
 const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   squat:         'Squat',
@@ -170,6 +184,7 @@ const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   curlup:        'Curl-Up',
   bicepcurl:     'Bicep Curl',
   jumpingjack:   'Jumping Jack',
+  highnees:      'High Knees',
   plank:         'Plank',
   wallsit:       'Wall Sit',
 }
