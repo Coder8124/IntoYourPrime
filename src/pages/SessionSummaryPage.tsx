@@ -189,8 +189,33 @@ export function SessionSummaryPage() {
   }, [snapshot])
 
   // ── Auto-save session to Firestore ─────────────────────────────────────
-  const [saveStatus, setSaveStatus] = useState<'pending' | 'saving' | 'saved' | 'error'>('pending')
+  const [saveStatus,  setSaveStatus]  = useState<'pending' | 'saving' | 'saved' | 'error'>('pending')
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied'>('idle')
   const saveAttempted = useRef(false)
+
+  const handleShare = () => {
+    if (!stats || !snapshot) return
+    const dur = `${Math.floor(stats.durationSec / 60)}m ${stats.durationSec % 60}s`
+    const formScore = Math.max(0, 100 - Math.round(stats.avgRisk))
+    const exList = stats.exercisesWithReps.map(([ex, n]) => `${ex} ×${n}`).join(', ')
+    const text = [
+      `💪 Just finished a workout with IntoYourPrime!`,
+      `⏱ Duration: ${dur}`,
+      `🔢 Total reps: ${stats.totalReps}`,
+      `🎯 Form score: ${formScore}/100`,
+      exList ? `📋 Exercises: ${exList}` : '',
+      `\nTrain smarter with AI form coaching → intoyourprime.vercel.app`,
+    ].filter(Boolean).join('\n')
+
+    if (navigator.share) {
+      navigator.share({ title: 'My workout — IntoYourPrime', text }).catch(() => {})
+    } else {
+      navigator.clipboard.writeText(text).then(() => {
+        setShareStatus('copied')
+        setTimeout(() => setShareStatus('idle'), 2000)
+      }).catch(() => {})
+    }
+  }
 
   useEffect(() => {
     if (!snapshot || !stats || saveAttempted.current) return
@@ -329,6 +354,13 @@ export function SessionSummaryPage() {
             {saveStatus === 'error' && (
               <span className="text-[11px] text-red-400">Could not save</span>
             )}
+            <button
+              type="button"
+              onClick={handleShare}
+              className="rounded-xl border border-[#2e2e3e] px-4 py-2.5 text-[13px] font-semibold text-gray-400 transition hover:border-gray-500 hover:text-gray-200 flex items-center gap-2"
+            >
+              {shareStatus === 'copied' ? '✓ Copied!' : '↗ Share'}
+            </button>
             <Link
               to="/workout"
               className="rounded-xl bg-blue-600 px-4 py-2.5 text-[13px] font-bold text-white transition hover:bg-blue-500 btn-glow-blue"

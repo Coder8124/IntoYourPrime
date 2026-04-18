@@ -1,8 +1,8 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { hasApiKey } from '../lib/formAnalysis'
 import { signOutUser } from '../lib/firestoreUser'
-import { upsertFullUserProfile } from '../lib/firebaseHelpers'
+import { upsertFullUserProfile, getUserProfile } from '../lib/firebaseHelpers'
 import { auth } from '../lib/firebase'
 
 const FT_OPTIONS  = [4, 5, 6, 7]
@@ -39,6 +39,37 @@ export function ProfilePage() {
   const navigate = useNavigate()
   const [form,    setForm]    = useState<ProfileForm>(loadProfile)
   const [saved,   setSaved]   = useState(false)
+
+  // Sync profile from Firestore on mount so data is restored across devices
+  useEffect(() => {
+    const uid = auth.currentUser?.uid
+    if (!uid) return
+    getUserProfile(uid).then(profile => {
+      if (!profile) return
+      const totalIn = Math.round((profile.heightCm ?? 168) / 2.54)
+      const ft = Math.floor(totalIn / 12)
+      const inches = totalIn % 12
+      const lbs = Math.round((profile.weightKg ?? 70) * 2.20462)
+      const restored: ProfileForm = {
+        name:         profile.displayName || '',
+        age:          String(profile.age ?? ''),
+        weight:       String(lbs),
+        heightFt:     String(Math.max(4, Math.min(7, ft))),
+        heightIn:     String(inches),
+        sex:          profile.biologicalSex || '',
+        fitnessLevel: profile.fitnessLevel || 'intermediate',
+      }
+      setForm(prev => {
+        // Only overwrite if Firestore has richer data (non-empty name)
+        if (!prev.name && restored.name) return restored
+        return prev
+      })
+      // Keep localStorage in sync
+      const merged = JSON.stringify({ ...restored })
+      localStorage.setItem('formAI_profile', merged)
+      localStorage.setItem(`formAI_profile_${uid}`, merged)
+    }).catch(() => {})
+  }, [])
 
   // API key panel state
   const [apiKey,     setApiKey]     = useState('')
@@ -99,9 +130,14 @@ export function ProfilePage() {
 
         {/* ── Profile fields ────────────────────────────────────────────── */}
         <div className="card-surface p-6 space-y-5">
-          <p className="text-[11px] font-semibold tracking-[0.12em] text-gray-500 uppercase">
-            Your Info
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold tracking-[0.12em] text-gray-500 uppercase">
+              Your Info
+            </p>
+            {auth.currentUser?.email && (
+              <p className="text-[11px] text-gray-600">{auth.currentUser.email}</p>
+            )}
+          </div>
 
           <form onSubmit={handleSaveProfile} className="space-y-4">
             <div>

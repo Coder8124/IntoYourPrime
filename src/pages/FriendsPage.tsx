@@ -10,7 +10,10 @@ import {
   addFriend,
   getFriends,
   getPendingFriendRequests,
+  getOutgoingFriendRequests,
   acceptFriendRequest,
+  declineFriendRequest,
+  getUserProfile,
 } from '../lib/firebaseHelpers'
 import type { FriendConnection, UserProfile } from '../types/index'
 
@@ -244,35 +247,57 @@ export function FriendsPage() {
   const [error,        setError]        = useState<string | null>(null)
 
   // ── Squad state ────────────────────────────────────────────────────────
-  const [myFriends,       setMyFriends]       = useState<FriendConnection[]>([])
-  const [pendingRequests, setPendingRequests] = useState<FriendConnection[]>([])
-  const [squadLoading,    setSquadLoading]    = useState(true)
-  const [searchQuery,     setSearchQuery]     = useState('')
-  const [searchResults,   setSearchResults]   = useState<UserProfile[]>([])
-  const [searchBusy,      setSearchBusy]      = useState(false)
-  const [sentTo,          setSentTo]          = useState<Set<string>>(new Set())
-  const [allUsers,        setAllUsers]        = useState<UserProfile[]>([])
+  const [myFriends,        setMyFriends]        = useState<FriendConnection[]>([])
+  const [friendProfiles,   setFriendProfiles]   = useState<Record<string, UserProfile>>({})
+  const [pendingRequests,  setPendingRequests]  = useState<FriendConnection[]>([])
+  const [outgoingRequests, setOutgoingRequests] = useState<FriendConnection[]>([])
+  const [squadLoading,     setSquadLoading]     = useState(true)
+  const [searchQuery,      setSearchQuery]      = useState('')
+  const [searchResults,    setSearchResults]    = useState<UserProfile[]>([])
+  const [searchBusy,       setSearchBusy]       = useState(false)
+  const [sentTo,           setSentTo]           = useState<Set<string>>(new Set())
+  const [allUsers,         setAllUsers]         = useState<UserProfile[]>([])
+  const [squadTab,         setSquadTab]         = useState<'friends' | 'requests' | 'find'>('friends')
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load friends, pending, and all users on mount
+  // Load friends, pending, outgoing, and all users on mount
   useEffect(() => {
     if (!myUid) { setSquadLoading(false); return }
     getAllUsers().then(users => setAllUsers(users)).catch(() => {})
-    Promise.all([getFriends(myUid), getPendingFriendRequests(myUid)])
-      .then(([friends, pending]) => {
+    Promise.all([
+      getFriends(myUid),
+      getPendingFriendRequests(myUid),
+      getOutgoingFriendRequests(myUid),
+    ])
+      .then(async ([friends, pending, outgoing]) => {
         setMyFriends(friends)
         setPendingRequests(pending)
+        setOutgoingRequests(outgoing)
+        // Pre-populate sentTo from outgoing requests
+        setSentTo(new Set(outgoing.map(r => r.friendId)))
+
         if (friends.length > 0) {
+          // Fetch profile for each friend to get real streak/fitness data
+          const profileMap: Record<string, UserProfile> = {}
+          await Promise.all(friends.map(async f => {
+            const p = await getUserProfile(f.friendId).catch(() => null)
+            if (p) profileMap[f.friendId] = p
+          }))
+          setFriendProfiles(profileMap)
+
           const myData = loadMyData()
           setMembers([
             { name: myName || 'You', ...myData },
-            ...friends.map(f => ({
-              name: f.friendDisplayName || 'Friend',
-              sessionCompleted: false,
-              calories: 0,
-              intensity: 'N/A' as MemberData['intensity'],
-              streakDays: 0,
-            })),
+            ...friends.map(f => {
+              const profile = profileMap[f.friendId]
+              return {
+                name: f.friendDisplayName || 'Friend',
+                sessionCompleted: false,
+                calories: 0,
+                intensity: 'N/A' as MemberData['intensity'],
+                streakDays: profile?.streakCount ?? 0,
+              }
+            }),
           ])
         }
       })
@@ -300,14 +325,32 @@ export function FriendsPage() {
   const handleAddFriend = async (profile: UserProfile) => {
     if (!myUid) return
     setSentTo(prev => new Set(prev).add(profile.uid))
-    try { await addFriend(myUid, profile) } catch { /* ignore */ }
+    try {
+      await addFriend(myUid, profile, myName ?? '')
+      setOutgoingRequests(prev => [...prev, {
+        id: `temp-${profile.uid}`,
+        userId: myUid,
+        friendId: profile.uid,
+        friendDisplayName: profile.displayName,
+        friendEmail: profile.email,
+        status: 'pending',
+        sharedStreak: 0,
+        lastSharedWorkoutDate: null,
+        createdAt: new Date(),
+      }])
+    } catch { /* ignore */ }
   }
 
   const handleAccept = async (conn: FriendConnection) => {
     try {
       await acceptFriendRequest(conn.id)
       setPendingRequests(prev => prev.filter(r => r.id !== conn.id))
-      setMyFriends(prev => [...prev, { ...conn, status: 'accepted' }])
+      const accepted = { ...conn, status: 'accepted' as const }
+      setMyFriends(prev => [...prev, accepted])
+      // Fetch their profile for progress data
+      getUserProfile(conn.friendId).then(p => {
+        if (p) setFriendProfiles(prev => ({ ...prev, [conn.friendId]: p }))
+      }).catch(() => {})
       setMembers(prev => [...prev, {
         name: conn.friendDisplayName || 'Friend',
         sessionCompleted: false,
@@ -315,6 +358,13 @@ export function FriendsPage() {
         intensity: 'N/A' as MemberData['intensity'],
         streakDays: 0,
       }])
+    } catch { /* ignore */ }
+  }
+
+  const handleDecline = async (conn: FriendConnection) => {
+    try {
+      await declineFriendRequest(conn.id)
+      setPendingRequests(prev => prev.filter(r => r.id !== conn.id))
     } catch { /* ignore */ }
   }
 
@@ -389,105 +439,248 @@ export function FriendsPage() {
 
         {/* ── Squad / Friends ──────────────────────────────────────────── */}
         <div className="card-surface p-5 space-y-4">
-          <p className="text-[11px] font-bold tracking-[0.15em] uppercase text-gray-500">Your Squad</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold tracking-[0.15em] uppercase text-gray-500">Your Squad</p>
+            {pendingRequests.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[11px] font-black">
+                {pendingRequests.length} pending
+              </span>
+            )}
+          </div>
 
-          {/* Search bar */}
-          {myUid ? (
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search by display name…"
-                className="input-dark w-full pr-10 text-[13px]"
-                autoComplete="off"
-              />
-              {searchBusy && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-[11px]">…</span>
-              )}
-            </div>
-          ) : (
-            <p className="text-[12px] text-gray-600">Sign in to search for friends.</p>
-          )}
-
-          {/* Search results */}
-          {searchResults.length > 0 && (
-            <div className="space-y-2">
-              {searchResults.map(u => {
-                const alreadyFriend = myFriends.some(f => f.friendId === u.uid)
-                const sent = sentTo.has(u.uid)
-                return (
-                  <div key={u.uid} className="flex items-center justify-between p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
-                    <div>
-                      <p className="text-[13px] font-semibold text-white">{u.displayName}</p>
-                      <p className="text-[11px] text-gray-600">{u.email}</p>
-                    </div>
-                    {alreadyFriend ? (
-                      <span className="text-[11px] font-bold text-green-400">In squad</span>
-                    ) : sent ? (
-                      <span className="text-[11px] font-bold text-amber-400">Sent</span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleAddFriend(u)}
-                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-[12px] font-bold text-white transition-colors"
-                      >
-                        + Add
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Pending incoming requests */}
-          {pendingRequests.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-400">Incoming Requests</p>
-              {pendingRequests.map(req => (
-                <div key={req.id} className="flex items-center justify-between p-3 rounded-xl bg-[#0f0f1a] border border-amber-900/30">
-                  <p className="text-[13px] font-semibold text-white">{req.friendDisplayName || req.friendEmail || 'Someone'}</p>
-                  <button
-                    type="button"
-                    onClick={() => handleAccept(req)}
-                    className="px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-[12px] font-bold text-white transition-colors"
-                  >
-                    Accept
-                  </button>
-                </div>
+          {/* Tab nav */}
+          {myUid && (
+            <div className="flex gap-1 p-1 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+              {(['friends', 'requests', 'find'] as const).map(tab => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setSquadTab(tab)}
+                  className="flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors capitalize"
+                  style={squadTab === tab
+                    ? { background: 'rgba(59,130,246,0.2)', color: '#93c5fd' }
+                    : { color: '#4b5563' }
+                  }
+                >
+                  {tab === 'requests' && pendingRequests.length > 0
+                    ? `Requests (${pendingRequests.length})`
+                    : tab === 'friends'
+                    ? `Squad (${myFriends.length})`
+                    : 'Find'}
+                </button>
               ))}
             </div>
           )}
 
-          {/* All users browse list — shown when search is empty */}
-          {!searchQuery.trim() && allUsers.length > 0 && (() => {
-            const browseable = allUsers.filter(u =>
-              u.uid !== myUid &&
-              !myFriends.some(f => f.friendId === u.uid)
-            )
-            if (browseable.length === 0) return null
-            return (
-              <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600">All Users</p>
-                {browseable.map(u => {
-                  const sent = sentTo.has(u.uid)
-                  return (
-                    <div key={u.uid} className="flex items-center justify-between p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[12px] font-black text-gray-400">
-                          {(u.displayName || u.email || '?')[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="text-[13px] font-semibold text-white">{u.displayName || u.email}</p>
-                          {u.fitnessLevel && (
-                            <p className="text-[10px] text-gray-600 capitalize">{u.fitnessLevel}</p>
+          {/* ── FRIENDS TAB ── */}
+          {squadTab === 'friends' && (
+            <>
+              {squadLoading ? (
+                <p className="text-[12px] text-gray-600">Loading squad…</p>
+              ) : myFriends.length === 0 ? (
+                <div className="text-center py-6 space-y-2">
+                  <p className="text-[13px] text-gray-500">No squad members yet.</p>
+                  <button
+                    type="button"
+                    onClick={() => setSquadTab('find')}
+                    className="text-[12px] text-blue-400 hover:text-blue-300 font-semibold"
+                  >
+                    Find friends →
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {myFriends.map(f => {
+                    const profile = friendProfiles[f.friendId]
+                    const initial = (f.friendDisplayName || '?')[0].toUpperCase()
+                    const lastWorkout = profile?.lastWorkoutDate
+                    const streak = profile?.streakCount ?? f.sharedStreak
+                    const level = profile?.fitnessLevel
+                    return (
+                      <div key={f.id} className="p-4 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e] space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center text-[15px] font-black text-blue-400 shrink-0">
+                            {initial}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[14px] font-semibold text-white truncate">{f.friendDisplayName}</p>
+                            {level && <p className="text-[11px] text-gray-500 capitalize">{level}</p>}
+                          </div>
+                          {streak > 0 && (
+                            <div className="text-right shrink-0">
+                              <p className="text-[18px] font-black text-amber-400 leading-none">{streak}</p>
+                              <p className="text-[10px] text-gray-600">day streak</p>
+                            </div>
                           )}
                         </div>
+                        {/* Progress stats */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="p-2.5 rounded-lg bg-[#0a0a0f] border border-[#1a1a2a]">
+                            <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Last Workout</p>
+                            <p className="text-[12px] font-bold text-white">
+                              {lastWorkout
+                                ? lastWorkout === new Date().toISOString().slice(0, 10)
+                                  ? 'Today'
+                                  : lastWorkout === new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+                                  ? 'Yesterday'
+                                  : lastWorkout
+                                : 'No data'}
+                            </p>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-[#0a0a0f] border border-[#1a1a2a]">
+                            <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Shared Streak</p>
+                            <p className="text-[12px] font-bold text-amber-400">
+                              {f.sharedStreak > 0 ? `${f.sharedStreak} days` : 'Start together!'}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      {sent ? (
-                        <span className="text-[11px] font-bold text-amber-400">Sent</span>
-                      ) : (
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── REQUESTS TAB ── */}
+          {squadTab === 'requests' && (
+            <div className="space-y-4">
+              {/* Incoming */}
+              {pendingRequests.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-400">Incoming</p>
+                  {pendingRequests.map(req => (
+                    <div key={req.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#0f0f1a] border border-amber-900/30">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-[13px] font-black text-amber-400 shrink-0">
+                        {(req.friendDisplayName || '?')[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-white truncate">
+                          {req.friendDisplayName || req.friendEmail || 'Someone'}
+                        </p>
+                        <p className="text-[10px] text-gray-600">wants to join your squad</p>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleAccept(req)}
+                          className="px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-[11px] font-bold text-white transition-colors"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDecline(req)}
+                          className="px-3 py-1.5 rounded-lg border border-red-900/40 text-red-400 hover:border-red-700 text-[11px] font-bold transition-colors"
+                        >
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[12px] text-gray-600">No incoming requests.</p>
+              )}
+
+              {/* Outgoing */}
+              {outgoingRequests.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500">Sent</p>
+                  {outgoingRequests.map(req => (
+                    <div key={req.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+                      <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[13px] font-black text-gray-500 shrink-0">
+                        {(req.friendDisplayName || '?')[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-white truncate">{req.friendDisplayName}</p>
+                      </div>
+                      <span className="text-[11px] font-bold text-amber-400 shrink-0">Pending</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── FIND TAB ── */}
+          {squadTab === 'find' && (
+            <>
+              {myUid ? (
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search by display name…"
+                    className="input-dark w-full pr-10 text-[13px]"
+                    autoComplete="off"
+                  />
+                  {searchBusy && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-[11px]">…</span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-[12px] text-gray-600">Sign in to search for friends.</p>
+              )}
+
+              {/* Search results */}
+              {searchResults.length > 0 && (
+                <div className="space-y-2">
+                  {searchResults.map(u => {
+                    const alreadyFriend = myFriends.some(f => f.friendId === u.uid)
+                    const sent = sentTo.has(u.uid)
+                    return (
+                      <div key={u.uid} className="flex items-center justify-between p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+                        <div>
+                          <p className="text-[13px] font-semibold text-white">{u.displayName}</p>
+                          <p className="text-[11px] text-gray-600">{u.fitnessLevel ?? u.email}</p>
+                        </div>
+                        {alreadyFriend ? (
+                          <span className="text-[11px] font-bold text-green-400">In squad</span>
+                        ) : sent ? (
+                          <span className="text-[11px] font-bold text-amber-400">Sent</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleAddFriend(u)}
+                            className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-[12px] font-bold text-white transition-colors"
+                          >
+                            + Add
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* All users browse list — shown when search is empty */}
+              {!searchQuery.trim() && allUsers.length > 0 && (() => {
+                const browseable = allUsers.filter(u =>
+                  u.uid !== myUid &&
+                  !myFriends.some(f => f.friendId === u.uid) &&
+                  !sentTo.has(u.uid)
+                )
+                if (browseable.length === 0) return (
+                  <p className="text-[12px] text-gray-600 text-center py-4">No more users to add.</p>
+                )
+                return (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600">People you may know</p>
+                    {browseable.map(u => (
+                      <div key={u.uid} className="flex items-center justify-between p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[13px] font-black text-gray-400">
+                            {(u.displayName || u.email || '?')[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-semibold text-white">{u.displayName || u.email}</p>
+                            {u.fitnessLevel && (
+                              <p className="text-[10px] text-gray-600 capitalize">{u.fitnessLevel}</p>
+                            )}
+                          </div>
+                        </div>
                         <button
                           type="button"
                           onClick={() => handleAddFriend(u)}
@@ -495,37 +688,13 @@ export function FriendsPage() {
                         >
                           + Add
                         </button>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          })()}
-
-          {/* Current squad */}
-          {squadLoading ? (
-            <p className="text-[12px] text-gray-600">Loading squad…</p>
-          ) : myFriends.length === 0 && pendingRequests.length === 0 ? (
-            <p className="text-[12px] text-gray-600">No squad members yet — add friends above.</p>
-          ) : myFriends.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600">Members</p>
-              {myFriends.map(f => (
-                <div key={f.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
-                  <div className="w-7 h-7 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center text-[12px] font-black text-blue-400">
-                    {(f.friendDisplayName || '?')[0].toUpperCase()}
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <p className="text-[13px] font-semibold text-white">{f.friendDisplayName}</p>
-                    {f.sharedStreak > 0 && (
-                      <p className="text-[11px] text-amber-400">{f.sharedStreak}-day shared streak</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
+                )
+              })()}
+            </>
+          )}
         </div>
 
         {/* ── Group setup ─────────────────────────────────────────────── */}

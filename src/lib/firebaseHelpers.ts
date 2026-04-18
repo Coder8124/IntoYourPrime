@@ -3,6 +3,7 @@ import {
   addDoc,
   collection,
   collectionGroup,
+  deleteDoc,
   doc,
   documentId,
   getDoc,
@@ -125,13 +126,19 @@ function friendFromDoc(
   otherProfile: UserProfile | null,
 ): FriendConnection {
   const d = snap.data() as Record<string, unknown>
-  const userId = String(d.userId)
-  const friendId = String(d.friendId)
-  const otherUid = userId === viewerUid ? friendId : userId
+  const userId = String(d.userId)   // sender
+  const friendId = String(d.friendId) // recipient
+  const viewerIsSender = userId === viewerUid
+  const otherUid = viewerIsSender ? friendId : userId
 
-  let friendDisplayName = String(d.friendDisplayName ?? '')
+  // When viewer is sender: friendDisplayName = recipient's name (stored correctly)
+  // When viewer is recipient: show sender's name via senderDisplayName field
+  let friendDisplayName = viewerIsSender
+    ? String(d.friendDisplayName ?? '')
+    : String(d.senderDisplayName ?? d.friendDisplayName ?? '')
   let friendEmail = String(d.friendEmail ?? '')
-  if (friendId === viewerUid && otherProfile) {
+
+  if (otherProfile) {
     friendDisplayName = otherProfile.displayName
     friendEmail = otherProfile.email
   }
@@ -554,6 +561,7 @@ export async function searchUsersByDisplayName(searchTerm: string): Promise<User
 export async function addFriend(
   fromUid: string,
   toProfile: UserProfile,
+  fromDisplayName?: string,
 ): Promise<'sent' | 'already_friends'> {
   try {
     const fromId = await effectiveUserId(fromUid)
@@ -565,6 +573,7 @@ export async function addFriend(
     await addDoc(collection(db, 'friendConnections'), {
       userId: fromId,
       friendId: toUid,
+      senderDisplayName: fromDisplayName ?? '',
       friendDisplayName: toProfile.displayName,
       friendEmail: toProfile.email,
       status: 'pending',
@@ -641,6 +650,35 @@ export async function acceptFriendRequest(connectionId: string): Promise<void> {
     await updateDoc(ref, { status: 'accepted' })
   } catch (e) {
     wrapError('acceptFriendRequest', e)
+  }
+}
+
+export async function declineFriendRequest(connectionId: string): Promise<void> {
+  try {
+    const ref = doc(db, 'friendConnections', connectionId)
+    const snap = await getDoc(ref)
+    if (!snap.exists()) throw new Error('friend request not found')
+    const d = snap.data() as Record<string, unknown>
+    const invitee = String(d.friendId)
+    assertSignedUid(invitee, 'declineFriendRequest')
+    await deleteDoc(ref)
+  } catch (e) {
+    wrapError('declineFriendRequest', e)
+  }
+}
+
+export async function getOutgoingFriendRequests(uid: string): Promise<FriendConnection[]> {
+  try {
+    const id = await effectiveUserId(uid)
+    const q = query(
+      collection(db, 'friendConnections'),
+      where('userId', '==', id),
+      where('status', '==', 'pending'),
+    )
+    const snap = await getDocs(q)
+    return snap.docs.map(d => friendFromDoc(d, id, null))
+  } catch (e) {
+    wrapError('getOutgoingFriendRequests', e)
   }
 }
 

@@ -198,6 +198,21 @@ const DEMO_SUGGESTIONS = [
   "Neutral spine throughout — don't let your lower back round.",
 ]
 
+const MILESTONE_MESSAGES: Record<number, string[]> = {
+  5:  ["5 reps! Warming up!", "Nice — keep that form tight!", "5 down. Just getting started."],
+  10: ["10 reps! You're locked in.", "Double digits. Don't stop now!", "10! Feel that burn — own it."],
+  15: ["15! You're in the zone!", "Halfway to 30. Unstoppable.", "15 reps — prime performance!"],
+  20: ["20 REPS! Beast mode.", "20 strong. Your body is adapting.", "Twenty. You came to work today."],
+  25: ["25! Elite territory.", "Quarter century of reps. Push harder.", "25 — most people quit at 15."],
+  30: ["30 REPS! Legendary.", "Thirty. Absolute machine.", "30! Your future self thanks you."],
+}
+
+function getMilestoneMessage(count: number): string | null {
+  const msgs = MILESTONE_MESSAGES[count]
+  if (!msgs) return null
+  return msgs[Math.floor(Math.random() * msgs.length)]
+}
+
 /** Optional center-crop so a small subject fills more of the preview (pose still uses full camera). */
 const CAMERA_ZOOM_MIN = 1
 const CAMERA_ZOOM_MAX = 2.75
@@ -424,6 +439,8 @@ export function WorkoutPage() {
   const [wideCameraLayout, setWideCameraLayout] = useState(false)
   const [cameraFullscreen, setCameraFullscreen] = useState(false)
   const [refCaptured,      setRefCaptured]      = useState(false)   // whether reference photo has been taken
+  const [milestoneMsg,  setMilestoneMsg]  = useState<string | null>(null)
+  const milestoneClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Set counter ────────────────────────────────────────────────────────
   interface SetLogEntry { setNum: number; exercise: string; reps: number }
@@ -602,6 +619,13 @@ export function WorkoutPage() {
   useEffect(() => {
     if (lastRepTimestamp !== null) {
       addRep(exerciseRef.current)
+      const newCount = (useWorkoutStore.getState().repCounts[exerciseRef.current] ?? 0) + 1
+      const msg = getMilestoneMessage(newCount)
+      if (msg) {
+        if (milestoneClearRef.current) clearTimeout(milestoneClearRef.current)
+        setMilestoneMsg(msg)
+        milestoneClearRef.current = setTimeout(() => setMilestoneMsg(null), 2500)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastRepTimestamp])
@@ -967,7 +991,36 @@ export function WorkoutPage() {
           100% { transform: scale(1);    opacity: 1; }
         }
         .rep-pulse { animation: repPulse 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        @keyframes milestoneIn {
+          0%   { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.92); }
+          60%  { opacity: 1; transform: translateX(-50%) translateY(-4px) scale(1.04); }
+          100% { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1); }
+        }
+        @keyframes milestoneOut {
+          from { opacity: 1; transform: translateX(-50%) scale(1); }
+          to   { opacity: 0; transform: translateX(-50%) scale(0.9); }
+        }
+        .milestone-enter { animation: milestoneIn 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards; }
       `}</style>
+
+      {/* Milestone motivation overlay */}
+      {milestoneMsg && (
+        <div
+          className="milestone-enter fixed z-50 pointer-events-none"
+          style={{ bottom: '8rem', left: '50%' }}
+        >
+          <div
+            className="px-6 py-3 rounded-2xl text-white font-black text-[16px] text-center whitespace-nowrap"
+            style={{
+              background: 'linear-gradient(135deg, rgba(59,130,246,0.95), rgba(139,92,246,0.95))',
+              boxShadow: '0 0 32px rgba(59,130,246,0.6), 0 4px 20px rgba(0,0,0,0.5)',
+              border: '1px solid rgba(255,255,255,0.15)',
+            }}
+          >
+            {milestoneMsg}
+          </div>
+        </div>
+      )}
 
       {/* Warmup score modal */}
       {showModal && warmupScore !== null && (
