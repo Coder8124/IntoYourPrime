@@ -226,7 +226,7 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-[#1e1e2e] px-6 py-6 text-center">
         <p className="text-[12px] text-gray-700">
-          IntoYourPrime · AI-powered fitness coaching · Built at a hackathon
+          IntoYourPrime · AI-powered fitness coaching
         </p>
       </footer>
     </div>
