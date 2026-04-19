@@ -504,9 +504,10 @@ export function WorkoutPage() {
         setExercise(ex)
         resetExerciseReps(ex)
         resetRepCounter()
+        resetHoldTimer()
       }
     }
-  }, [setExercise, resetExerciseReps, resetRepCounter])
+  }, [setExercise, resetExerciseReps, resetRepCounter, resetHoldTimer])
 
   const nudgeCameraZoom = useCallback((delta: number) => {
     setCameraZoom((z) => {

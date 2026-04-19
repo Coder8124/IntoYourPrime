@@ -24,6 +24,7 @@ export function AuthPage() {
     setError(null)
     setLoading(true)
     try {
+      localStorage.removeItem('formAI_guest')
       if (mode === 'signup') {
         const cred = await createUserWithEmailAndPassword(auth, email, password)
         if (name.trim()) await updateProfile(cred.user, { displayName: name.trim() })
