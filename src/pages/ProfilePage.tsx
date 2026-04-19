@@ -59,11 +59,8 @@ export function ProfilePage() {
         sex:          profile.biologicalSex || '',
         fitnessLevel: profile.fitnessLevel || 'intermediate',
       }
-      setForm(prev => {
-        // Only overwrite if Firestore has richer data (non-empty name)
-        if (!prev.name && restored.name) return restored
-        return prev
-      })
+      // Firestore is source of truth — always overwrite on load
+      setForm(restored)
       // Keep localStorage in sync
       const merged = JSON.stringify({ ...restored })
       localStorage.setItem('formAI_profile', merged)

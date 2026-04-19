@@ -16,6 +16,8 @@ import { RecoveryLogPage } from './pages/RecoveryLogPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { FriendsPage } from './pages/FriendsPage'
 import { ProgressPage } from './pages/ProgressPage'
+import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage'
+import { ProgramsPage } from './pages/ProgramsPage'
 
 export default function App() {
   // Sync displayName to Firestore for any signed-in user (including existing accounts)
@@ -49,6 +51,8 @@ export default function App() {
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/friends" element={<FriendsPage />} />
       <Route path="/progress" element={<ProgressPage />} />
+      <Route path="/library" element={<ExerciseLibraryPage />} />
+      <Route path="/programs" element={<ProgramsPage />} />
     </Routes>
   )
 }

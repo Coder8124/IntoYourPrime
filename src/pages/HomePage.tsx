@@ -302,24 +302,40 @@ export function HomePage() {
               style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' }} />
           </button>
 
-          <div className="mt-3 grid grid-cols-3 gap-3">
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <Link
+              to="/programs"
+              className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-bold text-blue-400 transition-all hover:text-blue-300"
+              style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}
+            >
+              📋 Programs
+            </Link>
+            <Link
+              to="/library"
+              className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-bold text-purple-400 transition-all hover:text-purple-300"
+              style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}
+            >
+              📖 Exercise Library
+            </Link>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2">
             <Link
               to="/session-summary"
-              className="flex items-center justify-center gap-1 rounded-xl py-3 text-[12px] font-semibold text-gray-400 transition-all hover:text-white"
+              className="flex items-center justify-center gap-1 rounded-xl py-2.5 text-[12px] font-semibold text-gray-400 transition-all hover:text-white"
               style={{ background: '#111119', border: '1px solid #1e1e2e' }}
             >
               Last session →
             </Link>
             <Link
               to="/progress"
-              className="flex items-center justify-center gap-1 rounded-xl py-3 text-[12px] font-semibold text-gray-400 transition-all hover:text-white"
+              className="flex items-center justify-center gap-1 rounded-xl py-2.5 text-[12px] font-semibold text-gray-400 transition-all hover:text-white"
               style={{ background: '#111119', border: '1px solid #1e1e2e' }}
             >
               Progress →
             </Link>
             <Link
               to="/friends"
-              className="flex items-center justify-center gap-1 rounded-xl py-3 text-[12px] font-semibold text-gray-400 transition-all hover:text-white"
+              className="flex items-center justify-center gap-1 rounded-xl py-2.5 text-[12px] font-semibold text-gray-400 transition-all hover:text-white"
               style={{ background: '#111119', border: '1px solid #1e1e2e' }}
             >
               Squad →

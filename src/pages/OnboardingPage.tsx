@@ -14,6 +14,7 @@ interface ProfileForm {
   heightFt: string
   heightIn: string
   sex: string
+  fitnessLevel: string
 }
 
 export function OnboardingPage() {
@@ -26,8 +27,10 @@ export function OnboardingPage() {
     heightFt: '5',
     heightIn: '8',
     sex: '',
+    fitnessLevel: 'intermediate',
   })
   const [submitting, setSubmitting] = useState(false)
+  const [saveError,  setSaveError]  = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [showKey, setShowKey] = useState(false)
 
@@ -41,25 +44,34 @@ export function OnboardingPage() {
     form.weight.length > 0 &&
     form.sex.length > 0
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!isValid || submitting) return
+    setSubmitting(true)
+    setSaveError(false)
+
     const profileJson = JSON.stringify(form)
     localStorage.setItem('formAI_profile', profileJson)
-    // Also cache under uid so sign-in restores the profile without hitting Firestore
+
     const uid = auth.currentUser?.uid
     if (uid) {
       localStorage.setItem(`formAI_profile_${uid}`, profileJson)
-      upsertFullUserProfile(uid, {
-        ...form,
-        email: auth.currentUser?.email ?? '',
-      }).catch(() => {})
+      try {
+        await Promise.race([
+          upsertFullUserProfile(uid, { ...form, email: auth.currentUser?.email ?? '' }),
+          new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000)),
+        ])
+      } catch {
+        // Save failed — profile is in localStorage, user can re-save from Profile page
+        setSaveError(true)
+      }
     }
+
     if (!hasApiKey()) {
+      setSubmitting(false)
       setStep('apikey')
     } else {
-      setSubmitting(true)
-      setTimeout(() => navigate('/home'), 700)
+      setTimeout(() => navigate('/home'), 400)
     }
   }
 
@@ -313,6 +325,29 @@ export function OnboardingPage() {
               </select>
             </div>
 
+            {/* Fitness level */}
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-[0.1em] mb-2">
+                Fitness Level
+              </label>
+              <select
+                name="fitnessLevel"
+                value={form.fitnessLevel}
+                onChange={handleChange}
+                className="input-dark"
+              >
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </div>
+
+            {saveError && (
+              <p className="text-[11px] text-amber-400 text-center">
+                Profile saved locally — sync it from the Profile page when online.
+              </p>
+            )}
+
             {/* Submit */}
             <button
               type="submit"
@@ -325,7 +360,7 @@ export function OnboardingPage() {
                   : 'bg-blue-600/25 text-blue-400/40 cursor-not-allowed',
               ].join(' ')}
             >
-              {submitting ? 'Initializing…' : 'Begin Training →'}
+              {submitting ? 'Saving profile…' : 'Begin Training →'}
             </button>
           </form>
         </div>

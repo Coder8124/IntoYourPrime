@@ -54,8 +54,8 @@ export function AuthPage() {
             getUserProfile(uid),
             new Promise<null>(resolve => setTimeout(() => resolve(null), 4000)),
           ])
-          // Only trust Firestore profile if it has real data, not just a display name
-          if (fp?.displayName && fp.age && fp.weightKg) {
+          // Trust Firestore profile if it has a name + sex (minimum needed for hasProfile check)
+          if (fp?.displayName && fp.biologicalSex) {
             const local = JSON.stringify(firestoreProfileToLocal(fp))
             localStorage.setItem('formAI_profile', local)
             localStorage.setItem(`formAI_profile_${uid}`, local)

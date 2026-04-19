@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
 import { useHoldTimer, HOLD_EXERCISES } from '../hooks/useHoldTimer'
 import { useWorkoutStore } from '../stores/workoutStore'
 import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI, cancelTTS } from '../lib/formAnalysis'
+import { getActiveProgram, advanceProgramExercise, clearActiveProgram, type ActiveProgram } from '../lib/programs'
 import type { CooldownExercise, UserProfile } from '../types/index'
 
 // ── Alignment-based risk (landmark geometry, runs every frame) ────────────
@@ -442,6 +443,9 @@ export function WorkoutPage() {
   const [milestoneMsg,  setMilestoneMsg]  = useState<string | null>(null)
   const milestoneClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // ── Program mode ──────────────────────────────────────────────────────
+  const [activeProgram, setActiveProgramState] = useState<ActiveProgram | null>(() => getActiveProgram())
+
   // ── Set counter ────────────────────────────────────────────────────────
   interface SetLogEntry { setNum: number; exercise: string; reps: number }
   const [setCount, setSetCount] = useState(0)
@@ -470,6 +474,39 @@ export function WorkoutPage() {
       return { age: 25, weight: 70, fitnessLevel: 'intermediate' }
     }
   }, [])
+
+  // ── Program / start-exercise init ────────────────────────────────────
+  useEffect(() => {
+    // Honour a specific exercise requested from the library page
+    const startEx = localStorage.getItem('formAI_startExercise')
+    if (startEx && EXERCISES.includes(startEx as typeof EXERCISES[number])) {
+      setExercise(startEx)
+      localStorage.removeItem('formAI_startExercise')
+      return
+    }
+    // Honour the active program's current exercise
+    const prog = getActiveProgram()
+    if (prog) {
+      const ex = prog.exercises[prog.currentIndex]
+      if (ex && EXERCISES.includes(ex as typeof EXERCISES[number])) {
+        setExercise(ex)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleNextProgramExercise = useCallback(() => {
+    const next = advanceProgramExercise()
+    setActiveProgramState(next)
+    if (next) {
+      const ex = next.exercises[next.currentIndex]
+      if (ex && EXERCISES.includes(ex as typeof EXERCISES[number])) {
+        setExercise(ex)
+        resetExerciseReps(ex)
+        resetRepCounter()
+      }
+    }
+  }, [setExercise, resetExerciseReps, resetRepCounter])
 
   const nudgeCameraZoom = useCallback((delta: number) => {
     setCameraZoom((z) => {
@@ -1031,7 +1068,14 @@ export function WorkoutPage() {
         />
       )}
 
-      <div className="h-screen bg-[#0a0a0f] flex flex-col overflow-hidden">
+      {/* Guest banner */}
+      {localStorage.getItem('formAI_guest') === 'true' && (
+        <div className="fixed top-0 left-0 right-0 z-40 bg-amber-500/90 backdrop-blur text-black text-center py-2 text-[12px] font-bold">
+          Guest mode — <Link to="/auth" className="underline">Create a free account</Link> to save your progress
+        </div>
+      )}
+
+      <div className="h-screen bg-[#0a0a0f] flex flex-col overflow-hidden" style={localStorage.getItem('formAI_guest') === 'true' ? { paddingTop: '2rem' } : undefined}>
 
         {/* ── HEADER ──────────────────────────────────────────────────── */}
         <header className="h-14 flex items-center justify-between px-6 bg-[#0d0d18] border-b border-[#1e1e2e] shrink-0">
@@ -1076,6 +1120,60 @@ export function WorkoutPage() {
               wideCameraLayout ? 'w-[min(13.5rem,22vw)]' : 'w-[30%]',
             ].join(' ')}
           >
+
+            {/* Program mode banner */}
+            {activeProgram && (
+              <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/8 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black uppercase tracking-wider text-blue-400">Program</p>
+                  <button
+                    type="button"
+                    onClick={() => { clearActiveProgram(); setActiveProgramState(null) }}
+                    className="text-[9px] text-gray-600 hover:text-red-400 transition-colors"
+                  >
+                    ✕ exit
+                  </button>
+                </div>
+                <p className="text-[11px] font-bold text-white truncate">{activeProgram.name}</p>
+                {/* Progress dots */}
+                <div className="flex gap-1">
+                  {activeProgram.exercises.map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-1 flex-1 rounded-full transition-colors"
+                      style={{
+                        background: i < activeProgram.currentIndex ? '#22c55e'
+                          : i === activeProgram.currentIndex ? '#3b82f6'
+                          : 'rgba(255,255,255,0.08)'
+                      }}
+                    />
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-500">
+                  {activeProgram.currentIndex + 1}/{activeProgram.exercises.length}
+                  {activeProgram.currentIndex + 1 < activeProgram.exercises.length && (
+                    <> · next: <span className="text-gray-400">{EXERCISE_LABELS[activeProgram.exercises[activeProgram.currentIndex + 1] as typeof EXERCISES[number]] ?? activeProgram.exercises[activeProgram.currentIndex + 1]}</span></>
+                  )}
+                </p>
+                {activeProgram.currentIndex + 1 < activeProgram.exercises.length ? (
+                  <button
+                    type="button"
+                    onClick={handleNextProgramExercise}
+                    className="w-full py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-bold text-white transition-colors"
+                  >
+                    Next Exercise →
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { clearActiveProgram(); setActiveProgramState(null) }}
+                    className="w-full py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-[11px] font-bold text-white transition-colors"
+                  >
+                    ✓ Program Complete!
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Exercise selector */}
             <div className="card-surface p-4">

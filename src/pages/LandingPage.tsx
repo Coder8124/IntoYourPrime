@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 const FEATURES = [
   {
@@ -47,7 +47,24 @@ const STATS = [
   { value: '0ms', label: 'server-side latency for pose' },
 ]
 
+function startAsGuest(navigate: ReturnType<typeof useNavigate>) {
+  localStorage.setItem('formAI_guest', 'true')
+  if (!localStorage.getItem('formAI_profile')) {
+    localStorage.setItem('formAI_profile', JSON.stringify({
+      name: 'Guest',
+      age: '25',
+      weight: '150',
+      heightFt: '5',
+      heightIn: '8',
+      sex: 'other',
+      fitnessLevel: 'intermediate',
+    }))
+  }
+  navigate('/workout')
+}
+
 export function LandingPage() {
+  const navigate = useNavigate()
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
       <style>{`
@@ -126,13 +143,15 @@ export function LandingPage() {
             >
               Start training free →
             </Link>
-            <a
-              href="#how-it-works"
+            <button
+              type="button"
+              onClick={() => startAsGuest(navigate)}
               className="px-8 py-4 rounded-2xl border border-[#2e2e3e] text-[15px] font-semibold text-gray-400 hover:text-white hover:border-gray-500 transition-colors w-full sm:w-auto text-center"
             >
-              See how it works
-            </a>
+              Try without signing up
+            </button>
           </div>
+          <p className="text-[12px] text-gray-600 mt-3">No account needed to try · Progress saves when you sign up</p>
         </div>
       </section>
 
