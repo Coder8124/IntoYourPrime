@@ -90,7 +90,7 @@ export function HomePage() {
 
   const [loading, setLoading] = useState(true)
   const [apiKeyInput, setApiKeyInput] = useState('')
-  const [apiKeySet] = useState(hasApiKey)
+  const [apiKeySet, setApiKeySet] = useState(hasApiKey)
   const [sessions, setSessions] = useState<Session[]>([])
   const [streak, setStreak] = useState(0)
   const [feed, setFeed] = useState<ActivityFeedItem[]>([])
@@ -150,7 +150,8 @@ export function HomePage() {
     const trimmed = apiKeyInput.trim()
     if (!trimmed) return
     localStorage.setItem('formAI_openai_key', trimmed)
-    window.location.reload()
+    setApiKeySet(true)
+    setApiKeyInput('')
   }, [apiKeyInput])
 
   const sessionCountForInsight = useMemo(() => {
