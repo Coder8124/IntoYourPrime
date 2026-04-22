@@ -633,9 +633,11 @@ export function WorkoutPage() {
   }, [setExercise, resetExerciseReps, resetRepCounter, resetHoldTimer])
 
   // ── Keep mutable refs in sync with latest values ───────────────────────
-  useEffect(() => { repCountRef.current = repCount        }, [repCount])
-  useEffect(() => { exerciseRef.current = currentExercise }, [currentExercise])
-  useEffect(() => { phaseRef.current    = phase           }, [phase])
+  useEffect(() => { repCountRef.current      = repCount        }, [repCount])
+  useEffect(() => { exerciseRef.current      = currentExercise }, [currentExercise])
+  useEffect(() => { phaseRef.current         = phase           }, [phase])
+  const movementPhaseRef = useRef<typeof movementPhase>('unknown')
+  useEffect(() => { movementPhaseRef.current = movementPhase   }, [movementPhase])
 
   // ── New-set handler (spacebar) ─────────────────────────────────────────
   // Read repCounts from getState() at call time so we always snapshot the
@@ -769,6 +771,16 @@ export function WorkoutPage() {
   // ── Live risk from pose landmarks (runs every frame) ──────────────────
   useEffect(() => {
     if (!landmarks || !isTracking) return
+
+    // For regular exercises, only compute risk when actively moving (phase known).
+    // Hold exercises (plank/wallsit) have no rep phase — always compute for them.
+    const isHoldEx = HOLD_EXERCISES.includes(exerciseRef.current)
+    if (!isHoldEx && movementPhaseRef.current === 'unknown') {
+      // Idle / between reps — reset to neutral so standing posture doesn't inflate the score
+      updateAnalysis({ riskScore: 0, suggestions: [], safetyConcerns: [], repCountEstimate: 0, dominantIssue: null, warmupQuality: null })
+      return
+    }
+
     const localScore = computeAlignmentRisk(landmarks, exerciseRef.current)
     const aiScore = aiRiskRef.current
     const blended = aiScore !== null
