@@ -1,7 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import type { NormalizedLandmark } from '@mediapipe/pose'
 
-// MediaPipe landmark indices
 const LM_LEFT_SHOULDER  = 11
 const LM_RIGHT_SHOULDER = 12
 const LM_LEFT_HIP       = 23
@@ -11,7 +10,8 @@ const LM_RIGHT_KNEE     = 26
 const LM_LEFT_ANKLE     = 27
 const LM_RIGHT_ANKLE    = 28
 
-export type BurpeePhase = 'stand' | 'squat' | 'plank'
+// The 3 real burpee phases: stand upright → drop to plank → explode back up (jump)
+export type BurpeePhase = 'stand' | 'plank' | 'jump'
 
 export interface UseBurpeeCounterReturn {
   repCount:          number
@@ -21,19 +21,14 @@ export interface UseBurpeeCounterReturn {
   reset:             () => void
 }
 
-// Config
-const CALIB_SAMPLES  = 30     // frames to average for standing baseline
-const SQUAT_DROP     = 0.11   // shoulder must fall this far below standing baseline → squat
-const PLANK_RATIO    = 0.55   // hip-shoulder gap < 55% of standing gap → plank candidate
-const PLANK_KNEE_DEG = 130    // legs must be this straight (°) to confirm plank vs. deep squat
-const CONFIRM_FRAMES = 3      // consecutive frames required before a phase transition sticks
-const DEBOUNCE_MS    = 2000   // minimum ms between counted reps
+const CALIB_SAMPLES   = 30    // frames to build standing baseline
+const STAND_TOLERANCE = 0.08  // shoulders can be this far below baseline and still = "upright"
+const PLANK_RATIO     = 0.55  // hip-shoulder gap < 55% of standing gap → plank candidate
+const PLANK_KNEE_DEG  = 130   // knee angle must exceed this to confirm plank (not a deep squat hunch)
+const CONFIRM_FRAMES  = 3     // consecutive frames required to accept a phase transition
+const DEBOUNCE_MS     = 2000  // minimum ms between counted reps
 
-function calcAngle(
-  a: NormalizedLandmark,
-  b: NormalizedLandmark,
-  c: NormalizedLandmark,
-): number {
+function calcAngle(a: NormalizedLandmark, b: NormalizedLandmark, c: NormalizedLandmark): number {
   const ax = a.x - b.x, ay = a.y - b.y
   const cx = c.x - b.x, cy = c.y - b.y
   const dot = ax * cx + ay * cy
@@ -63,15 +58,13 @@ export function useBurpeeCounter(
   const calibHipGap    = useRef<number | null>(null)
   const calibCount     = useRef(0)
 
-  // Phase state machine
-  const phaseRef       = useRef<BurpeePhase>('stand')
-  const seenSquat      = useRef(false)
-  const seenPlank      = useRef(false)
-  const confirmBuf     = useRef<BurpeePhase[]>([])
-  const lastRepTime    = useRef<number | null>(null)
-  const repCountRef    = useRef(0)
+  // State machine
+  const phaseRef    = useRef<BurpeePhase>('stand')
+  const seenPlank   = useRef(false)           // plank visited in this rep?
+  const confirmBuf  = useRef<BurpeePhase[]>([])
+  const lastRepTime = useRef<number | null>(null)
+  const repCountRef = useRef(0)
 
-  // React state
   const [repCount,         setRepCount]         = useState(0)
   const [burpeePhase,      setBurpeePhase]      = useState<BurpeePhase>('stand')
   const [isCalibrating,    setIsCalibrating]    = useState(true)
@@ -82,7 +75,6 @@ export function useBurpeeCounter(
     calibHipGap.current    = null
     calibCount.current     = 0
     phaseRef.current       = 'stand'
-    seenSquat.current      = false
     seenPlank.current      = false
     confirmBuf.current     = []
     lastRepTime.current    = null
@@ -107,15 +99,11 @@ export function useBurpeeCounter(
     const hipY           = (lHip.y + rHip.y) / 2
     const hipShoulderGap = hipY - shoulderY
 
-    // ── Calibration: build standing baseline from first N frames ─────────
+    // ── Calibration ───────────────────────────────────────────────────────
     if (calibCount.current < CALIB_SAMPLES) {
       const n = calibCount.current
-      calibShoulderY.current = n === 0
-        ? shoulderY
-        : (calibShoulderY.current! * n + shoulderY) / (n + 1)
-      calibHipGap.current = n === 0
-        ? hipShoulderGap
-        : (calibHipGap.current! * n + hipShoulderGap) / (n + 1)
+      calibShoulderY.current = n === 0 ? shoulderY : (calibShoulderY.current! * n + shoulderY) / (n + 1)
+      calibHipGap.current    = n === 0 ? hipShoulderGap : (calibHipGap.current! * n + hipShoulderGap) / (n + 1)
       calibCount.current++
       if (calibCount.current < CALIB_SAMPLES) return
       setIsCalibrating(false)
@@ -127,34 +115,40 @@ export function useBurpeeCounter(
 
     // ── Phase detection ───────────────────────────────────────────────────
     //
-    // Key signals:
-    //   shoulderY:      how far the shoulders have dropped below standing baseline
-    //   hipShoulderGap: vertical distance between hips and shoulders
-    //     - Standing:  large gap (~0.28–0.35) — body is upright
-    //     - Squatting: gap slightly larger or similar (hips drop with body)
-    //     - Plank:     gap collapses to near-zero (body is horizontal)
+    // Two clear positions to detect:
     //
-    // The critical discriminator for plank vs. deep squat (both have small gap):
-    //   knee angle — legs are STRAIGHT in plank (~160–170°), BENT in deep squat (~80–100°)
+    // PLANK  — body is horizontal: hip-shoulder gap collapses to near-zero.
+    //          Discriminated from a deep forward squat by knee angle:
+    //          plank = legs straight (>130°), squat hunch = legs bent (<100°).
+    //
+    // UPRIGHT — shoulders near standing baseline.
+    //          Labelled 'stand' before plank is visited, 'jump' after plank is visited.
+    //          (This lets the UI show the phase sequence: stand → plank → jump.)
+    //
+    // Everything in between (crouching down, rising up) is a transition.
+    // During transitions we hold the current phase rather than flicker.
 
-    const kneeAngle = getAvgKneeAngle(landmarks)
+    const kneeAngle     = getAvgKneeAngle(landmarks)
+    const plankCandidate = hipShoulderGap < calibGap * PLANK_RATIO
+    const confirmedPlank = plankCandidate && (
+      kneeAngle !== null
+        ? kneeAngle > PLANK_KNEE_DEG
+        : hipShoulderGap < calibGap * 0.40   // stricter threshold when knees not visible
+    )
+    const isUpright = shoulderY <= calibSY + STAND_TOLERANCE
 
     let detected: BurpeePhase
-    if (hipShoulderGap < calibGap * PLANK_RATIO) {
-      // Gap has collapsed — body is either horizontal (plank) or deeply hunched (squat)
-      // Confirm plank via knee angle: plank = legs straight; squat = legs bent
-      const confirmedPlank = kneeAngle !== null
-        ? kneeAngle > PLANK_KNEE_DEG
-        : hipShoulderGap < calibGap * 0.40   // stricter fallback when knees aren't visible
-      detected = confirmedPlank ? 'plank' : 'squat'
-    } else if (shoulderY > calibSY + SQUAT_DROP) {
-      detected = 'squat'
+    if (confirmedPlank) {
+      detected = 'plank'
+    } else if (isUpright) {
+      // Same body position — labelled differently based on whether we have been in plank
+      detected = seenPlank.current ? 'jump' : 'stand'
     } else {
-      detected = 'stand'
+      // Crouching / rising transition — don't flicker, hold the current phase
+      detected = phaseRef.current
     }
 
-    // ── Confirmation buffer: require CONFIRM_FRAMES consecutive frames ─────
-    // Prevents single-frame noise from triggering a phase transition
+    // ── Confirmation buffer ───────────────────────────────────────────────
     confirmBuf.current.push(detected)
     if (confirmBuf.current.length > CONFIRM_FRAMES) confirmBuf.current.shift()
     if (
@@ -162,7 +156,7 @@ export function useBurpeeCounter(
       !confirmBuf.current.every(p => p === detected)
     ) return
 
-    if (detected === phaseRef.current) return   // no change
+    if (detected === phaseRef.current) return
 
     const prev = phaseRef.current
     phaseRef.current = detected
@@ -170,20 +164,15 @@ export function useBurpeeCounter(
 
     // ── State machine ─────────────────────────────────────────────────────
     //
-    // Valid rep sequence: stand → squat → plank → stand
-    // The return path (plank → squat → stand OR plank → stand directly) both count.
-    // A partial rep (stand → squat → stand, no plank) does NOT count.
+    // Rep sequence: stand → [any transition] → plank → [any transition] → jump
+    // The squat down and the rise back up are just transitions — not tracked phases.
+    // Partial reps (stand → transition → stand, no plank) do NOT count.
 
-    if (prev === 'stand' && detected === 'squat') {
-      seenSquat.current = true
-      seenPlank.current = false   // reset in case of a partial previous rep
-    }
-
-    if (detected === 'plank' && seenSquat.current) {
+    if (prev === 'stand' && detected === 'plank') {
       seenPlank.current = true
     }
 
-    if (detected === 'stand' && seenPlank.current) {
+    if (detected === 'jump' && seenPlank.current) {
       const now     = Date.now()
       const elapsed = lastRepTime.current ? now - lastRepTime.current : Infinity
       if (elapsed >= DEBOUNCE_MS) {
@@ -192,7 +181,7 @@ export function useBurpeeCounter(
         setRepCount(repCountRef.current)
         setLastRepTimestamp(now)
       }
-      seenSquat.current = false
+      // Reset for the next rep — phase will naturally transition to 'stand' next frame
       seenPlank.current = false
     }
   }, [landmarks])

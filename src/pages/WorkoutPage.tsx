@@ -667,16 +667,16 @@ function WarmupScoreModal({ score, onContinueWarmup, onStartWorkout }: WarmupSco
 
 // ── BurpeePhaseIndicator ───────────────────────────────────────────────────
 
-const BURPEE_PHASES: BurpeePhase[] = ['stand', 'squat', 'plank']
+const BURPEE_PHASES: BurpeePhase[] = ['stand', 'plank', 'jump']
 const BURPEE_PHASE_LABELS: Record<BurpeePhase, string> = {
   stand: 'Stand',
-  squat: 'Squat',
   plank: 'Plank',
+  jump:  'Jump',
 }
 const BURPEE_PHASE_COLORS: Record<BurpeePhase, string> = {
   stand: '#22c55e',
-  squat: '#3b82f6',
   plank: '#f59e0b',
+  jump:  '#3b82f6',
 }
 
 function BurpeePhaseIndicator({ phase }: { phase: BurpeePhase }) {
