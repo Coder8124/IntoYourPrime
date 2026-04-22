@@ -202,9 +202,12 @@ function getTricepExtSignal(
  * Average knee angle (hip→knee→ankle) across visible legs.
  * Standing: ~160–170°. Bottom of squat: ~80–100°.
  * Large angle = standing (up), small angle = squatting (down).
+ * Uses a lower per-landmark threshold so a partially-visible ankle doesn't
+ * kill the whole signal (ankle can have reduced confidence indoors / close camera).
  */
 function getKneeAngle(
   landmarks: NormalizedLandmark[],
+  confThresh = CONFIDENCE_THRESH,
 ): { value: number; confidence: number } | null {
   const lHip = landmarks[LM.LEFT_HIP],  lKn = landmarks[LM.LEFT_KNEE],  lAn = landmarks[LM.LEFT_ANKLE]
   const rHip = landmarks[LM.RIGHT_HIP], rKn = landmarks[LM.RIGHT_KNEE], rAn = landmarks[LM.RIGHT_ANKLE]
@@ -214,8 +217,8 @@ function getKneeAngle(
 
   const angles: number[] = []
   const confs:  number[] = []
-  if (lConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(lHip, lKn, lAn)); confs.push(lConf) }
-  if (rConf >= CONFIDENCE_THRESH) { angles.push(calcAngle(rHip, rKn, rAn)); confs.push(rConf) }
+  if (lConf >= confThresh) { angles.push(calcAngle(lHip, lKn, lAn)); confs.push(lConf) }
+  if (rConf >= confThresh) { angles.push(calcAngle(rHip, rKn, rAn)); confs.push(rConf) }
   if (angles.length === 0) return null
 
   const n = angles.length
@@ -341,13 +344,21 @@ export function useRepCounter(
     let invertSignal = false
 
     if (exerciseKey === 'squat') {
-      // hip→knee→ankle angle. Standing: ~165°, bottom of squat: ~90°.
-      // Large angle = standing (up), small angle = squatting (down).
-      // Invert so small angle → high normalised → "down" phase.
-      const result = getKneeAngle(landmarks)
-      if (!result || result.confidence < CONFIDENCE_THRESH) return
-      rawSignal    = result.value
-      invertSignal = true
+      // Primary: hip→knee→ankle angle with a lenient threshold so a partially
+      // visible ankle (common indoors / close camera) doesn't kill tracking.
+      // Fallback: average hip Y when the full leg is out of frame entirely.
+      const kneeResult = getKneeAngle(landmarks, 0.35)
+      if (kneeResult && kneeResult.confidence >= 0.3) {
+        // Large angle (standing) → invert → low normalised → "up" phase.
+        rawSignal    = kneeResult.value
+        invertSignal = true
+      } else {
+        // Hip Y fallback: standing = low Y = "up"; squatting = high Y = "down".
+        const hip = getJointY(landmarks, LM.LEFT_HIP, LM.RIGHT_HIP)
+        if (!hip || hip.confidence < 0.5) return
+        rawSignal    = hip.y
+        invertSignal = false
+      }
     } else if (exerciseKey === 'pushup') {
       // Elbow angle (shoulder→elbow→wrist). Extended arms (top): ~160-170°. Chest down (bottom): ~70-90°.
       // Only needs upper-body landmarks — much more reliable than hip-dependent signal in prone position.
