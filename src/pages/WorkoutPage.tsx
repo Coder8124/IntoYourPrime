@@ -6,7 +6,7 @@ import { useRepCounter } from '../hooks/useRepCounter'
 import { useHoldTimer, HOLD_EXERCISES } from '../hooks/useHoldTimer'
 import { useWorkoutStore } from '../stores/workoutStore'
 import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI, cancelTTS } from '../lib/formAnalysis'
-import { getActiveProgram, advanceProgramExercise, clearActiveProgram, type ActiveProgram } from '../lib/programs'
+import { getActiveProgram, advanceProgramExercise, clearActiveProgram, EXERCISE_INFO, type ActiveProgram } from '../lib/programs'
 import type { CooldownExercise, UserProfile } from '../types/index'
 
 // ── Alignment-based risk (landmark geometry, runs every frame) ────────────
@@ -362,6 +362,26 @@ const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
 
 const CATEGORY_TABS = ['All', 'Lower Body', 'Upper Body', 'Core', 'Cardio'] as const
 
+// Wikimedia Commons GIFs — CC BY-SA licensed, publicly embeddable
+const EXERCISE_GIFS: Partial<Record<typeof EXERCISES[number], string>> = {
+  squat:          'https://upload.wikimedia.org/wikipedia/commons/4/4f/Squats_wbs.gif',
+  pushup:         'https://upload.wikimedia.org/wikipedia/commons/d/d4/Pushups_wbs.gif',
+  benchpress:     'https://upload.wikimedia.org/wikipedia/commons/3/3c/SmithMachineBenchPress.gif',
+  chestpress:     'https://upload.wikimedia.org/wikipedia/commons/8/88/Chest_press-CDC_strength_training_for_older_adults.gif',
+  lunge:          'https://upload.wikimedia.org/wikipedia/commons/a/af/Lunge-CDC_strength_training_for_older_adults.gif',
+  deadlift:       'https://upload.wikimedia.org/wikipedia/commons/c/cb/Man_Lifting_Barbell_Deadlift_GIF_Animation_Loop.gif',
+  shoulderpress:  'https://upload.wikimedia.org/wikipedia/commons/b/b2/Overhead_press-CDC_strength_training_for_older_adults.gif',
+  curlup:         'https://upload.wikimedia.org/wikipedia/commons/d/db/Stability-ball-abdominal-crunch-1.gif',
+  situp:          'https://upload.wikimedia.org/wikipedia/commons/3/34/Situps_wbs.gif',
+  bicepcurl:      'https://upload.wikimedia.org/wikipedia/commons/6/66/Biceps_curl-CDC_strength_training_for_older_adults.gif',
+  jumpingjack:    'https://upload.wikimedia.org/wikipedia/commons/a/a4/Jumpingjacks_wbs.gif',
+  highnees:       'https://upload.wikimedia.org/wikipedia/commons/6/6b/Highknees_wbs.gif',
+  calfraise:      'https://upload.wikimedia.org/wikipedia/commons/1/11/Standing-calf-raises-1.gif',
+  tricepextension:'https://upload.wikimedia.org/wikipedia/commons/3/32/One-arm-tricep-extension-1.gif',
+  hammercurl:     'https://upload.wikimedia.org/wikipedia/commons/0/0e/Hammer-curls-with-rope-1.gif',
+  pullup:         'https://upload.wikimedia.org/wikipedia/commons/4/40/Pullup.gif',
+}
+
 // Exercises appropriate for warm-up — no heavy compounds or isolation equipment work
 const WARMUP_EXERCISES = new Set([
   'squat', 'lunge', 'pushup', 'plank', 'curlup',
@@ -624,9 +644,11 @@ export function WorkoutPage() {
   const milestoneClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Exercise picker ────────────────────────────────────────────────────
-  const [showExPicker, setShowExPicker] = useState(false)
-  const [exSearch,     setExSearch]     = useState('')
-  const [exCategory,   setExCategory]   = useState<string>('All')
+  const [showExPicker,   setShowExPicker]   = useState(false)
+  const [exSearch,       setExSearch]       = useState('')
+  const [exCategory,     setExCategory]     = useState<string>('All')
+  const [previewEx,      setPreviewEx]      = useState<string | null>(null)
+  const [previewAnchor,  setPreviewAnchor]  = useState<{ top: number; left: number } | null>(null)
 
   // ── Program mode ──────────────────────────────────────────────────────
   const [activeProgram, setActiveProgramState] = useState<ActiveProgram | null>(() => getActiveProgram())
@@ -1442,17 +1464,45 @@ export function WorkoutPage() {
                     {filteredExercises.length === 0 ? (
                       <p className="col-span-2 text-center text-[12px] text-gray-600 py-4">No exercises match</p>
                     ) : filteredExercises.map(ex => (
-                      <button
-                        key={ex}
-                        onClick={() => { setExercise(ex); setShowExPicker(false); setExSearch(''); setExCategory('All'); }}
-                        className="px-3 py-2 rounded-lg text-left text-[12px] font-semibold transition-colors truncate"
+                      <div key={ex} className="flex rounded-lg overflow-hidden"
                         style={currentExercise === ex
-                          ? { background: '#1d4ed8', color: '#fff', border: '1px solid #3b82f6' }
-                          : { background: '#111119', color: '#d1d5db', border: '1px solid #1e1e2e' }
+                          ? { border: '1px solid #3b82f6' }
+                          : { border: '1px solid #1e1e2e' }
                         }
                       >
-                        {EXERCISE_LABELS[ex]}
-                      </button>
+                        {/* Select button */}
+                        <button
+                          onClick={() => { setExercise(ex); setShowExPicker(false); setExSearch(''); setExCategory('All'); setPreviewEx(null); }}
+                          className="flex-1 px-2.5 py-2 text-left text-[12px] font-semibold transition-colors truncate"
+                          style={currentExercise === ex
+                            ? { background: '#1d4ed8', color: '#fff' }
+                            : { background: '#111119', color: '#d1d5db' }
+                          }
+                        >
+                          {EXERCISE_LABELS[ex]}
+                        </button>
+                        {/* Info icon */}
+                        <button
+                          className="px-2 flex items-center justify-center shrink-0 transition-colors"
+                          style={{ background: currentExercise === ex ? '#1e40af' : '#161624', color: previewEx === ex ? '#60a5fa' : '#4b5563' }}
+                          onMouseEnter={(e) => {
+                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                            setPreviewEx(ex)
+                            setPreviewAnchor({ top: rect.top, left: rect.right + 10 })
+                          }}
+                          onMouseLeave={() => setPreviewEx(null)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (previewEx === ex) { setPreviewEx(null); return }
+                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                            setPreviewEx(ex)
+                            setPreviewAnchor({ top: rect.top, left: rect.right + 10 })
+                          }}
+                          title="Preview exercise"
+                        >
+                          <span className="text-[11px]">ℹ</span>
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -1932,6 +1982,60 @@ export function WorkoutPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Exercise preview tooltip ── */}
+      {previewEx && previewAnchor && (() => {
+        const label  = EXERCISE_LABELS[previewEx as typeof EXERCISES[number]] ?? previewEx
+        const gif    = EXERCISE_GIFS[previewEx as typeof EXERCISES[number]]
+        const info   = EXERCISE_INFO.find(e => e.id === previewEx)
+        const tipW   = 220
+        const left   = previewAnchor.left + tipW > window.innerWidth - 8
+          ? previewAnchor.left - tipW - 20   // flip left if off-screen
+          : previewAnchor.left
+        const top    = Math.min(previewAnchor.top, window.innerHeight - 300)
+        return (
+          <div
+            onMouseEnter={() => { /* keep open while hovering tooltip */ }}
+            onMouseLeave={() => setPreviewEx(null)}
+            style={{
+              position:  'fixed',
+              top,
+              left,
+              width:     tipW,
+              zIndex:    300,
+              background: '#111119',
+              border:    '1px solid #2a2a42',
+              borderRadius: 12,
+              overflow:  'hidden',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+            }}
+          >
+            {gif ? (
+              <>
+                <img
+                  src={gif}
+                  alt={label}
+                  style={{ width: '100%', maxHeight: 160, objectFit: 'cover', display: 'block' }}
+                />
+                <div style={{ padding: '8px 10px 6px' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 2 }}>{label}</p>
+                  <p style={{ fontSize: 9, color: '#4b5563' }}>
+                    Source: <a href="https://commons.wikimedia.org" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>Wikimedia Commons</a> · CC BY-SA
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div style={{ padding: '10px 12px' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 6 }}>{label}</p>
+                {info?.cues.slice(0, 4).map((cue, i) => (
+                  <p key={i} style={{ fontSize: 10, color: '#9ca3af', marginBottom: 3 }}>· {cue}</p>
+                ))}
+                {!info && <p style={{ fontSize: 10, color: '#6b7280' }}>No preview available</p>}
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </>
   )
 }
