@@ -45,6 +45,17 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, 10 + Math.round(sagPike * 850 + flare * 120))
   }
 
+  if (ex === 'mountainclimber') {
+    if (!vis(lSh) || !vis(rSh) || !vis(lHip) || !vis(rHip) || !vis(lAn) || !vis(rAn)) return 0
+    // Hip sag/pike from shoulder–ankle line (same geometry as plank, but hips move during the exercise)
+    // Use a wider tolerance (0.08 vs plank's 0) since hips naturally rise slightly as the knee drives
+    const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
+    const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
+    const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
+    const sag = Math.max(0, ptLineDist(shX, shY, anX, anY, hipX, hipY) - 0.08)
+    return Math.min(100, 10 + Math.round(sag * 750))
+  }
+
   if (ex === 'benchpress') {
     if (!vis(lSh, 0.3) || !vis(rSh, 0.3) || !vis(lEl, 0.3) || !vis(rEl, 0.3)) return 10
     // Elbow flare: elbows should stay at ~45-75° from torso, not flaring past shoulders
@@ -232,12 +243,13 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'benchpress', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'highnees', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup'] as const
+const EXERCISES = ['squat', 'pushup', 'benchpress', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'highnees', 'mountainclimber', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup'] as const
 
 const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   squat:           'Squat',
   pushup:          'Push-Up',
   benchpress:      'Bench Press',
+  mountainclimber: 'Mountain Climbers',
   lunge:           'Lunge',
   deadlift:        'Deadlift',
   shoulderpress:   'Shoulder Press',

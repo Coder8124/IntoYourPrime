@@ -37,6 +37,7 @@ export type SupportedExercise =
   | 'hammercurl'
   | 'pullup'
   | 'benchpress'
+  | 'mountainclimber'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -99,6 +100,9 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   pullup:          { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
   // Bench press: elbow angle. Bar on chest (elbows bent ~70-80°) = "down". Arms extended (~160°) = "up".
   benchpress:      { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
+  // Mountain climber: absolute knee-Y difference. Both legs extended = diff≈0 = "up".
+  // One knee drives to chest = diff grows = "down". Rep on up_to_down (each knee drive).
+  mountainclimber: { joints: [LM.LEFT_KNEE,         LM.RIGHT_KNEE],     repOn: 'up_to_down', debounceMs: 350 },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -371,6 +375,14 @@ export function useRepCounter(
       if (!result || result.confidence < 0.4) return   // lower threshold — prone reduces confidence
       rawSignal    = result.value
       invertSignal = true
+    } else if (exerciseKey === 'mountainclimber') {
+      // Same signal as high knees: absolute knee-Y difference.
+      // Both legs extended in plank: diff≈0 → "up". One knee drives to chest: diff large → "down".
+      // Rep counted on up_to_down (each knee drive). Fast debounce for the pace of mountain climbers.
+      const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
+      if ((lKn?.visibility ?? 0) < 0.3 || (rKn?.visibility ?? 0) < 0.3) return
+      rawSignal    = Math.abs(lKn.y - rKn.y)
+      invertSignal = false
     } else if (exerciseKey === 'benchpress') {
       // Elbow angle (shoulder→elbow→wrist). Bar on chest (~70-80°) = "down". Arms extended (~160°) = "up".
       // Same signal as push-up — invert so large angle (extended) → low normalised → "up".

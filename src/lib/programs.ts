@@ -71,6 +71,21 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
     riskNote: 'Highest injury risk of all exercises: spinal rounding. AI scoring is more aggressive for deadlifts.',
   },
   {
+    id: 'mountainclimber',
+    name: 'Mountain Climbers',
+    muscles: ['Core', 'Hip Flexors', 'Shoulders', 'Quads'],
+    difficulty: 'Intermediate',
+    description: 'A dynamic plank variation that combines core stability with cardio. Alternating knee drives build endurance and hip flexor strength.',
+    cues: [
+      'Start in a high plank — shoulders directly over wrists',
+      'Keep hips level — no piking up or sagging down',
+      'Drive one knee toward your chest, then quickly switch',
+      'Keep your core braced throughout — belly button to spine',
+      'Land lightly on the ball of each foot',
+    ],
+    riskNote: 'Main risk: hip piking or sagging as you fatigue. The AI monitors your hip position against the shoulder–ankle line.',
+  },
+  {
     id: 'benchpress',
     name: 'Bench Press',
     muscles: ['Chest', 'Triceps', 'Shoulders'],

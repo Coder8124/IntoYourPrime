@@ -206,6 +206,16 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
         'BACK FOOT: toes pointed forward or slightly out — not turned wildly sideways.',
       ].join('\n'),
 
+      mountainclimber: [
+        'HIPS (highest priority): hips must stay level with the shoulder–ankle line — no piking up or sagging down.',
+        '  - Hip pike (butt in the air) = avoiding core work. Score 55+ if clearly piked.',
+        '  - Hip sag (hips dropping below line) = lower back compression. Score 60+.',
+        'SHOULDERS: must stay directly over the wrists — no rocking forward or backward.',
+        'CORE: should be braced throughout — belly button pulled toward spine.',
+        'KNEE DRIVE: the driving knee should come toward the chest, not flare out to the side.',
+        'PACE: controlled enough to maintain form — if hips are bouncing, they are moving too fast.',
+      ].join('\n'),
+
       benchpress: [
         'ELBOW PATH (highest priority): elbows should travel at ~45-75° from the torso — not flaring straight out (shoulder impingement) and not tucked too tight.',
         '  - Elbow flare past shoulder width = score 60+. Shoulder joint at serious risk.',
@@ -252,6 +262,7 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
     const bodyFocus: Record<string, string> = {
       pushup:          'hands, wrists, elbows, shoulders, spine, hips, ankles — full body alignment',
       benchpress:      'wrists, elbows, shoulders, chest — NOT knees or ankles',
+      mountainclimber: 'shoulders, hips, core, driving knee — spine and hip alignment',
       squat:           'feet, ankles, knees, hips, spine, shoulders',
       deadlift:        'feet, hips, spine, shoulders, bar path',
       lunge:           'front knee, back knee, hips, torso, feet',
