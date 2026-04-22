@@ -412,6 +412,15 @@ export function useRepCounter(
       if (lConf < 0.3 || rConf < 0.3) return  // need both visible to compute a meaningful diff
       rawSignal    = Math.abs(lKn.y - rKn.y)
       invertSignal = false  // large diff (one knee up) → high normalised → "down" phase
+    } else if (exerciseKey === 'shoulderpress') {
+      // Use elbow angle (shoulder→elbow→wrist).
+      // Rack position (~90°) = "down". Fully pressed overhead (~165°) = "up".
+      // invertSignal: large angle (overhead) → low normalised → "up" phase.
+      // Rep counted on up_to_down: returning to rack from overhead = one rep.
+      const result = getElbowAngle(landmarks)
+      if (!result || result.confidence < 0.4) return
+      rawSignal    = result.value
+      invertSignal = true
     } else if (exerciseKey === 'lunge') {
       // Use the MINIMUM knee angle (whichever knee is more bent = the front knee).
       // Standing: front knee ~160°. Bottom of lunge: front knee ~80-90°.
