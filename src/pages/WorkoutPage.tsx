@@ -272,6 +272,27 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, BASE + Math.round(asymmetry * 500))
   }
 
+  if (ex === 'hipcircle') {
+    // Low injury risk. Flag excessive torso lean — hips should drive the circle, not the shoulders.
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3) || !vis(lHip, 0.3) || !vis(rHip, 0.3)) return 0
+    const shMx = (lSh.x + rSh.x) / 2, hipMx = (lHip.x + rHip.x) / 2
+    const lean = Math.max(0, Math.abs(shMx - hipMx) - 0.1)
+    return Math.min(100, BASE + Math.round(lean * 350))
+  }
+
+  if (ex === 'chestpress') {
+    // Same checks as pushup: body alignment and elbow flare
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    let sway = 0
+    if (vis(lHip, 0.3) && vis(rHip, 0.3)) {
+      sway = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.05)
+    }
+    const elW = vis(lEl, 0.3) && vis(rEl, 0.3) ? Math.abs(lEl.x - rEl.x) : 0
+    const shW = Math.abs(lSh.x - rSh.x)
+    const flare = Math.max(0, elW - shW * 1.5)
+    return Math.min(100, BASE + Math.round(sway * 300 + flare * 350))
+  }
+
   if (ex === 'crossbodystretch' || ex === 'tricepstretch') {
     // Very low injury risk — just flag neck tension (shoulder hike)
     if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 0
@@ -296,7 +317,7 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'benchpress', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'situp', 'bicepcurl', 'jumpingjack', 'highnees', 'mountainclimber', 'buttskick', 'calfraise', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup', 'armcircle', 'scapulasqueeze', 'crossbodystretch', 'tricepstretch'] as const
+const EXERCISES = ['squat', 'pushup', 'benchpress', 'chestpress', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'situp', 'bicepcurl', 'jumpingjack', 'highnees', 'mountainclimber', 'buttskick', 'calfraise', 'hipcircle', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup', 'armcircle', 'scapulasqueeze', 'crossbodystretch', 'tricepstretch'] as const
 
 const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   squat:           'Squat',
@@ -323,6 +344,8 @@ const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   scapulasqueeze:   'Scapula Squeeze',
   crossbodystretch: 'Cross-Body Shoulder Stretch',
   tricepstretch:    'Tricep Stretch',
+  hipcircle:        'Hip Circles',
+  chestpress:       'Chest Press',
 }
 
 const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
@@ -334,6 +357,7 @@ const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
   curlup: 'Core', situp: 'Core', plank: 'Core', mountainclimber: 'Core',
   jumpingjack: 'Cardio', highnees: 'Cardio', buttskick: 'Cardio', armcircle: 'Cardio',
   crossbodystretch: 'Upper Body', tricepstretch: 'Upper Body',
+  hipcircle: 'Lower Body', chestpress: 'Upper Body',
 }
 
 const CATEGORY_TABS = ['All', 'Lower Body', 'Upper Body', 'Core', 'Cardio'] as const
@@ -343,7 +367,7 @@ const WARMUP_EXERCISES = new Set([
   'squat', 'lunge', 'pushup', 'plank', 'curlup',
   'mountainclimber', 'jumpingjack', 'highnees',
   'buttskick', 'calfraise', 'armcircle', 'scapulasqueeze',
-  'crossbodystretch', 'tricepstretch',
+  'crossbodystretch', 'tricepstretch', 'hipcircle',
 ])
 
 const DEMO_SUGGESTIONS = [

@@ -47,6 +47,8 @@ export type SupportedExercise =
   | 'scapulasqueeze'
   | 'crossbodystretch'
   | 'tricepstretch'
+  | 'hipcircle'
+  | 'chestpress'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -126,6 +128,10 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Hold exercises — timer-only, no reps (useHoldTimer handles them)
   crossbodystretch: { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
   tricepstretch:    { joints: [LM.LEFT_ELBOW,        LM.RIGHT_ELBOW],    repOn: 'down_to_up' },
+  // Hip circles: hip center X oscillates left/right as hips rotate. Count each pass through one extreme.
+  hipcircle:        { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'up_to_down', debounceMs: 1200 },
+  // Chest press: elbow angle, same signal as pushup/benchpress (standing press forward).
+  chestpress:       { joints: [LM.LEFT_WRIST,        LM.RIGHT_WRIST],    repOn: 'down_to_up' },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -525,6 +531,21 @@ export function useRepCounter(
       if (!joint || joint.confidence < 0.35) return  // wrists can lose conf overhead
       rawSignal    = joint.y
       invertSignal = false  // high Y = "down", low Y = "up"
+    } else if (exerciseKey === 'hipcircle') {
+      // Hip center X oscillates left/right as hips rotate in a circle.
+      // One side extreme (left or right) = 1 rep counted on up_to_down transition.
+      const lHip = landmarks[LM.LEFT_HIP], rHip = landmarks[LM.RIGHT_HIP]
+      const lConf = lHip?.visibility ?? 0, rConf = rHip?.visibility ?? 0
+      if (lConf < 0.5 || rConf < 0.5) return
+      rawSignal    = (lHip.x + rHip.x) / 2  // hip center X
+      invertSignal = false
+    } else if (exerciseKey === 'chestpress') {
+      // Elbow angle: arms pulled to chest (~90°) = "down". Arms extended forward (~160°) = "up".
+      // Same signal direction as pushup/benchpress — invert so large angle (extended) → "up".
+      const result = getElbowAngle(landmarks)
+      if (!result || result.confidence < 0.4) return
+      rawSignal    = result.value
+      invertSignal = true
     } else if (exerciseKey === 'scapulasqueeze') {
       // Shoulder width: |lSh.x - rSh.x|. Wide (relaxed) = large = "down". Narrow (squeezed) = small = "up".
       // The scapulae retract inward, slightly closing the shoulder gap visible from front camera.

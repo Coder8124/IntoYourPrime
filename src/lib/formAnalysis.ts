@@ -287,6 +287,23 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
         'DIRECTION: confirm both arms are circling the same direction unless explicitly doing alternating circles.',
       ].join('\n'),
 
+      hipcircle: [
+        'HIP ISOLATION (highest priority): only the hips should be moving — shoulders must stay level and stationary.',
+        '  - Shoulders rocking or swaying with the hips = using the whole torso, not isolating. Score 50+.',
+        'CIRCLE SIZE: hips should trace a wide, full circle — small lazy circles reduce mobility benefit. Score 35+ if visibly tiny.',
+        'PACE: slow and controlled — rushing defeats the mobility purpose. Score 30+ if clearly rushing.',
+        'STANCE: feet should stay planted shoulder-width apart throughout.',
+        'UPPER BODY: core braced, arms relaxed at sides or on hips.',
+      ].join('\n'),
+
+      chestpress: [
+        'ELBOW PATH (highest priority): elbows should track at shoulder height, not drooping below or flaring up. Score 50+ if elbows are clearly off-plane.',
+        'SYMMETRY: both arms must press and return at the same time — one arm leading = compensation. Score 45+.',
+        'WRIST: neutral — not bent back. Wrists stacked over forearms throughout.',
+        'TORSO: upright and stable — no rocking forward or swaying. Score 40+ if torso moves.',
+        'RANGE: full extension at the press-out and full retraction at the pull-back — partial range = score 35+.',
+      ].join('\n'),
+
       crossbodystretch: [
         'SHOULDER POSITION (highest priority): the stretched arm should be held horizontally across the chest — not drooping low or raised too high.',
         'NECK: neutral — do not tilt your head or shrug the opposite shoulder up toward the ear. Score 45+ if visible neck tension.',
@@ -339,6 +356,8 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
       situp:           'neck, shoulders, lower back, core, torso — NOT knees or ankles',
       armcircle:       'wrists, elbows, shoulders, upper back — NOT knees, ankles, or hips',
       scapulasqueeze:   'shoulders, upper back, shoulder blades, chest — NOT knees, ankles, or lower body',
+      hipcircle:        'hips, lower back, core — shoulders should stay still, NOT upper body movement',
+      chestpress:       'wrists, elbows, shoulders, chest, torso — NOT knees or ankles',
       crossbodystretch: 'shoulders, neck, upper back, stretched arm — NOT knees, ankles, or lower body',
       tricepstretch:    'elbow, shoulder, neck, torso alignment — NOT knees, ankles, or lower body',
     }
