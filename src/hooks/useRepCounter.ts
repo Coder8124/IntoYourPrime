@@ -167,6 +167,38 @@ function getElbowAngle(
 }
 
 /**
+ * Overhead tricep-extension signal: average of (wristY − elbowY) across visible arms.
+ * Extended (top): wrist near or above elbow → diff ≈ 0 or negative.
+ * Bent behind head (bottom): wrist drops well below elbow → diff large positive.
+ * Uses a lower wrist-confidence threshold (0.35) because the wrist partially
+ * occludes behind the head at the bottom of the movement.
+ */
+function getTricepExtSignal(
+  landmarks: NormalizedLandmark[],
+): { value: number; confidence: number } | null {
+  const lEl = landmarks[LM.LEFT_ELBOW],  lWr = landmarks[LM.LEFT_WRIST]
+  const rEl = landmarks[LM.RIGHT_ELBOW], rWr = landmarks[LM.RIGHT_WRIST]
+
+  const lElConf = lEl?.visibility ?? 0
+  const lWrConf = lWr?.visibility ?? 0
+  const rElConf = rEl?.visibility ?? 0
+  const rWrConf = rWr?.visibility ?? 0
+
+  const diffs: number[] = []
+  const confs:  number[] = []
+  // Require elbow clearly visible; wrist can lose confidence behind the head
+  if (lElConf >= CONFIDENCE_THRESH && lWrConf >= 0.35) { diffs.push(lWr.y - lEl.y); confs.push(Math.min(lElConf, lWrConf)) }
+  if (rElConf >= CONFIDENCE_THRESH && rWrConf >= 0.35) { diffs.push(rWr.y - rEl.y); confs.push(Math.min(rElConf, rWrConf)) }
+  if (diffs.length === 0) return null
+
+  const n = diffs.length
+  return {
+    value:      diffs.reduce((s, v) => s + v, 0) / n,
+    confidence: confs.reduce((s, v) => s + v, 0) / n,
+  }
+}
+
+/**
  * Average knee angle (hip→knee→ankle) across visible legs.
  * Standing: ~160–170°. Bottom of squat: ~80–100°.
  * Large angle = standing (up), small angle = squatting (down).
@@ -333,13 +365,15 @@ export function useRepCounter(
       rawSignal    = result.value
       invertSignal = false
     } else if (exerciseKey === 'tricepextension') {
-      // Elbow angle: extended overhead (~160°) = top, bent behind head (~40°) = bottom.
-      // Invert: large angle (extended) → low normalised → "up" phase.
-      // Rep counted on down→up (return to full extension).
-      const result = getElbowAngle(landmarks)
-      if (!result || result.confidence < CONFIDENCE_THRESH) return
+      // wristY − elbowY. Extended overhead: wrist near/above elbow → diff ≈ 0 or negative.
+      // Bent behind head: wrist drops below elbow → diff grows positive.
+      // No inversion: large diff = "down" (bent); small diff = "up" (extended).
+      // Rep counted on down→up (returning to full extension).
+      // Lower wrist-confidence threshold (0.35) so occlusion behind the head doesn't drop the signal.
+      const result = getTricepExtSignal(landmarks)
+      if (!result) return
       rawSignal    = result.value
-      invertSignal = true
+      invertSignal = false
     } else if (exerciseKey === 'curlup') {
       // hipY − shoulderY. Near-zero when flat, positive when curled up.
       // No inversion: high value = curled up = "up" phase naturally maps to low normalised.
