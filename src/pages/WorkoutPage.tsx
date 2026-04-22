@@ -4,6 +4,8 @@ import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useRepCounter } from '../hooks/useRepCounter'
 import { useHoldTimer, HOLD_EXERCISES } from '../hooks/useHoldTimer'
+import { useBurpeeCounter } from '../hooks/useBurpeeCounter'
+import type { BurpeePhase } from '../hooks/useBurpeeCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
 import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI, cancelTTS } from '../lib/formAnalysis'
 import { getActiveProgram, advanceProgramExercise, clearActiveProgram, EXERCISE_INFO, type ActiveProgram } from '../lib/programs'
@@ -663,6 +665,56 @@ function WarmupScoreModal({ score, onContinueWarmup, onStartWorkout }: WarmupSco
   )
 }
 
+// ── BurpeePhaseIndicator ───────────────────────────────────────────────────
+
+const BURPEE_PHASES: BurpeePhase[] = ['stand', 'squat', 'plank']
+const BURPEE_PHASE_LABELS: Record<BurpeePhase, string> = {
+  stand: 'Stand',
+  squat: 'Squat',
+  plank: 'Plank',
+}
+const BURPEE_PHASE_COLORS: Record<BurpeePhase, string> = {
+  stand: '#22c55e',
+  squat: '#3b82f6',
+  plank: '#f59e0b',
+}
+
+function BurpeePhaseIndicator({ phase }: { phase: BurpeePhase }) {
+  return (
+    <div className="mt-3 flex items-center justify-center gap-1.5">
+      {BURPEE_PHASES.map((p, i) => {
+        const active = p === phase
+        const color  = BURPEE_PHASE_COLORS[p]
+        return (
+          <div key={p} className="flex items-center gap-1.5">
+            <div
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full transition-all duration-200"
+              style={{
+                background: active ? `${color}22` : 'transparent',
+                border:     `1px solid ${active ? color : 'rgba(255,255,255,0.08)'}`,
+              }}
+            >
+              <div
+                className="w-1.5 h-1.5 rounded-full transition-all duration-200"
+                style={{ background: active ? color : 'rgba(255,255,255,0.15)' }}
+              />
+              <span
+                className="text-[10px] font-bold transition-colors duration-200"
+                style={{ color: active ? color : 'rgba(255,255,255,0.25)' }}
+              >
+                {BURPEE_PHASE_LABELS[p]}
+              </span>
+            </div>
+            {i < BURPEE_PHASES.length - 1 && (
+              <span className="text-[9px] text-gray-700">→</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── WorkoutPage ────────────────────────────────────────────────────────────
 
 export function WorkoutPage() {
@@ -846,8 +898,33 @@ export function WorkoutPage() {
   } = usePoseDetection(videoRef, canvasRef)
 
   // ── Rep counter hook ───────────────────────────────────────────────────
+  const isBurpee = currentExercise === 'burpee'
+
+  // Burpee uses its own 3-phase state machine — pass null to each hook when the other is active
   const { repCount, phase: movementPhase, lastRepTimestamp, isCalibrating, reset: resetRepCounter } =
-    useRepCounter(landmarks, currentExercise)
+    useRepCounter(isBurpee ? null : landmarks, currentExercise)
+
+  const {
+    repCount:         burpeeRepCount,
+    burpeePhase,
+    isCalibrating:    burpeeCalibrating,
+    lastRepTimestamp: burpeeLastRepTs,
+    reset:            resetBurpeeCounter,
+  } = useBurpeeCounter(isBurpee ? landmarks : null)
+
+  // Combined outputs: whichever hook is active wins
+  const activeRepCount      = isBurpee ? burpeeRepCount    : repCount
+  const activeIsCalibrating = isBurpee ? burpeeCalibrating : isCalibrating
+  const activeLastRepTs     = isBurpee ? burpeeLastRepTs   : lastRepTimestamp
+
+  // Reset burpee counter whenever exercise changes
+  const prevExerciseForBurpee = useRef(currentExercise)
+  useEffect(() => {
+    if (prevExerciseForBurpee.current !== currentExercise) {
+      prevExerciseForBurpee.current = currentExercise
+      if (isBurpee) resetBurpeeCounter()
+    }
+  }, [currentExercise, isBurpee, resetBurpeeCounter])
 
   // ── Hold timer hook (plank / wall sit) ────────────────────────────────
   const isHoldExercise = HOLD_EXERCISES.includes(currentExercise)
@@ -869,7 +946,7 @@ export function WorkoutPage() {
   }, [setExercise, resetExerciseReps, resetRepCounter, resetHoldTimer])
 
   // ── Keep mutable refs in sync with latest values ───────────────────────
-  useEffect(() => { repCountRef.current      = repCount        }, [repCount])
+  useEffect(() => { repCountRef.current      = activeRepCount  }, [activeRepCount])
   useEffect(() => { exerciseRef.current      = currentExercise }, [currentExercise])
   useEffect(() => { phaseRef.current         = phase           }, [phase])
   const movementPhaseRef = useRef<typeof movementPhase>('unknown')
@@ -893,9 +970,10 @@ export function WorkoutPage() {
     resetExerciseReps(exerciseRef.current)
     resetRepCounter()
     resetHoldTimer()
+    resetBurpeeCounter()
     sessionRiskLog.current = []
     setFatigueWarning(null)
-  }, [resetExerciseReps, resetRepCounter, resetHoldTimer, isHoldExercise])
+  }, [resetExerciseReps, resetRepCounter, resetHoldTimer, resetBurpeeCounter, isHoldExercise])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -945,7 +1023,7 @@ export function WorkoutPage() {
 
   // ── Sync new reps from hook → store ───────────────────────────────────
   useEffect(() => {
-    if (lastRepTimestamp !== null) {
+    if (activeLastRepTs !== null) {
       addRep(exerciseRef.current)
       const newCount = (useWorkoutStore.getState().repCounts[exerciseRef.current] ?? 0) + 1
       const msg = getMilestoneMessage(newCount)
@@ -956,7 +1034,7 @@ export function WorkoutPage() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastRepTimestamp])
+  }, [activeLastRepTs])
 
   // ── Voice feedback — speak newest suggestion via OpenAI TTS ──────────
   useEffect(() => {
@@ -1616,7 +1694,7 @@ export function WorkoutPage() {
                     Current Reps
                   </span>
                   <div
-                    key={lastRepTimestamp ?? 0}
+                    key={activeLastRepTs ?? 0}
                     className="font-black leading-none select-none text-white rep-pulse"
                     style={{ fontSize: 84, letterSpacing: -4, display: 'inline-block' }}
                   >
@@ -1624,9 +1702,11 @@ export function WorkoutPage() {
                   </div>
                   <span className="text-[11px] text-gray-600 mt-1">{EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}</span>
 
-                  {/* Movement phase dot */}
-                  {isCalibrating ? (
+                  {/* Movement phase indicator */}
+                  {activeIsCalibrating ? (
                     <p className="mt-3 text-[11px] text-amber-500 animate-pulse">Calibrating…</p>
+                  ) : isBurpee ? (
+                    <BurpeePhaseIndicator phase={burpeePhase} />
                   ) : movementPhase === 'unknown' ? (
                     <p className="mt-3 text-[11px] text-blue-400 animate-pulse">Move to start tracking</p>
                   ) : (
