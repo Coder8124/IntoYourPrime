@@ -27,8 +27,9 @@ function riskColor(score: number): string {
 const EXERCISE_LABELS: Record<string, string> = {
   squat: 'Squat', pushup: 'Push-Up', lunge: 'Lunge',
   deadlift: 'Deadlift', benchpress: 'Bench Press', mountainclimber: 'Mountain Climbers', shoulderpress: 'Shoulder Press',
-  curlup: 'Curl-Up', bicepcurl: 'Bicep Curl',
+  curlup: 'Curl-Up', situp: 'Sit-Up', bicepcurl: 'Bicep Curl',
   jumpingjack: 'Jumping Jack', highnees: 'High Knees',
+  buttskick: 'Butt Kicks', calfraise: 'Calf Raises', armcircle: 'Arm Circles', scapulasqueeze: 'Scapula Squeeze',
   plank: 'Plank', wallsit: 'Wall Sit',
 }
 

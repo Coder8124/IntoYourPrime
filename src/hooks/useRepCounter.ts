@@ -16,6 +16,8 @@ const LM = {
   RIGHT_KNEE:     26,
   LEFT_ANKLE:     27,
   RIGHT_ANKLE:    28,
+  LEFT_HEEL:      29,
+  RIGHT_HEEL:     30,
 } as const
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -38,6 +40,11 @@ export type SupportedExercise =
   | 'pullup'
   | 'benchpress'
   | 'mountainclimber'
+  | 'buttskick'
+  | 'calfraise'
+  | 'situp'
+  | 'armcircle'
+  | 'scapulasqueeze'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -103,6 +110,17 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Mountain climber: absolute knee-Y difference. Both legs extended = diff≈0 = "up".
   // One knee drives to chest = diff grows = "down". Rep on up_to_down (each knee drive).
   mountainclimber: { joints: [LM.LEFT_KNEE,         LM.RIGHT_KNEE],     repOn: 'up_to_down', debounceMs: 350 },
+  // Butt kick: absolute ankle-Y difference. Both level = diff≈0 = "up"; one heel kicked up = diff large = "down".
+  buttskick:       { joints: [LM.LEFT_ANKLE,        LM.RIGHT_ANKLE],    repOn: 'up_to_down', debounceMs: 400 },
+  // Calf raise: average heel Y. Heels on floor (high Y) = "down"; raised on toes (low Y) = "up".
+  calfraise:       { joints: [LM.LEFT_HEEL,         LM.RIGHT_HEEL],     repOn: 'down_to_up', debounceMs: 1000 },
+  // Sit-up: same hipY−shoulderY signal as curl-up, full range.
+  situp:           { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'down_to_up' },
+  // Arm circle: average wrist Y. Arms overhead (low Y) = "up". Rep on up_to_down (arms return down).
+  armcircle:       { joints: [LM.LEFT_WRIST,        LM.RIGHT_WRIST],    repOn: 'up_to_down', debounceMs: 700 },
+  // Scapula squeeze: shoulder width (|lSh.x - rSh.x|). Wide/relaxed = "down". Squeezed/narrow = "up".
+  // Rep counted on squeeze (down→up). Slow debounce — squeeze for 2–3 s, then release.
+  scapulasqueeze:  { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'down_to_up', debounceMs: 1500 },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -466,6 +484,49 @@ export function useRepCounter(
       if (!joint || joint.confidence < 0.5) return
       rawSignal    = joint.y
       invertSignal = false
+    } else if (exerciseKey === 'buttskick') {
+      // Absolute ankle-Y difference. Both ankles level = diff≈0 = "up". One heel kicked up = diff large = "down".
+      // Mirror of high knees: same signal structure but with ankles instead of knees.
+      const lAn = landmarks[LM.LEFT_ANKLE], rAn = landmarks[LM.RIGHT_ANKLE]
+      if ((lAn?.visibility ?? 0) < 0.3 || (rAn?.visibility ?? 0) < 0.3) return
+      rawSignal    = Math.abs(lAn.y - rAn.y)
+      invertSignal = false
+    } else if (exerciseKey === 'calfraise') {
+      // Average heel Y. Heels on floor (high Y) = "down"; raised onto toes (low Y) = "up".
+      // Use heels (29/30) for better sensitivity than ankle joints (27/28).
+      const lHeel = landmarks[LM.LEFT_HEEL], rHeel = landmarks[LM.RIGHT_HEEL]
+      const lConf = lHeel?.visibility ?? 0, rConf = rHeel?.visibility ?? 0
+      // Fall back to ankles if heels aren't detected
+      if (lConf >= 0.3 && rConf >= 0.3) {
+        rawSignal = (lHeel.y + rHeel.y) / 2
+      } else {
+        const lAn = landmarks[LM.LEFT_ANKLE], rAn = landmarks[LM.RIGHT_ANKLE]
+        if ((lAn?.visibility ?? 0) < 0.3 || (rAn?.visibility ?? 0) < 0.3) return
+        rawSignal = (lAn.y + rAn.y) / 2
+      }
+      invertSignal = false  // high Y (heels down) = "down" phase naturally
+    } else if (exerciseKey === 'situp') {
+      // Same signal as curl-up: hipY−shoulderY. Full sit-up has larger range than curl-up.
+      // Large diff (torso upright) = "up" position. Flat (diff≈0) = "down" position.
+      const result = getCurlupSignal(landmarks)
+      if (!result || result.confidence < CONFIDENCE_THRESH) return
+      rawSignal    = result.value
+      invertSignal = true  // large diff (sitting up) → low normalised → "up" phase
+    } else if (exerciseKey === 'armcircle') {
+      // Average wrist Y. Arms at sides (high Y) = "down"; overhead (low Y) = "up".
+      // Each circle crosses the "up" zone once → rep on up_to_down (arms returning from overhead).
+      const joint = getJointY(landmarks, config.joints[0], config.joints[1])
+      if (!joint || joint.confidence < 0.35) return  // wrists can lose conf overhead
+      rawSignal    = joint.y
+      invertSignal = false  // high Y = "down", low Y = "up"
+    } else if (exerciseKey === 'scapulasqueeze') {
+      // Shoulder width: |lSh.x - rSh.x|. Wide (relaxed) = large = "down". Narrow (squeezed) = small = "up".
+      // The scapulae retract inward, slightly closing the shoulder gap visible from front camera.
+      const lSh = landmarks[LM.LEFT_SHOULDER], rSh = landmarks[LM.RIGHT_SHOULDER]
+      const lConf = lSh?.visibility ?? 0, rConf = rSh?.visibility ?? 0
+      if (lConf < 0.5 || rConf < 0.5) return
+      rawSignal    = Math.abs(lSh.x - rSh.x)
+      invertSignal = false  // wide (relaxed) → high normalized → "down"; narrow (squeezed) → "up"
     } else {
       const joint = getJointY(landmarks, config.joints[0], config.joints[1])
       if (!joint || joint.confidence < CONFIDENCE_THRESH) return

@@ -253,6 +253,47 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
         'WRIST: neutral or slightly supinated — not bent back under load.',
         'SQUEEZE: wrist should rotate supinated at the top, peak contraction.',
       ].join('\n'),
+
+      buttskick: [
+        'TORSO (highest priority): stay upright with a slight forward lean — do NOT lean back as you kick.',
+        '  - Leaning back = hip flexor strain, lower back stress. Score 50+ if torso falls behind hips.',
+        'HEEL HEIGHT: heels should kick up toward the glutes, not flicking sideways. Score 40+ if kicks are lateral.',
+        'ARMS: pump arms in opposition to legs — crossing midline or flailing arms = loss of coordination. Score 30+.',
+        'PACE: controlled rhythm. Bouncing or slamming landings = joint stress. Score 35+ if very jarring.',
+      ].join('\n'),
+
+      calfraise: [
+        'RANGE OF MOTION (highest priority): rise all the way onto the balls of your feet — partial range = score 40+.',
+        'BALANCE: avoid swaying side to side. Equal weight on both feet. Score 45+ if clearly uneven loading.',
+        'KNEE LOCK: legs should be straight (not bent) — bending knees shifts work to hamstrings, not calves.',
+        'CONTROLLED DESCENT: lower heels below the step (if on a step) slowly — bounce-back = no eccentric benefit.',
+        'FOOT SYMMETRY: both feet at the same angle — one toe more turned out than the other = score 35+.',
+      ].join('\n'),
+
+      situp: [
+        'NECK (highest priority): hands behind head should not pull the neck forward.',
+        '  - Chin jutting forward or neck straining = score 60+.',
+        'FULL RANGE: shoulder blades should leave the floor (concentric) and torso comes upright. Stopping short = score 40+.',
+        'LOWER BACK: controlled descent — slamming back down = score 35+.',
+        'FEET: anchored or free — either is valid. If anchored, hip flexors assist — note if the person is only using hip flexors (watch if torso barely moves but they still "count" a rep).',
+        'SYMMETRY: both sides rise equally. One-sided crunch = neck and shoulder strain.',
+      ].join('\n'),
+
+      armcircle: [
+        'FULL RANGE (highest priority): arms should make a complete circle from overhead to the side and back — partial circles = score 35+.',
+        'SYMMETRY: both arms should circle at the same tempo and size. One arm lagging = score 40+.',
+        'SHOULDER TENSION: arms should be straight (or slightly bent) with relaxed hands — shrugging traps throughout = score 35+.',
+        'TORSO: stable and upright throughout — do not sway or rotate the torso with the arm movement.',
+        'DIRECTION: confirm both arms are circling the same direction unless explicitly doing alternating circles.',
+      ].join('\n'),
+
+      scapulasqueeze: [
+        'RETRACTION SYMMETRY (highest priority): both shoulder blades must pull back equally — one-sided retraction = neck and shoulder muscle imbalance. Score 55+ if clearly asymmetric.',
+        'NO SHRUGGING: traps should stay relaxed and depressed throughout — shoulder blades pull BACK, not UP. Score 50+ if shoulders are visibly hiking.',
+        'CHEST OPEN: chest should broaden and lift slightly at the peak squeeze — caving chest = not achieving full retraction. Score 40+.',
+        'ELBOW POSITION: if arms are in "W" position, elbows should stay at shoulder height and pull straight back — not drooping down or flaring wide.',
+        "HOLD DURATION: a controlled 2–3 second squeeze is ideal — quick bounces without a hold don't fully activate the rhomboids.",
+      ].join('\n'),
     }
 
     const guide = exerciseGuides[params.exercise.toLowerCase()]
@@ -277,6 +318,11 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
       wallsit:         'knees, hips, back against wall — lower body only',
       jumpingjack:     'arms, shoulders, knees, landing mechanics',
       highnees:        'knees, hips, torso — upright posture',
+      buttskick:       'heels, glutes, torso posture, arm swing — NOT upper body isolation',
+      calfraise:       'feet, ankles, calves, knees — NOT upper body or hips',
+      situp:           'neck, shoulders, lower back, core, torso — NOT knees or ankles',
+      armcircle:       'wrists, elbows, shoulders, upper back — NOT knees, ankles, or hips',
+      scapulasqueeze:  'shoulders, upper back, shoulder blades, chest — NOT knees, ankles, or lower body',
     }
     const focusNote = bodyFocus[params.exercise.toLowerCase()]
       ?? 'all major joints relevant to this exercise'

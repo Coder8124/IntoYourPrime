@@ -237,12 +237,59 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, BASE + Math.round(valgus * 400))
   }
 
+  if (ex === 'buttskick') {
+    // Low injury risk. Check torso stays upright — shoulders over hips, not leaning back.
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 0
+    let lean = 0
+    if (vis(lHip, 0.3) && vis(rHip, 0.3)) {
+      lean = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.05)
+    }
+    return Math.min(100, BASE + Math.round(lean * 400))
+  }
+
+  if (ex === 'calfraise') {
+    // Check knee alignment and body sway. Knee should track over toes, no side-to-side sway.
+    if (!vis(lKn, 0.3) || !vis(rKn, 0.3)) return 0
+    let sway = 0
+    if (vis(lSh, 0.3) && vis(rSh, 0.3) && vis(lHip, 0.3) && vis(rHip, 0.3)) {
+      sway = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.05)
+    }
+    const kneeAsym = Math.abs(lKn.y - rKn.y)
+    return Math.min(100, BASE + Math.round(sway * 380 + kneeAsym * 300))
+  }
+
+  if (ex === 'situp') {
+    // Same checks as curl-up but penalizes neck pull less since full range is expected.
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    const asymmetry = Math.abs(lSh.y - rSh.y)
+    return Math.min(100, BASE + Math.round(asymmetry * 550))
+  }
+
+  if (ex === 'armcircle') {
+    // Check arm symmetry — both wrists should be at similar heights throughout.
+    if (!vis(lWr, 0.3) || !vis(rWr, 0.3)) return 0
+    const asymmetry = Math.abs(lWr.y - rWr.y)
+    return Math.min(100, BASE + Math.round(asymmetry * 500))
+  }
+
+  if (ex === 'scapulasqueeze') {
+    if (!vis(lSh, 0.4) || !vis(rSh, 0.4)) return 0
+    // Shoulder height asymmetry: one shoulder hiking up (shrugging) during the squeeze = neck tension
+    const shAsym = Math.abs(lSh.y - rSh.y)
+    // Forward head / chest collapse: if elbows are visible, they should not drift forward past shoulders
+    let elbowFwd = 0
+    if (vis(lEl, 0.3) && vis(rEl, 0.3)) {
+      elbowFwd = Math.max(0, Math.abs((lEl.x + rEl.x) / 2 - (lSh.x + rSh.x) / 2) - 0.08)
+    }
+    return Math.min(100, BASE + Math.round(shAsym * 600 + elbowFwd * 300))
+  }
+
   return 0
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'benchpress', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'highnees', 'mountainclimber', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup'] as const
+const EXERCISES = ['squat', 'pushup', 'benchpress', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'situp', 'bicepcurl', 'jumpingjack', 'highnees', 'mountainclimber', 'buttskick', 'calfraise', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup', 'armcircle', 'scapulasqueeze'] as const
 
 const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   squat:           'Squat',
@@ -262,7 +309,24 @@ const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   lateralraise:    'Lateral Raise',
   hammercurl:      'Hammer Curl',
   pullup:          'Pull-Up',
+  buttskick:       'Butt Kicks',
+  calfraise:       'Calf Raises',
+  situp:           'Sit-Up',
+  armcircle:       'Arm Circles',
+  scapulasqueeze:  'Scapula Squeeze',
 }
+
+const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
+  squat: 'Lower Body', lunge: 'Lower Body', deadlift: 'Lower Body',
+  calfraise: 'Lower Body', wallsit: 'Lower Body',
+  pushup: 'Upper Body', benchpress: 'Upper Body', shoulderpress: 'Upper Body',
+  pullup: 'Upper Body', tricepextension: 'Upper Body', bicepcurl: 'Upper Body',
+  hammercurl: 'Upper Body', lateralraise: 'Upper Body', scapulasqueeze: 'Upper Body',
+  curlup: 'Core', situp: 'Core', plank: 'Core', mountainclimber: 'Core',
+  jumpingjack: 'Cardio', highnees: 'Cardio', buttskick: 'Cardio', armcircle: 'Cardio',
+}
+
+const CATEGORY_TABS = ['All', 'Lower Body', 'Upper Body', 'Core', 'Cardio'] as const
 
 const DEMO_SUGGESTIONS = [
   "Keep your chest up and drive through your heels.",
@@ -517,6 +581,11 @@ export function WorkoutPage() {
   const [milestoneMsg,  setMilestoneMsg]  = useState<string | null>(null)
   const milestoneClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // ── Exercise picker ────────────────────────────────────────────────────
+  const [showExPicker, setShowExPicker] = useState(false)
+  const [exSearch,     setExSearch]     = useState('')
+  const [exCategory,   setExCategory]   = useState<string>('All')
+
   // ── Program mode ──────────────────────────────────────────────────────
   const [activeProgram, setActiveProgramState] = useState<ActiveProgram | null>(() => getActiveProgram())
 
@@ -548,6 +617,14 @@ export function WorkoutPage() {
       return { age: 25, weight: 70, fitnessLevel: 'intermediate' }
     }
   }, [])
+
+  const filteredExercises = useMemo(() => {
+    const q = exSearch.toLowerCase().trim()
+    return ([...EXERCISES] as (typeof EXERCISES[number])[])
+      .filter(ex => exCategory === 'All' || EXERCISE_CATEGORY_MAP[ex] === exCategory)
+      .filter(ex => !q || EXERCISE_LABELS[ex].toLowerCase().includes(q))
+      .sort((a, b) => EXERCISE_LABELS[a].localeCompare(EXERCISE_LABELS[b]))
+  }, [exSearch, exCategory])
 
   // ── Program / start-exercise init ────────────────────────────────────
   useEffect(() => {
@@ -1253,20 +1330,75 @@ export function WorkoutPage() {
               </div>
             )}
 
-            {/* Exercise selector */}
+            {/* Exercise picker */}
             <div className="card-surface p-4">
               <label className="block text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2">
                 Exercise
               </label>
-              <select
-                value={currentExercise}
-                onChange={e => setExercise(e.target.value)}
-                className="input-dark capitalize"
+
+              {/* Collapsed: show current exercise, click to open */}
+              <button
+                onClick={() => { setShowExPicker(v => !v); setExSearch(''); }}
+                className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-left transition-colors"
+                style={{ background: '#1a1a2e', border: '1px solid #2a2a42' }}
               >
-                {EXERCISES.map(ex => (
-                  <option key={ex} value={ex}>{EXERCISE_LABELS[ex]}</option>
-                ))}
-              </select>
+                <span className="text-[14px] font-bold text-white">
+                  {EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}
+                </span>
+                <span className="text-gray-500 text-[11px]">{showExPicker ? '▲ close' : '▼ change'}</span>
+              </button>
+
+              {/* Expanded picker */}
+              {showExPicker && (
+                <div className="mt-3 space-y-3">
+                  {/* Search */}
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Search exercises…"
+                    value={exSearch}
+                    onChange={e => setExSearch(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-[13px] text-white placeholder-gray-600 outline-none"
+                    style={{ background: '#111119', border: '1px solid #2a2a42' }}
+                  />
+
+                  {/* Category tabs */}
+                  <div className="flex gap-1.5 flex-wrap">
+                    {CATEGORY_TABS.map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => setExCategory(cat)}
+                        className="px-3 py-1 rounded-full text-[11px] font-semibold transition-colors"
+                        style={exCategory === cat
+                          ? { background: '#3b82f6', color: '#fff' }
+                          : { background: '#1e1e2e', color: '#9ca3af' }
+                        }
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Exercise grid */}
+                  <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto pr-0.5">
+                    {filteredExercises.length === 0 ? (
+                      <p className="col-span-2 text-center text-[12px] text-gray-600 py-4">No exercises match</p>
+                    ) : filteredExercises.map(ex => (
+                      <button
+                        key={ex}
+                        onClick={() => { setExercise(ex); setShowExPicker(false); setExSearch(''); setExCategory('All'); }}
+                        className="px-3 py-2 rounded-lg text-left text-[12px] font-semibold transition-colors truncate"
+                        style={currentExercise === ex
+                          ? { background: '#1d4ed8', color: '#fff', border: '1px solid #3b82f6' }
+                          : { background: '#111119', color: '#d1d5db', border: '1px solid #1e1e2e' }
+                        }
+                      >
+                        {EXERCISE_LABELS[ex]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Rep counter / Hold timer */}
