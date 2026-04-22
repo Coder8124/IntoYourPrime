@@ -99,11 +99,10 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
   if (ex === 'lunge') {
     if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
-    // Identify the front knee (the more bent one = lower y = closer to camera floor)
-    // Only check front-knee tracking — back knee is always offset from its ankle in a lunge
-    const lKneeY = lKn.y, rKneeY = rKn.y
-    const frontKn = lKneeY > rKneeY ? lKn : rKn
-    const frontAn = lKneeY > rKneeY ? lAn : rAn
+    // Front knee is HIGHER in frame (lower Y value) — the back knee drops to the floor (higher Y).
+    // e.g. right-leg-forward lunge: right knee Y ≈ 0.55, left (back) knee Y ≈ 0.75
+    const frontKn = lKn.y < rKn.y ? lKn : rKn
+    const frontAn = lKn.y < rKn.y ? lAn : rAn
     const kneeTrack = Math.max(0, Math.abs(frontKn.x - frontAn.x) - 0.06)
     // Torso upright — shoulder should stay over hip
     let torsoLean = 0
