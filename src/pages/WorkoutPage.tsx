@@ -547,20 +547,6 @@ export function WorkoutPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleNextProgramExercise = useCallback(() => {
-    const next = advanceProgramExercise()
-    setActiveProgramState(next)
-    if (next) {
-      const ex = next.exercises[next.currentIndex]
-      if (ex && EXERCISES.includes(ex as typeof EXERCISES[number])) {
-        setExercise(ex)
-        resetExerciseReps(ex)
-        resetRepCounter()
-        resetHoldTimer()
-      }
-    }
-  }, [setExercise, resetExerciseReps, resetRepCounter, resetHoldTimer])
-
   const nudgeCameraZoom = useCallback((delta: number) => {
     setCameraZoom((z) => {
       const next = z + delta
@@ -631,6 +617,20 @@ export function WorkoutPage() {
   const isHoldExercise = HOLD_EXERCISES.includes(currentExercise)
   const { holdSeconds, isInPosition, reset: resetHoldTimer } =
     useHoldTimer(landmarks, currentExercise)
+
+  const handleNextProgramExercise = useCallback(() => {
+    const next = advanceProgramExercise()
+    setActiveProgramState(next)
+    if (next) {
+      const ex = next.exercises[next.currentIndex]
+      if (ex && EXERCISES.includes(ex as typeof EXERCISES[number])) {
+        setExercise(ex)
+        resetExerciseReps(ex)
+        resetRepCounter()
+        resetHoldTimer()
+      }
+    }
+  }, [setExercise, resetExerciseReps, resetRepCounter, resetHoldTimer])
 
   // ── Keep mutable refs in sync with latest values ───────────────────────
   useEffect(() => { repCountRef.current = repCount        }, [repCount])
@@ -1309,7 +1309,7 @@ export function WorkoutPage() {
                           background: movementPhase === 'down' ? '#3b82f6'
                                     : movementPhase === 'up'   ? '#22c55e'
                                     : '#374151',
-                          boxShadow: movementPhase !== 'unknown' ? `0 0 6px ${movementPhase === 'down' ? '#3b82f6' : '#22c55e'}` : 'none',
+                          boxShadow: `0 0 6px ${movementPhase === 'down' ? '#3b82f6' : '#22c55e'}`,
                         }}
                       />
                       <span className="text-[11px] text-gray-500 capitalize">{movementPhase}</span>
