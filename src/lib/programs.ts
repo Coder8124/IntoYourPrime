@@ -192,6 +192,51 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
     ],
     riskNote: 'Main risks: elbow flare and upper arm drift. The AI tracks elbow position relative to your shoulders.',
   },
+  {
+    id: 'lateralraise',
+    name: 'Lateral Raise',
+    muscles: ['Shoulders', 'Traps', 'Serratus'],
+    difficulty: 'Beginner',
+    description: 'An isolation exercise for the lateral deltoid that builds shoulder width. Commonly cheated with momentum.',
+    cues: [
+      'Stand tall, slight bend in the elbows — don\'t lock them straight',
+      'Raise arms out to the sides until parallel with the floor',
+      'Lead with your elbows, not your wrists',
+      'Lower slowly — 2-3 second descent',
+      'No shrugging — keep your traps relaxed',
+    ],
+    riskNote: 'Main risks: asymmetric arm height and forward wrist reach. The AI tracks wrist symmetry and position.',
+  },
+  {
+    id: 'hammercurl',
+    name: 'Hammer Curl',
+    muscles: ['Biceps', 'Brachialis', 'Brachioradialis', 'Forearms'],
+    difficulty: 'Beginner',
+    description: 'A neutral-grip curl variation that hits the brachialis and brachioradialis harder than a standard curl.',
+    cues: [
+      'Palms facing each other (neutral grip) throughout the movement',
+      'Keep elbows pinned to your sides — no swinging',
+      'Curl until forearms are vertical',
+      'Lower with control — 2 second descent',
+      'Don\'t rotate your wrists — maintain neutral grip the entire rep',
+    ],
+    riskNote: 'Same risks as bicep curl: elbow drift and body sway. The AI catches momentum cheating.',
+  },
+  {
+    id: 'pullup',
+    name: 'Pull-Up',
+    muscles: ['Lats', 'Biceps', 'Rear Delts', 'Core'],
+    difficulty: 'Advanced',
+    description: 'The gold-standard back exercise. Requires pulling your bodyweight from a dead hang to chin-over-bar.',
+    cues: [
+      'Start from a full dead hang — arms completely extended',
+      'Pull your shoulder blades down and together before initiating',
+      'Drive elbows toward your hips as you pull',
+      'Chin clears the bar — don\'t stop short',
+      'Lower with control — avoid dropping into the dead hang',
+    ],
+    riskNote: 'Main risks: shoulder asymmetry and elbow flare. The AI tracks shoulder balance and elbow alignment.',
+  },
 ]
 
 export interface WorkoutProgram {
@@ -259,12 +304,22 @@ export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
   {
     id: 'strength-builder',
     name: 'Strength Builder',
-    description: 'Five compound movements covering push, pull, and legs. The full-body strength standard.',
+    description: 'Compound push, pull, and leg movements. The full-body strength standard.',
     level: 'Advanced',
     duration: '~35 min',
-    exercises: ['deadlift', 'squat', 'pushup', 'shoulderpress', 'lunge'],
+    exercises: ['deadlift', 'squat', 'pullup', 'pushup', 'shoulderpress', 'lunge'],
     tags: ['Full Body', 'Compound', 'Strength'],
     emoji: '🏋️',
+  },
+  {
+    id: 'arms-shoulders',
+    name: 'Arms & Shoulders',
+    description: 'A complete arm and shoulder isolation routine covering all major push and pull muscles.',
+    level: 'Intermediate',
+    duration: '~25 min',
+    exercises: ['bicepcurl', 'hammercurl', 'tricepextension', 'lateralraise', 'shoulderpress'],
+    tags: ['Upper Body', 'Isolation', 'Arms'],
+    emoji: '💪',
   },
 ]
 

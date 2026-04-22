@@ -133,6 +133,42 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, 10 + Math.round(flare * 500 + Math.max(lUpperArmDrift, rUpperArmDrift) * 380))
   }
 
+  if (ex === 'lateralraise') {
+    if (!vis(lWr, 0.3) || !vis(rWr, 0.3) || !vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    // Wrist asymmetry: both arms should rise to the same height
+    const asymmetry = Math.abs(lWr.y - rWr.y)
+    // Forward reach: wrists should stay roughly in line with shoulders, not in front
+    const lFwd = Math.max(0, Math.abs(lWr.x - lSh.x) - 0.08)
+    const rFwd = Math.max(0, Math.abs(rWr.x - rSh.x) - 0.08)
+    return Math.min(100, 10 + Math.round(asymmetry * 500 + Math.max(lFwd, rFwd) * 340))
+  }
+
+  if (ex === 'hammercurl') {
+    // Same form risks as bicep curl: elbow drift and body sway
+    if (!vis(lEl, 0.3) || !vis(rEl, 0.3) || !vis(lHip, 0.3)) return 10
+    const lDrift = Math.max(0, Math.abs(lEl.x - lHip.x) - 0.07)
+    const rDrift = Math.max(0, Math.abs(rEl.x - rHip.x) - 0.07)
+    let sway = 0
+    if (vis(lSh) && vis(rSh)) {
+      sway = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.04)
+    }
+    return Math.min(100, 10 + Math.round(Math.max(lDrift, rDrift) * 480 + sway * 360))
+  }
+
+  if (ex === 'pullup') {
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    // Shoulder asymmetry: both shoulders should rise evenly
+    const shAsym = Math.abs(lSh.y - rSh.y)
+    // Elbow flare: elbows should stay roughly under wrists, not flaring out excessively
+    let flare = 0
+    if (vis(lEl, 0.3) && vis(rEl, 0.3) && vis(lWr, 0.3) && vis(rWr, 0.3)) {
+      const lElFl = Math.max(0, Math.abs(lEl.x - lWr.x) - 0.07)
+      const rElFl = Math.max(0, Math.abs(rEl.x - rWr.x) - 0.07)
+      flare = Math.max(lElFl, rElFl)
+    }
+    return Math.min(100, 10 + Math.round(shAsym * 500 + flare * 380))
+  }
+
   const BASE = 10
 
   if (ex === 'jumpingjack') {
@@ -186,7 +222,7 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'highnees', 'plank', 'wallsit', 'tricepextension'] as const
+const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'highnees', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup'] as const
 
 const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   squat:           'Squat',
@@ -201,6 +237,9 @@ const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   plank:           'Plank',
   wallsit:         'Wall Sit',
   tricepextension: 'Tricep Extension',
+  lateralraise:    'Lateral Raise',
+  hammercurl:      'Hammer Curl',
+  pullup:          'Pull-Up',
 }
 
 const DEMO_SUGGESTIONS = [

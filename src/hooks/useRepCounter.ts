@@ -33,6 +33,9 @@ export type SupportedExercise =
   | 'plank'
   | 'wallsit'
   | 'tricepextension'
+  | 'lateralraise'
+  | 'hammercurl'
+  | 'pullup'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -61,6 +64,8 @@ interface ExerciseConfig {
    * 'up_to_down' — shoulderpress: overhead (up) → back down = rep done
    */
   repOn: 'down_to_up' | 'up_to_down'
+  /** Override the global DEBOUNCE_MS for fast exercises like high knees or jumping jacks */
+  debounceMs?: number
 }
 
 const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
@@ -75,15 +80,22 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   bicepcurl:     { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'down_to_up' },
   // Jumping jack: track wrists — arms go overhead (low Y) then back to sides (high Y)
   // Rep counted on up_to_down: when arms come back down = one full jack completed
-  jumpingjack:   { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'up_to_down' },
-  // High knees: track minimum knee Y (the currently-raised knee). Each knee raise = 1 rep.
-  highnees:      { joints: [LM.LEFT_KNEE,        LM.RIGHT_KNEE],     repOn: 'down_to_up' },
+  jumpingjack:     { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'up_to_down',  debounceMs: 700 },
+  // High knees: use absolute knee-Y difference. Both level = diff≈0 = "up"; one raised = diff large = "down".
+  // Rep counted on up_to_down: when diff grows (knee rising) = 1 rep per raise.
+  highnees:        { joints: [LM.LEFT_KNEE,        LM.RIGHT_KNEE],     repOn: 'up_to_down',  debounceMs: 500 },
   // Hold exercises — no reps counted; useHoldTimer handles timing
   plank:           { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
   wallsit:         { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
   // Tricep extension: elbow angle. Extended overhead (~160°) = up; bent behind head (~40°) = down.
   // invertSignal=true: large angle (extended) → low normalised → "up" phase.
-  tricepextension: { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'down_to_up' },
+  tricepextension: { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
+  // Lateral raise: wrist Y. Arms at sides (high Y) = "down"; arms at shoulder height (low Y) = "up".
+  lateralraise:    { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'up_to_down',  debounceMs: 900 },
+  // Hammer curl: same elbow-angle signal as bicep curl, neutral grip (indistinguishable by pose).
+  hammercurl:      { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
+  // Pull-up: elbow angle. Arms fully extended (hanging) = large angle = "down"; chin-over-bar = small angle = "up".
+  pullup:          { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -312,10 +324,10 @@ export function useRepCounter(
       if (!result || result.confidence < 0.4) return   // lower threshold — prone reduces confidence
       rawSignal    = result.value
       invertSignal = true
-    } else if (exerciseKey === 'bicepcurl') {
-      // Elbow angle: extended (~160°) = bottom, contracted (~40°) = top.
-      // No inversion: large angle → high normalised → "down"; small → "up".
-      // Rep counted on down→up (completing the curl).
+    } else if (exerciseKey === 'bicepcurl' || exerciseKey === 'hammercurl' || exerciseKey === 'pullup') {
+      // Elbow angle: extended (~160°) = bottom/hanging, contracted (~40°) = top/curled.
+      // No inversion: large angle → high normalised → "down"; small angle → "up".
+      // Rep counted on down→up (completing the curl / reaching chin-over-bar).
       const result = getElbowAngle(landmarks)
       if (!result || result.confidence < CONFIDENCE_THRESH) return
       rawSignal    = result.value
@@ -345,20 +357,22 @@ export function useRepCounter(
       if (!joint || joint.confidence < 0.35) return
       rawSignal = joint.y
     } else if (exerciseKey === 'highnees') {
-      // Track the MINIMUM knee Y (the highest knee at any moment).
-      // Alternating: left knee up → min drops; right knee up → min drops again.
-      // Each raise gets its own up/down cycle → each knee lift counts as 1 rep.
-      // invertSignal=true: low Y (knee high) → low normalised → "up" phase.
+      // Absolute knee-Y difference. Both at rest: diff≈0 → "up" phase (below threshold).
+      // One knee raised: diff grows → "down" phase. Alternating knees create two diff peaks
+      // per L-R cycle → each raise counted as a rep on the rising edge (up_to_down).
       const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
       const lConf = lKn?.visibility ?? 0
       const rConf = rKn?.visibility ?? 0
-      if (lConf < 0.3 && rConf < 0.3) return
-      // Use whichever knee is most visible; if both visible, take the min (highest knee)
-      rawSignal    = Math.min(
-        lConf >= 0.3 ? lKn.y : 1,
-        rConf >= 0.3 ? rKn.y : 1,
-      )
-      invertSignal = true  // low Y (knee up) → low normalised → "up" phase
+      if (lConf < 0.3 || rConf < 0.3) return  // need both visible to compute a meaningful diff
+      rawSignal    = Math.abs(lKn.y - rKn.y)
+      invertSignal = false  // large diff (one knee up) → high normalised → "down" phase
+    } else if (exerciseKey === 'lateralraise') {
+      // Average wrist Y. Arms at sides (high Y) = "down"; raised to shoulder height (low Y) = "up".
+      // Lower confidence threshold — arms don't go fully overhead so wrists stay visible.
+      const joint = getJointY(landmarks, config.joints[0], config.joints[1])
+      if (!joint || joint.confidence < 0.5) return
+      rawSignal    = joint.y
+      invertSignal = false
     } else {
       const joint = getJointY(landmarks, config.joints[0], config.joints[1])
       if (!joint || joint.confidence < CONFIDENCE_THRESH) return
@@ -424,7 +438,7 @@ export function useRepCounter(
 
     if (isRepTransition) {
       const timeSinceLast = lastRepTime.current ? now - lastRepTime.current : Infinity
-      if (timeSinceLast >= DEBOUNCE_MS) {
+      if (timeSinceLast >= (config.debounceMs ?? DEBOUNCE_MS)) {
         const newCount = repCountRef.current + 1
         repCountRef.current = newCount
         lastRepTime.current = now
