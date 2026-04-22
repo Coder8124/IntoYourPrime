@@ -90,10 +90,10 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     if (!vis(lSh, 0.3) || !vis(rSh, 0.3) || !vis(lWr, 0.3) || !vis(rWr, 0.3)) return 10
     // L/R asymmetry: both wrists should travel equal distances
     const asymmetry = Math.abs((lSh.y - lWr.y) - (rSh.y - rWr.y))
-    // Wrist flare: wrists should stay roughly over shoulders
-    const lFlare = Math.max(0, Math.abs(lWr.x - lSh.x) - 0.09)
-    const rFlare = Math.max(0, Math.abs(rWr.x - rSh.x) - 0.09)
-    return Math.min(100, 10 + Math.round(asymmetry * 480 + Math.max(lFlare, rFlare) * 360))
+    // Wrist flare: wrists naturally sit outside shoulders — wider tolerance
+    const lFlare = Math.max(0, Math.abs(lWr.x - lSh.x) - 0.16)
+    const rFlare = Math.max(0, Math.abs(rWr.x - rSh.x) - 0.16)
+    return Math.min(100, 10 + Math.round(asymmetry * 280 + Math.max(lFlare, rFlare) * 200))
   }
 
   if (ex === 'curlup') {
@@ -204,17 +204,11 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
   if (ex === 'wallsit') {
     if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
-    // Knee valgus (same as squat)
-    const lValgus = Math.max(0, lAn.x - lKn.x)
-    const rValgus = Math.max(0, rKn.x - rAn.x)
+    // Only flag severe knee valgus — wall sit doesn't need perfect tracking
+    const lValgus = Math.max(0, lAn.x - lKn.x - 0.05)
+    const rValgus = Math.max(0, rKn.x - rAn.x - 0.05)
     const valgus  = Math.max(lValgus, rValgus)
-    // Forward lean — torso should stay upright
-    let lean = 0
-    if (vis(lSh) && vis(rSh) && vis(lHip) && vis(rHip)) {
-      const shMx = (lSh.x + rSh.x) / 2, hipMx = (lHip.x + rHip.x) / 2
-      lean = Math.max(0, Math.abs(shMx - hipMx) - 0.06)
-    }
-    return Math.min(100, BASE + Math.round(valgus * 650 + lean * 380))
+    return Math.min(100, BASE + Math.round(valgus * 400))
   }
 
   return 0
@@ -771,15 +765,6 @@ export function WorkoutPage() {
   // ── Live risk from pose landmarks (runs every frame) ──────────────────
   useEffect(() => {
     if (!landmarks || !isTracking) return
-
-    // For regular exercises, only compute risk when actively moving (phase known).
-    // Hold exercises (plank/wallsit) have no rep phase — always compute for them.
-    const isHoldEx = HOLD_EXERCISES.includes(exerciseRef.current)
-    if (!isHoldEx && movementPhaseRef.current === 'unknown') {
-      // Idle / between reps — reset to neutral so standing posture doesn't inflate the score
-      updateAnalysis({ riskScore: 0, suggestions: [], safetyConcerns: [], repCountEstimate: 0, dominantIssue: null, warmupQuality: null })
-      return
-    }
 
     const localScore = computeAlignmentRisk(landmarks, exerciseRef.current)
     const aiScore = aiRiskRef.current

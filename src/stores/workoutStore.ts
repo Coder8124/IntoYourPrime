@@ -94,9 +94,7 @@ export const useWorkoutStore = create<WorkoutState>()((set) => ({
             ...state.suggestions,
           ].slice(0, 10)
         : state.suggestions,
-      safetyConcerns: result.safetyConcerns.length > 0
-        ? result.safetyConcerns
-        : state.safetyConcerns,
+      safetyConcerns: result.safetyConcerns,
     }
   }),
 

@@ -238,6 +238,27 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
     const guide = exerciseGuides[params.exercise.toLowerCase()]
       ?? 'Check posture, joint alignment, spine neutrality, and full range of motion. Flag any rounding, collapsing, or compensatory movement patterns.'
 
+    // Which body parts are actually relevant — the AI must not flag others
+    const bodyFocus: Record<string, string> = {
+      pushup:          'hands, wrists, elbows, shoulders, spine, hips, ankles — full body alignment',
+      squat:           'feet, ankles, knees, hips, spine, shoulders',
+      deadlift:        'feet, hips, spine, shoulders, bar path',
+      lunge:           'front knee, back knee, hips, torso, feet',
+      shoulderpress:   'wrists, elbows, shoulders, upper back, core — NOT knees or ankles',
+      curlup:          'neck, shoulders, lower back, core — NOT knees or ankles',
+      bicepcurl:       'wrists, elbows, shoulders, torso — NOT knees or ankles',
+      hammercurl:      'wrists, elbows, shoulders, torso — NOT knees or ankles',
+      tricepextension: 'elbows, wrists, upper arms, shoulders — NOT knees, ankles, or lower body',
+      lateralraise:    'wrists, elbows, shoulders — NOT knees or ankles',
+      pullup:          'hands, elbows, shoulders, core — NOT knees or ankles',
+      plank:           'shoulders, hips, spine, ankles — full body alignment',
+      wallsit:         'knees, hips, back against wall — lower body only',
+      jumpingjack:     'arms, shoulders, knees, landing mechanics',
+      highnees:        'knees, hips, torso — upright posture',
+    }
+    const focusNote = bodyFocus[params.exercise.toLowerCase()]
+      ?? 'all major joints relevant to this exercise'
+
     const repInfo = params.repCount != null ? ` (${params.repCount} reps completed so far)` : ''
     const levelMap: Record<string, string> = {
       beginner:     'beginner — be encouraging but very direct about safety issues',
@@ -261,6 +282,9 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
         '  41–60 = clear form breakdown, injury risk building',
         '  61–80 = significant fault, stop and correct',
         '  81–100 = dangerous, high injury risk right now',
+        '',
+        `RELEVANT BODY PARTS FOR THIS EXERCISE: ${focusNote}`,
+        '- Analyze ONLY the body parts listed above. Do NOT comment on, penalize, or mention body parts not listed.',
         '',
         'IMPORTANT RULES:',
         '- Base riskScore ONLY on what you can clearly see in the images.',
