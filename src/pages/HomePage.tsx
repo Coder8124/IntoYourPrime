@@ -541,6 +541,41 @@ export function HomePage() {
           </div>
         </section>
 
+        {/* ── Basketball shooting form ── */}
+        <section className="mt-8">
+          <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(234,88,12,0.3)' }}>
+            <div className="px-5 py-4 flex items-center justify-between"
+              style={{ background: 'linear-gradient(135deg, rgba(234,88,12,0.12) 0%, rgba(245,158,11,0.10) 100%)' }}>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-400">Basketball Mode</span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                    Coming Soon
+                  </span>
+                </div>
+                <p className="text-[15px] font-black text-white">Shooting Form Tracker</p>
+              </div>
+              <div className="text-3xl">🏀</div>
+            </div>
+            <div className="px-5 py-4 space-y-2" style={{ background: 'rgba(10,10,20,0.8)' }}>
+              <p className="text-[13px] text-gray-400 leading-relaxed">
+                Real-time analysis of your shooting mechanics — elbow alignment, release point, follow-through, and arc consistency, rep by rep.
+              </p>
+              {[
+                { icon: '📐', text: 'Elbow tuck & wrist alignment on every shot' },
+                { icon: '🎯', text: 'Release point consistency tracking' },
+                { icon: '🔄', text: 'Follow-through and arc angle scoring' },
+                { icon: '📊', text: 'Shot-by-shot form breakdown & trends' },
+              ].map(({ icon, text }) => (
+                <div key={text} className="flex items-center gap-3">
+                  <span className="text-base">{icon}</span>
+                  <span className="text-[13px] text-gray-400">{text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── Friends feed ── */}
         <section className="mt-8">
           <div className="mb-3 flex items-center justify-between">
