@@ -6,6 +6,10 @@ import type { NormalizedLandmark } from '@mediapipe/pose'
 const LM = {
   LEFT_SHOULDER:  11,
   RIGHT_SHOULDER: 12,
+  LEFT_ELBOW:     13,
+  RIGHT_ELBOW:    14,
+  LEFT_WRIST:     15,
+  RIGHT_WRIST:    16,
   LEFT_HIP:       23,
   RIGHT_HIP:      24,
   LEFT_KNEE:      25,
@@ -116,11 +120,56 @@ function detectWallSit(landmarks: NormalizedLandmark[]): boolean {
   return true
 }
 
+/**
+ * Cross-body shoulder stretch: one wrist has crossed to the opposite side of the body
+ * (near the opposite shoulder), held at roughly chest height.
+ */
+function detectCrossBodyStretch(landmarks: NormalizedLandmark[]): boolean {
+  if (landmarks.length < 17) return false
+  const lSh = landmarks[LM.LEFT_SHOULDER], rSh = landmarks[LM.RIGHT_SHOULDER]
+  const lWr = landmarks[LM.LEFT_WRIST],   rWr = landmarks[LM.RIGHT_WRIST]
+  if (!vis(lSh) || !vis(rSh)) return false
+
+  // Left wrist near right shoulder's X (left arm crossing right)
+  const leftCrossed = vis(lWr, 0.3)
+    && Math.abs(lWr.x - rSh.x) < 0.22
+    && Math.abs(lWr.y - rSh.y) < 0.28
+  // Right wrist near left shoulder's X (right arm crossing left)
+  const rightCrossed = vis(rWr, 0.3)
+    && Math.abs(rWr.x - lSh.x) < 0.22
+    && Math.abs(rWr.y - lSh.y) < 0.28
+
+  return leftCrossed || rightCrossed
+}
+
+/**
+ * Tricep stretch: one elbow is raised above shoulder level with the wrist
+ * dropping behind the head (elbow bent overhead).
+ */
+function detectTricepStretch(landmarks: NormalizedLandmark[]): boolean {
+  if (landmarks.length < 17) return false
+  const lSh = landmarks[LM.LEFT_SHOULDER], rSh = landmarks[LM.RIGHT_SHOULDER]
+  const lEl = landmarks[LM.LEFT_ELBOW],   rEl = landmarks[LM.RIGHT_ELBOW]
+  const lWr = landmarks[LM.LEFT_WRIST],   rWr = landmarks[LM.RIGHT_WRIST]
+
+  // Left: elbow higher than shoulder AND wrist drops below elbow (bent behind head)
+  const leftStretch = vis(lSh) && vis(lEl) && vis(lWr, 0.3)
+    && lEl.y < lSh.y - 0.03
+    && lWr.y > lEl.y + 0.05
+
+  // Right: same
+  const rightStretch = vis(rSh) && vis(rEl) && vis(rWr, 0.3)
+    && rEl.y < rSh.y - 0.03
+    && rWr.y > rEl.y + 0.05
+
+  return leftStretch || rightStretch
+}
+
 // ── Hook ───────────────────────────────────────────────────────────────────
 
-export type HoldExercise = 'plank' | 'wallsit'
+export type HoldExercise = 'plank' | 'wallsit' | 'crossbodystretch' | 'tricepstretch'
 
-export const HOLD_EXERCISES: readonly string[] = ['plank', 'wallsit']
+export const HOLD_EXERCISES: readonly string[] = ['plank', 'wallsit', 'crossbodystretch', 'tricepstretch']
 
 export interface UseHoldTimerReturn {
   holdSeconds:  number
@@ -169,8 +218,10 @@ export function useHoldTimer(
 
     const ex = exercise.toLowerCase().trim()
     let detected = false
-    if (ex === 'plank')   detected = detectPlank(landmarks)
-    if (ex === 'wallsit') detected = detectWallSit(landmarks)
+    if (ex === 'plank')            detected = detectPlank(landmarks)
+    if (ex === 'wallsit')          detected = detectWallSit(landmarks)
+    if (ex === 'crossbodystretch') detected = detectCrossBodyStretch(landmarks)
+    if (ex === 'tricepstretch')    detected = detectTricepStretch(landmarks)
 
     if (detected !== inPositionRef.current) {
       inPositionRef.current = detected

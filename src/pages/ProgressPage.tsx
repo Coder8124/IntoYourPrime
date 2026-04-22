@@ -30,6 +30,7 @@ const EXERCISE_LABELS: Record<string, string> = {
   curlup: 'Curl-Up', situp: 'Sit-Up', bicepcurl: 'Bicep Curl',
   jumpingjack: 'Jumping Jack', highnees: 'High Knees',
   buttskick: 'Butt Kicks', calfraise: 'Calf Raises', armcircle: 'Arm Circles', scapulasqueeze: 'Scapula Squeeze',
+  crossbodystretch: 'Cross-Body Shoulder Stretch', tricepstretch: 'Tricep Stretch',
   plank: 'Plank', wallsit: 'Wall Sit',
 }
 

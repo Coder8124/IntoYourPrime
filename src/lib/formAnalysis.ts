@@ -287,6 +287,22 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
         'DIRECTION: confirm both arms are circling the same direction unless explicitly doing alternating circles.',
       ].join('\n'),
 
+      crossbodystretch: [
+        'SHOULDER POSITION (highest priority): the stretched arm should be held horizontally across the chest — not drooping low or raised too high.',
+        'NECK: neutral — do not tilt your head or shrug the opposite shoulder up toward the ear. Score 45+ if visible neck tension.',
+        'HOLD ARM: the arm pulling/holding at the elbow should not jerk or bounce — steady, gentle pressure only.',
+        'TORSO: upright and square — do not rotate the torso toward the stretched arm. Score 35+ if the torso is turning.',
+        'BREATHING: slow exhale helps deepen the stretch — watch for breath-holding (shoulders raise on inhale and stay up).',
+      ].join('\n'),
+
+      tricepstretch: [
+        'ELBOW POSITION (highest priority): the bent elbow must point straight up toward the ceiling — not drifting forward or out to the side. Score 50+ if elbow is clearly off-axis.',
+        'NECK: neutral — do not let the head tilt sideways toward the raised arm. Score 45+ if neck is visibly strained.',
+        'TORSO: straight and upright — do not lean sideways away from the raised arm to compensate. Score 40+ if leaning.',
+        'ASSIST HAND: if using the other hand to press on the elbow, pressure should be gentle and downward — not pushing sideways.',
+        'SHOULDER: the stretching shoulder should stay relaxed and depressed — not shrugged up toward the ear.',
+      ].join('\n'),
+
       scapulasqueeze: [
         'RETRACTION SYMMETRY (highest priority): both shoulder blades must pull back equally — one-sided retraction = neck and shoulder muscle imbalance. Score 55+ if clearly asymmetric.',
         'NO SHRUGGING: traps should stay relaxed and depressed throughout — shoulder blades pull BACK, not UP. Score 50+ if shoulders are visibly hiking.',
@@ -322,7 +338,9 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
       calfraise:       'feet, ankles, calves, knees — NOT upper body or hips',
       situp:           'neck, shoulders, lower back, core, torso — NOT knees or ankles',
       armcircle:       'wrists, elbows, shoulders, upper back — NOT knees, ankles, or hips',
-      scapulasqueeze:  'shoulders, upper back, shoulder blades, chest — NOT knees, ankles, or lower body',
+      scapulasqueeze:   'shoulders, upper back, shoulder blades, chest — NOT knees, ankles, or lower body',
+      crossbodystretch: 'shoulders, neck, upper back, stretched arm — NOT knees, ankles, or lower body',
+      tricepstretch:    'elbow, shoulder, neck, torso alignment — NOT knees, ankles, or lower body',
     }
     const focusNote = bodyFocus[params.exercise.toLowerCase()]
       ?? 'all major joints relevant to this exercise'

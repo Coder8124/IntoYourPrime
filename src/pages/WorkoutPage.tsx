@@ -272,6 +272,13 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, BASE + Math.round(asymmetry * 500))
   }
 
+  if (ex === 'crossbodystretch' || ex === 'tricepstretch') {
+    // Very low injury risk — just flag neck tension (shoulder hike)
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 0
+    const shAsym = Math.abs(lSh.y - rSh.y)
+    return Math.min(100, BASE + Math.round(shAsym * 400))
+  }
+
   if (ex === 'scapulasqueeze') {
     if (!vis(lSh, 0.4) || !vis(rSh, 0.4)) return 0
     // Shoulder height asymmetry: one shoulder hiking up (shrugging) during the squeeze = neck tension
@@ -289,7 +296,7 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'benchpress', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'situp', 'bicepcurl', 'jumpingjack', 'highnees', 'mountainclimber', 'buttskick', 'calfraise', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup', 'armcircle', 'scapulasqueeze'] as const
+const EXERCISES = ['squat', 'pushup', 'benchpress', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'situp', 'bicepcurl', 'jumpingjack', 'highnees', 'mountainclimber', 'buttskick', 'calfraise', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup', 'armcircle', 'scapulasqueeze', 'crossbodystretch', 'tricepstretch'] as const
 
 const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   squat:           'Squat',
@@ -313,7 +320,9 @@ const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   calfraise:       'Calf Raises',
   situp:           'Sit-Up',
   armcircle:       'Arm Circles',
-  scapulasqueeze:  'Scapula Squeeze',
+  scapulasqueeze:   'Scapula Squeeze',
+  crossbodystretch: 'Cross-Body Shoulder Stretch',
+  tricepstretch:    'Tricep Stretch',
 }
 
 const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
@@ -324,6 +333,7 @@ const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
   hammercurl: 'Upper Body', lateralraise: 'Upper Body', scapulasqueeze: 'Upper Body',
   curlup: 'Core', situp: 'Core', plank: 'Core', mountainclimber: 'Core',
   jumpingjack: 'Cardio', highnees: 'Cardio', buttskick: 'Cardio', armcircle: 'Cardio',
+  crossbodystretch: 'Upper Body', tricepstretch: 'Upper Body',
 }
 
 const CATEGORY_TABS = ['All', 'Lower Body', 'Upper Body', 'Core', 'Cardio'] as const
@@ -333,6 +343,7 @@ const WARMUP_EXERCISES = new Set([
   'squat', 'lunge', 'pushup', 'plank', 'curlup',
   'mountainclimber', 'jumpingjack', 'highnees',
   'buttskick', 'calfraise', 'armcircle', 'scapulasqueeze',
+  'crossbodystretch', 'tricepstretch',
 ])
 
 const DEMO_SUGGESTIONS = [

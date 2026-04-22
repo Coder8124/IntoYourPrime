@@ -45,6 +45,8 @@ export type SupportedExercise =
   | 'situp'
   | 'armcircle'
   | 'scapulasqueeze'
+  | 'crossbodystretch'
+  | 'tricepstretch'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -121,6 +123,9 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Scapula squeeze: shoulder width (|lSh.x - rSh.x|). Wide/relaxed = "down". Squeezed/narrow = "up".
   // Rep counted on squeeze (down→up). Slow debounce — squeeze for 2–3 s, then release.
   scapulasqueeze:  { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'down_to_up', debounceMs: 1500 },
+  // Hold exercises — timer-only, no reps (useHoldTimer handles them)
+  crossbodystretch: { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
+  tricepstretch:    { joints: [LM.LEFT_ELBOW,        LM.RIGHT_ELBOW],    repOn: 'down_to_up' },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -349,8 +354,9 @@ export function useRepCounter(
   }, [exerciseKey, reset])
 
   useEffect(() => {
-    // Hold exercises (plank, wallsit) don't count reps — useHoldTimer handles them
-    if (exerciseKey === 'plank' || exerciseKey === 'wallsit') return
+    // Hold exercises don't count reps — useHoldTimer handles them
+    if (exerciseKey === 'plank' || exerciseKey === 'wallsit' ||
+        exerciseKey === 'crossbodystretch' || exerciseKey === 'tricepstretch') return
 
     if (!landmarks) {
       if (lastLandmarkTs.current != null) {
