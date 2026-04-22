@@ -277,9 +277,6 @@ export function useRepCounter(
   const lastRepTime     = useRef<number | null>(null)
   const lastLandmarkTs  = useRef<number | null>(null)
   const isPaused        = useRef(false)
-  // Track which signal source is active so we can reset calibration if it switches
-  // (knee-angle values are in degrees ~80-170; hip-Y values are 0-1 — mixing them corrupts the range)
-  const signalSourceRef = useRef<'knee' | 'hip' | null>(null)
 
   const [repCount,         setRepCount]         = useState(0)
   const [phase,            setPhase]            = useState<MovementPhase>('unknown')
@@ -300,7 +297,6 @@ export function useRepCounter(
     lastLandmarkTs.current = Date.now()
     isPaused.current       = false
     repCountRef.current    = 0
-    signalSourceRef.current = null
     setRepCount(0)
     setPhase('unknown')
     setLastRepTimestamp(null)
@@ -348,32 +344,22 @@ export function useRepCounter(
     let invertSignal = false
 
     if (exerciseKey === 'squat') {
-      // Primary: hip→knee→ankle angle with a lenient threshold so a partially
-      // visible ankle (common indoors / close camera) doesn't kill tracking.
-      // Fallback: average hip Y when the full leg is out of frame entirely.
-      // IMPORTANT: these two signals are on completely different scales (degrees vs 0-1).
-      // Track which source is active and reset calibration if it switches to prevent
-      // the EMA + range from getting corrupted by mixed-scale values.
+      // Both signals pre-normalized to 0-1, same direction (HIGH = squatting = "down"),
+      // so they're compatible in the EMA/calibration space even when the source switches.
+      // No invertSignal, no calibration reset needed on source switch — eliminates the
+      // perpetual-calibrating bug caused by knee confidence flickering around the threshold.
       const kneeResult = getKneeAngle(landmarks, 0.35)
-      let currentSource: 'knee' | 'hip'
       if (kneeResult && kneeResult.confidence >= 0.3) {
-        rawSignal    = kneeResult.value
-        invertSignal = true
-        currentSource = 'knee'
+        // Knee angle: flip so squatting (low °) → HIGH → "down".
+        // 60° = deep squat, 175° = fully standing.
+        const KNEE_MIN = 60, KNEE_MAX = 175
+        rawSignal = 1 - Math.max(0, Math.min(1, (kneeResult.value - KNEE_MIN) / (KNEE_MAX - KNEE_MIN)))
       } else {
+        // Hip-Y fallback: squatting drops hips → higher y → HIGH → "down". Same direction.
         const hip = getJointY(landmarks, LM.LEFT_HIP, LM.RIGHT_HIP)
         if (!hip || hip.confidence < 0.5) return
-        rawSignal    = hip.y
-        invertSignal = false
-        currentSource = 'hip'
+        rawSignal = hip.y
       }
-      if (signalSourceRef.current !== null && signalSourceRef.current !== currentSource) {
-        smoothedY.current      = null
-        calibratedMin.current  = Infinity
-        calibratedMax.current  = -Infinity
-        calibrationEnd.current = 0
-      }
-      signalSourceRef.current = currentSource
     } else if (exerciseKey === 'pushup') {
       // Elbow angle (shoulder→elbow→wrist). Extended arms (top): ~160-170°. Chest down (bottom): ~70-90°.
       // Only needs upper-body landmarks — much more reliable than hip-dependent signal in prone position.

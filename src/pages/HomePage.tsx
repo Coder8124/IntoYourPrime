@@ -221,7 +221,7 @@ export function HomePage() {
             {/* Hero */}
             <header className="relative pt-6 pb-2">
               <p className="text-[15px] text-gray-400">{timeGreeting()}</p>
-              <h1 className="mt-1 text-5xl font-black tracking-tight leading-none">{welcomeName}</h1>
+              <h1 className="mt-1 text-5xl font-black tracking-tight leading-tight">{welcomeName}</h1>
               <div className="mt-4 inline-flex items-center gap-2.5 rounded-full px-5 py-2.5"
                 style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
                 <Flame className="h-5 w-5 text-amber-400" />
@@ -387,7 +387,7 @@ export function HomePage() {
                   Unlocks real-time AI form coaching, voice feedback &amp; personalized insights.
                 </p>
                 <input
-                  type="password"
+                  type="text"
                   value={apiKeyInput}
                   onChange={e => setApiKeyInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSaveApiKey()}
