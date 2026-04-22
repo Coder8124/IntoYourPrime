@@ -71,6 +71,21 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
     riskNote: 'Highest injury risk of all exercises: spinal rounding. AI scoring is more aggressive for deadlifts.',
   },
   {
+    id: 'benchpress',
+    name: 'Bench Press',
+    muscles: ['Chest', 'Triceps', 'Shoulders'],
+    difficulty: 'Intermediate',
+    description: 'The primary horizontal push movement. Builds chest mass and upper-body pressing strength.',
+    cues: [
+      'Retract and depress your shoulder blades — pack them into the bench',
+      'Grip just outside shoulder-width, wrists stacked over elbows',
+      'Lower the bar to your lower chest in a slight arc',
+      'Elbows at ~45-75° from your torso — not flared wide',
+      'Press back up and slightly toward your face at lockout',
+    ],
+    riskNote: 'Main risk: elbow flare past shoulder width — high shoulder impingement risk. AI tracks elbow path and wrist symmetry.',
+  },
+  {
     id: 'shoulderpress',
     name: 'Shoulder Press',
     muscles: ['Shoulders', 'Triceps', 'Upper Traps'],

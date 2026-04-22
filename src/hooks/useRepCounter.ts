@@ -36,6 +36,7 @@ export type SupportedExercise =
   | 'lateralraise'
   | 'hammercurl'
   | 'pullup'
+  | 'benchpress'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -96,6 +97,8 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   hammercurl:      { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
   // Pull-up: elbow angle. Arms fully extended (hanging) = large angle = "down"; chin-over-bar = small angle = "up".
   pullup:          { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
+  // Bench press: elbow angle. Bar on chest (elbows bent ~70-80°) = "down". Arms extended (~160°) = "up".
+  benchpress:      { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -366,6 +369,13 @@ export function useRepCounter(
       // Invert: large angle (extended/top) → low normalised → "up" phase.
       const result = getElbowAngle(landmarks)
       if (!result || result.confidence < 0.4) return   // lower threshold — prone reduces confidence
+      rawSignal    = result.value
+      invertSignal = true
+    } else if (exerciseKey === 'benchpress') {
+      // Elbow angle (shoulder→elbow→wrist). Bar on chest (~70-80°) = "down". Arms extended (~160°) = "up".
+      // Same signal as push-up — invert so large angle (extended) → low normalised → "up".
+      const result = getElbowAngle(landmarks)
+      if (!result || result.confidence < 0.4) return
       rawSignal    = result.value
       invertSignal = true
     } else if (exerciseKey === 'bicepcurl' || exerciseKey === 'hammercurl' || exerciseKey === 'pullup') {

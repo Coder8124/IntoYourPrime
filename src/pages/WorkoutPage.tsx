@@ -45,6 +45,20 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, 10 + Math.round(sagPike * 850 + flare * 120))
   }
 
+  if (ex === 'benchpress') {
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3) || !vis(lEl, 0.3) || !vis(rEl, 0.3)) return 10
+    // Elbow flare: elbows should stay at ~45-75° from torso, not flaring past shoulders
+    const shW = Math.abs(lSh.x - rSh.x)
+    const elW = Math.abs(lEl.x - rEl.x)
+    const flare = Math.max(0, elW - shW * 1.5)
+    // Wrist asymmetry: both wrists should be at similar heights (y values)
+    let asymmetry = 0
+    if (vis(lWr, 0.3) && vis(rWr, 0.3)) {
+      asymmetry = Math.abs(lWr.y - rWr.y)
+    }
+    return Math.min(100, 10 + Math.round(flare * 400 + asymmetry * 350))
+  }
+
   if (ex === 'squat') {
     if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
     // Knee valgus: knees should stay at or outside ankle width (left knee x >= left ankle x)
@@ -218,11 +232,12 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'highnees', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup'] as const
+const EXERCISES = ['squat', 'pushup', 'benchpress', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'highnees', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup'] as const
 
 const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   squat:           'Squat',
   pushup:          'Push-Up',
+  benchpress:      'Bench Press',
   lunge:           'Lunge',
   deadlift:        'Deadlift',
   shoulderpress:   'Shoulder Press',

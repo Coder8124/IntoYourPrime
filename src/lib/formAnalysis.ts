@@ -206,6 +206,16 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
         'BACK FOOT: toes pointed forward or slightly out — not turned wildly sideways.',
       ].join('\n'),
 
+      benchpress: [
+        'ELBOW PATH (highest priority): elbows should travel at ~45-75° from the torso — not flaring straight out (shoulder impingement) and not tucked too tight.',
+        '  - Elbow flare past shoulder width = score 60+. Shoulder joint at serious risk.',
+        'BAR PATH: should move in a slight diagonal — from lower chest to lockout above the shoulders, not straight up.',
+        'ARCH: a slight natural lower-back arch is fine, but extreme bridge = cheating range. Score 45+ if visible.',
+        'WRIST SYMMETRY: both sides should press evenly — lopsided lockout = weak side compensation, score 40+.',
+        'LOCKOUT: full elbow extension at the top — no soft elbows.',
+        'SCAPULAR POSITION: shoulders should be retracted and depressed (back and down) throughout the set.',
+      ].join('\n'),
+
       shoulderpress: [
         'LOWER BACK (highest priority): pressing overhead with an arched lower back = lumbar disc risk.',
         '  - Excessive arch = score 65+. Core should be braced, slight forward lean is OK.',
@@ -241,6 +251,7 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
     // Which body parts are actually relevant — the AI must not flag others
     const bodyFocus: Record<string, string> = {
       pushup:          'hands, wrists, elbows, shoulders, spine, hips, ankles — full body alignment',
+      benchpress:      'wrists, elbows, shoulders, chest — NOT knees or ankles',
       squat:           'feet, ankles, knees, hips, spine, shoulders',
       deadlift:        'feet, hips, spine, shoulders, bar path',
       lunge:           'front knee, back knee, hips, torso, feet',
