@@ -33,6 +33,8 @@ const EXERCISE_LABELS: Record<string, string> = {
   crossbodystretch: 'Cross-Body Shoulder Stretch', tricepstretch: 'Tricep Stretch',
   hipcircle: 'Hip Circles', chestpress: 'Chest Press',
   plank: 'Plank', wallsit: 'Wall Sit',
+  sidelunge: 'Side Lunge', chestfly: 'Chest Fly',
+  jumpsquat: 'Jump Squat', burpee: 'Burpee',
 }
 
 // ── Sparkline chart ────────────────────────────────────────────────────────

@@ -293,6 +293,62 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, BASE + Math.round(sway * 300 + flare * 350))
   }
 
+  if (ex === 'sidelunge') {
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    // Same front-knee valgus check as lunge — the bending knee must track over toes
+    const frontKn = lKn.y < rKn.y ? lKn : rKn
+    const frontAn = lKn.y < rKn.y ? lAn : rAn
+    const kneeTrack = Math.max(0, Math.abs(frontKn.x - frontAn.x) - 0.06)
+    let torsoLean = 0
+    if (vis(lSh) && vis(rSh) && vis(lHip) && vis(rHip)) {
+      torsoLean = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.07)
+    }
+    return Math.min(100, BASE + Math.round(kneeTrack * 500 + torsoLean * 380))
+  }
+
+  if (ex === 'chestfly') {
+    if (!vis(lWr, 0.3) || !vis(rWr, 0.3) || !vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    // Arm symmetry: both wrists should be at the same height during the arc
+    const asymmetry = Math.abs(lWr.y - rWr.y)
+    // Elbow bend: wrists should stay roughly level with or slightly below elbows — no drooping
+    let elbowDrop = 0
+    if (vis(lEl, 0.3) && vis(rEl, 0.3)) {
+      elbowDrop = Math.max(0, Math.max(lWr.y - lEl.y, rWr.y - rEl.y) - 0.06)
+    }
+    return Math.min(100, BASE + Math.round(asymmetry * 500 + elbowDrop * 400))
+  }
+
+  if (ex === 'jumpsquat') {
+    // Same checks as squat (knee valgus + torso lean) — explosiveness doesn't change alignment requirements
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    const lValgus = Math.max(0, lAn.x - lKn.x)
+    const rValgus = Math.max(0, rKn.x - rAn.x)
+    const valgus  = Math.max(lValgus, rValgus)
+    let lean = 0
+    if (vis(lSh) && vis(rSh) && vis(lHip) && vis(rHip)) {
+      const shMx = (lSh.x + rSh.x) / 2, hipMx = (lHip.x + rHip.x) / 2
+      lean = Math.max(0, Math.abs(shMx - hipMx) - 0.06)
+    }
+    return Math.min(100, BASE + Math.round(valgus * 650 + lean * 380))
+  }
+
+  if (ex === 'burpee') {
+    // During the squat-down phase: knee valgus. During plank phase: hip sag.
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 0
+    let hipSag = 0
+    if (vis(lHip, 0.3) && vis(rHip, 0.3) && vis(lAn, 0.3) && vis(rAn, 0.3)) {
+      const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
+      const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
+      const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
+      hipSag = Math.max(0, ptLineDist(shX, shY, anX, anY, hipX, hipY) - 0.07)
+    }
+    let valgus = 0
+    if (vis(lKn, 0.3) && vis(lAn, 0.3) && vis(rKn, 0.3) && vis(rAn, 0.3)) {
+      valgus = Math.max(Math.max(0, lAn.x - lKn.x), Math.max(0, rKn.x - rAn.x))
+    }
+    return Math.min(100, BASE + Math.round(hipSag * 700 + valgus * 500))
+  }
+
   if (ex === 'crossbodystretch' || ex === 'tricepstretch') {
     // Very low injury risk — just flag neck tension (shoulder hike)
     if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 0
@@ -317,7 +373,7 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'benchpress', 'chestpress', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'situp', 'bicepcurl', 'jumpingjack', 'highnees', 'mountainclimber', 'buttskick', 'calfraise', 'hipcircle', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup', 'armcircle', 'scapulasqueeze', 'crossbodystretch', 'tricepstretch'] as const
+const EXERCISES = ['squat', 'pushup', 'benchpress', 'chestpress', 'lunge', 'sidelunge', 'deadlift', 'shoulderpress', 'curlup', 'situp', 'bicepcurl', 'jumpingjack', 'highnees', 'mountainclimber', 'buttskick', 'calfraise', 'hipcircle', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup', 'armcircle', 'scapulasqueeze', 'crossbodystretch', 'tricepstretch', 'chestfly', 'jumpsquat', 'burpee'] as const
 
 const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   squat:           'Squat',
@@ -346,6 +402,10 @@ const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
   tricepstretch:    'Tricep Stretch',
   hipcircle:        'Hip Circles',
   chestpress:       'Chest Press',
+  sidelunge:        'Side Lunge',
+  chestfly:         'Chest Fly',
+  jumpsquat:        'Jump Squat',
+  burpee:           'Burpee',
 }
 
 const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
@@ -358,6 +418,8 @@ const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
   jumpingjack: 'Cardio', highnees: 'Cardio', buttskick: 'Cardio', armcircle: 'Cardio',
   crossbodystretch: 'Upper Body', tricepstretch: 'Upper Body',
   hipcircle: 'Lower Body', chestpress: 'Upper Body',
+  sidelunge: 'Lower Body', chestfly: 'Upper Body',
+  jumpsquat: 'Cardio', burpee: 'Cardio',
 }
 
 const CATEGORY_TABS = ['All', 'Lower Body', 'Upper Body', 'Core', 'Cardio'] as const
@@ -388,6 +450,7 @@ const WARMUP_EXERCISES = new Set([
   'mountainclimber', 'jumpingjack', 'highnees',
   'buttskick', 'calfraise', 'armcircle', 'scapulasqueeze',
   'crossbodystretch', 'tricepstretch', 'hipcircle',
+  'sidelunge', 'jumpsquat',
 ])
 
 const DEMO_SUGGESTIONS = [

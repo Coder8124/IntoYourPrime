@@ -49,6 +49,10 @@ export type SupportedExercise =
   | 'tricepstretch'
   | 'hipcircle'
   | 'chestpress'
+  | 'sidelunge'
+  | 'chestfly'
+  | 'jumpsquat'
+  | 'burpee'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -132,6 +136,15 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   hipcircle:        { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'up_to_down', debounceMs: 1200 },
   // Chest press: elbow angle, same signal as pushup/benchpress (standing press forward).
   chestpress:       { joints: [LM.LEFT_WRIST,        LM.RIGHT_WRIST],    repOn: 'down_to_up' },
+  // Side lunge: min knee angle (same as lunge). Large = standing = "up"; small = lunged = "down".
+  sidelunge:        { joints: [LM.LEFT_KNEE,         LM.RIGHT_KNEE],     repOn: 'down_to_up', debounceMs: 1200 },
+  // Chest fly: wrist spread |lWr.x - rWr.x|. Wide (large) = "down"; together (small) = "up". Rep on squeeze.
+  chestfly:         { joints: [LM.LEFT_WRIST,        LM.RIGHT_WRIST],    repOn: 'down_to_up', debounceMs: 1000 },
+  // Jump squat: same knee-angle signal as squat, faster debounce for explosive movement.
+  jumpsquat:        { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'down_to_up', debounceMs: 800 },
+  // Burpee (3-phase): average body height via shoulder+hip Y. Standing = low Y = "up". Crouching/plank = high Y = "down".
+  // Rep counted when returning to standing. Long debounce — full burpee cycle takes 2-3 s.
+  burpee:           { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'down_to_up', debounceMs: 2500 },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -554,6 +567,57 @@ export function useRepCounter(
       if (lConf < 0.5 || rConf < 0.5) return
       rawSignal    = Math.abs(lSh.x - rSh.x)
       invertSignal = false  // wide (relaxed) → high normalized → "down"; narrow (squeezed) → "up"
+    } else if (exerciseKey === 'sidelunge') {
+      // Min knee angle (same logic as lunge): the bending knee drives the signal.
+      // Standing: ~160-170°. Deep side lunge: bending knee ~80-100°.
+      // invertSignal: large angle (standing) → low normalised → "up" phase.
+      const lHipS = landmarks[LM.LEFT_HIP],  lKnS = landmarks[LM.LEFT_KNEE],  lAnS = landmarks[LM.LEFT_ANKLE]
+      const rHipS = landmarks[LM.RIGHT_HIP], rKnS = landmarks[LM.RIGHT_KNEE], rAnS = landmarks[LM.RIGHT_ANKLE]
+      const lConfS = Math.min(lHipS?.visibility ?? 0, lKnS?.visibility ?? 0, lAnS?.visibility ?? 0)
+      const rConfS = Math.min(rHipS?.visibility ?? 0, rKnS?.visibility ?? 0, rAnS?.visibility ?? 0)
+      const anglesS: number[] = []
+      if (lConfS >= 0.4) anglesS.push(calcAngle(lHipS, lKnS, lAnS))
+      if (rConfS >= 0.4) anglesS.push(calcAngle(rHipS, rKnS, rAnS))
+      if (anglesS.length === 0) return
+      rawSignal    = Math.min(...anglesS)
+      invertSignal = true
+    } else if (exerciseKey === 'chestfly') {
+      // Wrist horizontal spread: |lWr.x - rWr.x|. Arms wide = large = "down"; arms together = "up".
+      // Rep counted on down→up: arms squeeze back together (concentric complete).
+      const lWrF = landmarks[LM.LEFT_WRIST], rWrF = landmarks[LM.RIGHT_WRIST]
+      if ((lWrF?.visibility ?? 0) < 0.4 || (rWrF?.visibility ?? 0) < 0.4) return
+      rawSignal    = Math.abs(lWrF.x - rWrF.x)
+      invertSignal = false
+    } else if (exerciseKey === 'jumpsquat') {
+      // Same pre-normalised knee-angle signal as squat. Explosive movement → faster debounce.
+      // Standing (large angle) → squat (small angle) → jump/land → rep counted on return to "up".
+      const kneeJ = getKneeAngle(landmarks, 0.35)
+      if (kneeJ && kneeJ.confidence >= 0.3) {
+        const KNEE_MIN = 60, KNEE_MAX = 175
+        rawSignal = 1 - Math.max(0, Math.min(1, (kneeJ.value - KNEE_MIN) / (KNEE_MAX - KNEE_MIN)))
+      } else {
+        const hipJ = getJointY(landmarks, LM.LEFT_HIP, LM.RIGHT_HIP)
+        if (!hipJ || hipJ.confidence < 0.5) return
+        rawSignal = hipJ.y
+      }
+    } else if (exerciseKey === 'burpee') {
+      // Body height via average of (shoulder + hip) Y.
+      // Standing: all landmarks high in frame → low Y → "up".
+      // Crouching / plank: body descends → high Y → "down".
+      // Full 3-phase cycle (stand→squat→plank→squat→stand) = 1 rep, counted on stand-up.
+      const lShB = landmarks[LM.LEFT_SHOULDER], rShB = landmarks[LM.RIGHT_SHOULDER]
+      const lHiB = landmarks[LM.LEFT_HIP],      rHiB = landmarks[LM.RIGHT_HIP]
+      const shConfB  = Math.min(lShB?.visibility ?? 0, rShB?.visibility ?? 0)
+      const hipConfB = Math.min(lHiB?.visibility ?? 0, rHiB?.visibility ?? 0)
+      if (shConfB < 0.35 && hipConfB < 0.35) return
+      if (shConfB >= 0.35 && hipConfB >= 0.35) {
+        rawSignal = (lShB.y + rShB.y + lHiB.y + rHiB.y) / 4
+      } else if (shConfB >= 0.35) {
+        rawSignal = (lShB.y + rShB.y) / 2
+      } else {
+        rawSignal = (lHiB.y + rHiB.y) / 2
+      }
+      invertSignal = false  // high Y (crouched/plank) = "down"; low Y (standing) = "up"
     } else {
       const joint = getJointY(landmarks, config.joints[0], config.joints[1])
       if (!joint || joint.confidence < CONFIDENCE_THRESH) return

@@ -327,6 +327,38 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
         'ELBOW POSITION: if arms are in "W" position, elbows should stay at shoulder height and pull straight back — not drooping down or flaring wide.',
         "HOLD DURATION: a controlled 2–3 second squeeze is ideal — quick bounces without a hold don't fully activate the rhomboids.",
       ].join('\n'),
+
+      sidelunge: [
+        'BENDING KNEE (highest priority): must track directly over the foot — no valgus (caving inward). Score 60+ if knee is collapsing.',
+        'STEP WIDTH: foot steps far enough to the side that the shin stays vertical — knee not shooting forward past toes. Score 50+.',
+        'TORSO: upright throughout — do not lean forward over the bent knee. Score 45+ if leaning.',
+        'EXTENDED LEG: keep it straight and foot flat on the floor — bending it removes the lateral stretch benefit.',
+        'HIPS: push back and sit into the hip of the bending leg — not just bending the knee straight down.',
+      ].join('\n'),
+
+      chestfly: [
+        'ARM SYMMETRY (highest priority): both arms must arc through the same range — one arm lagging = pec imbalance. Score 50+ if clearly asymmetric.',
+        'ELBOW BEND: slight bend (15-20°) throughout — arms should not be dead straight (elbow stress) or excessively bent (reduces pec stretch). Score 40+ if elbows are locked straight.',
+        'ARC: arms should move in a wide arc, not just horizontally. At the bottom, wrists should be roughly in line with shoulders — not drooping below.',
+        'RANGE: arms should open wide enough to feel a stretch across the chest. Stopping early = score 35+.',
+        'WRIST: neutral — not bent. Palms facing each other or slightly upward at the bottom.',
+      ].join('\n'),
+
+      jumpsquat: [
+        'SQUAT DEPTH (highest priority): hips should descend to at least parallel before the jump — shallow squats lose power and reduce training effect. Score 45+.',
+        'KNEE VALGUS: knees must not cave inward on the way down OR on landing — landing valgus is high ACL injury risk. Score 70+ if landing with knees caving.',
+        'LANDING MECHANICS: land softly with bent knees, absorbing force — hard straight-leg landings = joint impact. Score 60+ if landing stiff.',
+        'TORSO: upright on the squat down, slight forward lean on landing is normal for force absorption.',
+        'JUMP: drive through the full foot and extend fully at the top — partial hops do not develop power.',
+      ].join('\n'),
+
+      burpee: [
+        'PLANK POSITION (highest priority): when jumping or stepping back, hips must stay level — no piking up or sagging down. Score 60+ if hips are clearly off the line.',
+        'SQUAT DOWN: back stays neutral as you crouch — do not round aggressively. Score 55+ if back rounds sharply.',
+        'LANDING: when jumping feet forward or back, land softly — crashing landings = high joint impact. Score 45+.',
+        'KNEE VALGUS: knees must not cave during the squat-down or stand-up phase. Score 65+ if present.',
+        'PACE: controlled enough to hit each phase — rushing through results in poor plank position and sloppy landings.',
+      ].join('\n'),
     }
 
     const guide = exerciseGuides[params.exercise.toLowerCase()]
@@ -360,6 +392,10 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
       chestpress:       'wrists, elbows, shoulders, chest, torso — NOT knees or ankles',
       crossbodystretch: 'shoulders, neck, upper back, stretched arm — NOT knees, ankles, or lower body',
       tricepstretch:    'elbow, shoulder, neck, torso alignment — NOT knees, ankles, or lower body',
+      sidelunge:        'bending knee, ankle, hip, torso — lateral knee tracking and upright posture',
+      chestfly:         'wrists, elbows, shoulders, chest — NOT knees, ankles, or lower body',
+      jumpsquat:        'feet, ankles, knees, hips, spine — especially landing mechanics and knee valgus',
+      burpee:           'full body: knees, hips, spine, shoulders — plank alignment and landing mechanics',
     }
     const focusNote = bodyFocus[params.exercise.toLowerCase()]
       ?? 'all major joints relevant to this exercise'
