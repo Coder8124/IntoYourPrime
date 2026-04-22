@@ -121,6 +121,18 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
     return Math.min(100, 10 + Math.round(Math.max(lDrift, rDrift) * 480 + sway * 360))
   }
 
+  if (ex === 'tricepextension') {
+    if (!vis(lEl, 0.3) || !vis(rEl, 0.3) || !vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    // Elbow flare: elbows should stay close together overhead, not drifting wide
+    const elbowWidth = Math.abs(lEl.x - rEl.x)
+    const shWidth    = Math.abs(lSh.x - rSh.x)
+    const flare      = Math.max(0, elbowWidth - shWidth * 1.1)
+    // Upper arm drift: elbows should stay above shoulders, not swinging forward
+    const lUpperArmDrift = Math.max(0, Math.abs(lEl.x - lSh.x) - 0.06)
+    const rUpperArmDrift = Math.max(0, Math.abs(rEl.x - rSh.x) - 0.06)
+    return Math.min(100, 10 + Math.round(flare * 500 + Math.max(lUpperArmDrift, rUpperArmDrift) * 380))
+  }
+
   const BASE = 10
 
   if (ex === 'jumpingjack') {
@@ -174,20 +186,21 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'highnees', 'plank', 'wallsit'] as const
+const EXERCISES = ['squat', 'pushup', 'lunge', 'deadlift', 'shoulderpress', 'curlup', 'bicepcurl', 'jumpingjack', 'highnees', 'plank', 'wallsit', 'tricepextension'] as const
 
 const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
-  squat:         'Squat',
-  pushup:        'Push-Up',
-  lunge:         'Lunge',
-  deadlift:      'Deadlift',
-  shoulderpress: 'Shoulder Press',
-  curlup:        'Curl-Up',
-  bicepcurl:     'Bicep Curl',
-  jumpingjack:   'Jumping Jack',
-  highnees:      'High Knees',
-  plank:         'Plank',
-  wallsit:       'Wall Sit',
+  squat:           'Squat',
+  pushup:          'Push-Up',
+  lunge:           'Lunge',
+  deadlift:        'Deadlift',
+  shoulderpress:   'Shoulder Press',
+  curlup:          'Curl-Up',
+  bicepcurl:       'Bicep Curl',
+  jumpingjack:     'Jumping Jack',
+  highnees:        'High Knees',
+  plank:           'Plank',
+  wallsit:         'Wall Sit',
+  tricepextension: 'Tricep Extension',
 }
 
 const DEMO_SUGGESTIONS = [

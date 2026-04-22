@@ -32,6 +32,7 @@ export type SupportedExercise =
   | 'highnees'
   | 'plank'
   | 'wallsit'
+  | 'tricepextension'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -78,8 +79,11 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // High knees: track minimum knee Y (the currently-raised knee). Each knee raise = 1 rep.
   highnees:      { joints: [LM.LEFT_KNEE,        LM.RIGHT_KNEE],     repOn: 'down_to_up' },
   // Hold exercises — no reps counted; useHoldTimer handles timing
-  plank:         { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
-  wallsit:       { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
+  plank:           { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
+  wallsit:         { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
+  // Tricep extension: elbow angle. Extended overhead (~160°) = up; bent behind head (~40°) = down.
+  // invertSignal=true: large angle (extended) → low normalised → "up" phase.
+  tricepextension: { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'down_to_up' },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -316,6 +320,14 @@ export function useRepCounter(
       if (!result || result.confidence < CONFIDENCE_THRESH) return
       rawSignal    = result.value
       invertSignal = false
+    } else if (exerciseKey === 'tricepextension') {
+      // Elbow angle: extended overhead (~160°) = top, bent behind head (~40°) = bottom.
+      // Invert: large angle (extended) → low normalised → "up" phase.
+      // Rep counted on down→up (return to full extension).
+      const result = getElbowAngle(landmarks)
+      if (!result || result.confidence < CONFIDENCE_THRESH) return
+      rawSignal    = result.value
+      invertSignal = true
     } else if (exerciseKey === 'curlup') {
       // hipY − shoulderY. Near-zero when flat, positive when curled up.
       // No inversion: high value = curled up = "up" phase naturally maps to low normalised.

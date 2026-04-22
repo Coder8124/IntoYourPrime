@@ -177,6 +177,21 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
     ],
     riskNote: 'Main risk: knee valgus under fatigue. Same tracking as squats.',
   },
+  {
+    id: 'tricepextension',
+    name: 'Tricep Extension',
+    muscles: ['Triceps', 'Shoulders'],
+    difficulty: 'Intermediate',
+    description: 'An overhead isolation exercise that fully stretches and contracts the triceps through a long range of motion.',
+    cues: [
+      'Stand tall, core braced, feet shoulder-width',
+      'Raise both arms overhead, elbows pointing forward',
+      'Lower the weight behind your head by bending at the elbows only',
+      'Keep elbows close together — don\'t let them flare wide',
+      'Press back to full extension, squeezing the triceps at the top',
+    ],
+    riskNote: 'Main risks: elbow flare and upper arm drift. The AI tracks elbow position relative to your shoulders.',
+  },
 ]
 
 export interface WorkoutProgram {
@@ -207,7 +222,7 @@ export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     description: 'Chest, shoulders, arms. Three pushing exercises back to back for an upper-body pump.',
     level: 'Intermediate',
     duration: '~20 min',
-    exercises: ['pushup', 'shoulderpress', 'bicepcurl'],
+    exercises: ['pushup', 'shoulderpress', 'bicepcurl', 'tricepextension'],
     tags: ['Upper Body', 'Push', 'Strength'],
     emoji: '💪',
   },
