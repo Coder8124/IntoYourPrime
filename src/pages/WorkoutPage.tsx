@@ -328,6 +328,13 @@ const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
 
 const CATEGORY_TABS = ['All', 'Lower Body', 'Upper Body', 'Core', 'Cardio'] as const
 
+// Exercises appropriate for warm-up — no heavy compounds or isolation equipment work
+const WARMUP_EXERCISES = new Set([
+  'squat', 'lunge', 'pushup', 'plank', 'curlup',
+  'mountainclimber', 'jumpingjack', 'highnees',
+  'buttskick', 'calfraise', 'armcircle', 'scapulasqueeze',
+])
+
 const DEMO_SUGGESTIONS = [
   "Keep your chest up and drive through your heels.",
   "Engage your core — brace your abs like you're about to take a punch.",
@@ -620,11 +627,13 @@ export function WorkoutPage() {
 
   const filteredExercises = useMemo(() => {
     const q = exSearch.toLowerCase().trim()
-    return ([...EXERCISES] as (typeof EXERCISES[number])[])
+    const pool = ([...EXERCISES] as (typeof EXERCISES[number])[])
+      .filter(ex => phase !== 'warmup' || WARMUP_EXERCISES.has(ex))
+    return pool
       .filter(ex => exCategory === 'All' || EXERCISE_CATEGORY_MAP[ex] === exCategory)
       .filter(ex => !q || EXERCISE_LABELS[ex].toLowerCase().includes(q))
       .sort((a, b) => EXERCISE_LABELS[a].localeCompare(EXERCISE_LABELS[b]))
-  }, [exSearch, exCategory])
+  }, [exSearch, exCategory, phase])
 
   // ── Program / start-exercise init ────────────────────────────────────
   useEffect(() => {
@@ -645,6 +654,14 @@ export function WorkoutPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // If still in warmup and current exercise isn't warmup-appropriate, switch to jumping jacks
+  useEffect(() => {
+    if (phase === 'warmup' && !WARMUP_EXERCISES.has(currentExercise)) {
+      setExercise('jumpingjack')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
 
   const nudgeCameraZoom = useCallback((delta: number) => {
     setCameraZoom((z) => {
@@ -1351,6 +1368,12 @@ export function WorkoutPage() {
               {/* Expanded picker */}
               {showExPicker && (
                 <div className="mt-3 space-y-3">
+                  {/* Warmup restriction notice */}
+                  {phase === 'warmup' && (
+                    <p className="text-[11px] text-amber-500/80 px-1">
+                      Warm-up mode — showing mobility & cardio only. Heavy lifts unlock after you start your workout.
+                    </p>
+                  )}
                   {/* Search */}
                   <input
                     autoFocus
