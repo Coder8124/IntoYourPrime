@@ -74,16 +74,18 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
   if (ex === 'lunge') {
     if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
-    // Front-knee tracking: each knee should stay over its ankle
-    const lOver = Math.abs(lKn.x - lAn.x)
-    const rOver = Math.abs(rKn.x - rAn.x)
-    const kneeTrack = Math.max(lOver, rOver)
-    // Torso upright — shoulder should be above hip, not leaning far forward
+    // Identify the front knee (the more bent one = lower y = closer to camera floor)
+    // Only check front-knee tracking — back knee is always offset from its ankle in a lunge
+    const lKneeY = lKn.y, rKneeY = rKn.y
+    const frontKn = lKneeY > rKneeY ? lKn : rKn
+    const frontAn = lKneeY > rKneeY ? lAn : rAn
+    const kneeTrack = Math.max(0, Math.abs(frontKn.x - frontAn.x) - 0.06)
+    // Torso upright — shoulder should stay over hip
     let torsoLean = 0
     if (vis(lSh) && vis(rSh) && vis(lHip) && vis(rHip)) {
-      torsoLean = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.05)
+      torsoLean = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.07)
     }
-    return Math.min(100, 10 + Math.round(kneeTrack * 580 + torsoLean * 480))
+    return Math.min(100, 10 + Math.round(kneeTrack * 500 + torsoLean * 380))
   }
 
   if (ex === 'shoulderpress') {

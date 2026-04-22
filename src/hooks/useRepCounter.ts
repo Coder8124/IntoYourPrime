@@ -412,6 +412,22 @@ export function useRepCounter(
       if (lConf < 0.3 || rConf < 0.3) return  // need both visible to compute a meaningful diff
       rawSignal    = Math.abs(lKn.y - rKn.y)
       invertSignal = false  // large diff (one knee up) → high normalised → "down" phase
+    } else if (exerciseKey === 'lunge') {
+      // Use the MINIMUM knee angle (whichever knee is more bent = the front knee).
+      // Standing: front knee ~160°. Bottom of lunge: front knee ~80-90°.
+      // Large angle = standing (up), small angle = lunging (down).
+      // Works for both stationary and alternating lunges.
+      const lHip = landmarks[LM.LEFT_HIP],  lKn = landmarks[LM.LEFT_KNEE],  lAn = landmarks[LM.LEFT_ANKLE]
+      const rHip = landmarks[LM.RIGHT_HIP], rKn = landmarks[LM.RIGHT_KNEE], rAn = landmarks[LM.RIGHT_ANKLE]
+      const lConf = Math.min(lHip?.visibility ?? 0, lKn?.visibility ?? 0, lAn?.visibility ?? 0)
+      const rConf = Math.min(rHip?.visibility ?? 0, rKn?.visibility ?? 0, rAn?.visibility ?? 0)
+      const angles: number[] = []
+      if (lConf >= 0.4) angles.push(calcAngle(lHip, lKn, lAn))
+      if (rConf >= 0.4) angles.push(calcAngle(rHip, rKn, rAn))
+      if (angles.length === 0) return
+      // Min angle = the bent (front) knee — this is the meaningful signal for lunges
+      rawSignal    = Math.min(...angles)
+      invertSignal = true  // large angle (standing) → low normalised → "up" phase
     } else if (exerciseKey === 'lateralraise') {
       // Average wrist Y. Arms at sides (high Y) = "down"; raised to shoulder height (low Y) = "up".
       // Lower confidence threshold — arms don't go fully overhead so wrists stay visible.
