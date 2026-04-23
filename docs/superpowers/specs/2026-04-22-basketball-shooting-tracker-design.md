@@ -5,7 +5,7 @@ Status: Approved, ready for implementation plan
 
 ## Goal
 
-Ship a first version of a basketball shooting form tracker that scores each shot against the **B.E.E.F.** fundamentals (Balance, Eyes, Elbow, Follow-through), acknowledging modern shooting variations so well-established deviations (Curry-style offset elbow, turn/pivot stance, one-motion dip-and-rise) aren't punished. Replaces the existing "Shooting Form Tracker — Soon" card on the home page with a real feature.
+Ship a first version of a basketball shooting form tracker that scores each shot against the **B.E.E.F.** fundamentals (Balance, Eyes, Elbow, Follow-through), acknowledging modern shooting variations so well-established deviations (Curry-style offset elbow, turn/pivot stance, one-motion dip-and-rise) aren't punished. Also acknowledges shot context: pull-up / off-the-dribble shots legitimately break several set-shot rules (feet not planted, head translating into the shot), so those components get leniency when the pre-load motion indicates movement. Replaces the existing "Shooting Form Tracker — Soon" card on the home page with a real feature.
 
 ## Non-goals (v1)
 
@@ -63,11 +63,18 @@ New in `src/types/basketball.ts`:
 ```ts
 export type Handedness = 'right' | 'left'
 
+// How the shooter arrived at the load point. Affects which BEEF rules get leniency.
+// 'stationary' = set feet, catch-and-shoot, or stand-still form shooting.
+// 'movement'   = off the dribble or pull-up jumper (hips translated into the load).
+export type ShotContext = 'stationary' | 'movement'
+
 export interface ShotWindow {
   frames: PoseFrame[]     // load → release → follow-through
+  preLoadFrames: PoseFrame[] // ~500ms before loadIndex; used for context detection
   loadIndex: number       // index of load-detected frame
   releaseIndex: number    // index of release-detected frame
   handedness: Handedness
+  context: ShotContext
 }
 
 export interface BeefScore {
@@ -83,6 +90,7 @@ export interface Shot {
   id: string
   timestamp: number
   handedness: Handedness
+  context: ShotContext
   beef: BeefScore
 }
 ```
@@ -102,6 +110,16 @@ Tunables exposed on the hook's options (same pattern as existing counters): `loa
 
 Memory: the ring buffer is bounded. `ShotWindow.frames` is a fresh array slice on emission — the buffer itself is reused.
 
+### Shot-context classification
+
+The ring buffer always retains at least the last ~2 seconds of frames, so at the LOAD transition we already have pre-load history. On emission:
+
+- Take the ~500ms of frames ending at `loadIndex` (`preLoadFrames`).
+- Compute peak hip-midpoint-X displacement across that window, normalized by shoulder-width.
+- If displacement ≥ **8% of shoulder-width** → `context = 'movement'` (off-the-dribble / pull-up). Otherwise `context = 'stationary'` (catch-and-shoot / set shot).
+
+The 8% threshold is a tunable constant in `useShotDetector`. Rationale: a shooter squaring up from a catch doesn't translate their hips meaningfully in the half-second before load; a shooter coming off a dribble does. Using hip rather than foot because the lead foot of a pull-up can plant early, making foot-based detection flaky.
+
 Landmarks used (MediaPipe indices):
 - Right-handed shooter: right shoulder (12), right elbow (14), right wrist (16), nose (0), right hip (24), right ankle (28).
 - Left-handed shooter: left shoulder (11), left elbow (13), left wrist (15), nose (0), left hip (23), left ankle (27).
@@ -110,21 +128,23 @@ Landmarks used (MediaPipe indices):
 
 Pure function: `scoreShot(window: ShotWindow): BeefScore`. No IO, no OpenAI, deterministic.
 
-Each component is scored 0–100. **Overall = arithmetic mean** of the four. Per-component rules:
+Each component is scored 0–100. **Overall = arithmetic mean** of the four. Per-component rules below. Where a rule differs for `context === 'movement'`, the leniency is called out inline — not an afterthought.
 
 ### Balance (at release frame)
 
 - Foot spacing: ankle-to-ankle X distance within shoulder-width ± 20% → full marks on this sub-criterion.
 - Stance: hip midpoint X within ±15% of ankle midpoint X (vertical projection, normalized by shoulder-width) at release → full marks. Linear falloff to 0 at ±40% offset.
 - **Modern exception:** slight forward lean is fine. Hard fade-away (hip posterior of ankle by more than 15% of shoulder-width) is penalized on the falloff curve above.
-- Composition: 60% stance, 40% foot-spacing.
+- **Off-the-dribble leniency (`context === 'movement'`):** drop the foot-spacing sub-criterion from the Balance score entirely (pull-up shooters plant one foot at a time — spacing is meaningless). Stance tolerance widens: full marks to ±25% hip-vs-ankle offset, falloff to 0 at ±50%. Balance composition becomes 100% stance (foot-spacing removed) when in movement.
+- Composition: 60% stance, 40% foot-spacing (stationary); 100% stance (movement).
 
 ### Eyes (side-on proxy: head stability)
 
 Upfront caveat documented in the UI: we cannot observe gaze from a side-on camera. We measure **head stability** as a proxy — stable head during the shot strongly correlates with eyes locked on target.
 
 - Compute nose-X displacement (normalized) across the window from `loadIndex` to `releaseIndex`.
-- ≤3% of frame width displacement → 100. Linear falloff to 0 at 10%.
+- **Stationary:** ≤3% of frame width displacement → 100. Linear falloff to 0 at 10%.
+- **Off-the-dribble leniency (`context === 'movement'`):** ≤6% displacement → 100. Linear falloff to 0 at 15%. The shooter is still translating into the shot, so the head being a bit unsettled at the start of the measurement window isn't a breakdown in focus.
 - Rationale: if the head rotates mid-shot, the shooter has broken target focus.
 
 ### Elbow (at release frame + set point)
@@ -157,7 +177,7 @@ High-level layout (mirrors the dark theme used across the app):
 
 - **Header:** page title, handedness indicator (tap to change), "end session" button.
 - **Main area:** webcam video with MediaPipe skeleton overlay (reuse canvas-draw pattern from existing `usePoseDetection` consumers in `WorkoutPage`).
-- **Top-right panel:** rolling list of the last 5 shots — overall score + 4 BEEF sub-scores + timestamp.
+- **Top-right panel:** rolling list of the last 5 shots — overall score + 4 BEEF sub-scores + timestamp + a small context badge ("Set" or "Pull-up") from the detected `ShotContext`.
 - **Bottom banner:** coaching cue for the latest shot (largest type); pill showing current detector state (IDLE / LOADED / RELEASED).
 - **Empty state:** until the first shot is detected, a persistent overlay on the video area reiterates the side-on framing instruction ("Stand perpendicular to camera — shooting arm toward it"). Dismissed automatically on first successful shot.
 
@@ -178,6 +198,7 @@ Document shape:
 {
   timestamp: number,
   handedness: 'right' | 'left',
+  context: 'stationary' | 'movement',
   beef: {
     balance: number,
     eyes: number,
@@ -234,3 +255,4 @@ Changed:
 - **Pose jitter on fast release motion.** If MediaPipe's single-person model smears wrist landmarks during a fast release, follow-through snap-speed measurement may be unreliable. Mitigation: weight follow-through on the gooseneck angle (static) more than snap speed (dynamic).
 - **Side-on stance misalignment.** If the user stands at ~45° instead of true side-on, elbow-X vs shoulder-X math is compressed. Mitigation: on first shot, check shoulder-depth vs shoulder-width ratio; if torso rotation exceeds a threshold, surface a one-shot "angle looks off — stand more perpendicular" nudge. Out of scope for v1 if it grows; note it as a follow-up.
 - **No calibration step.** Detector thresholds are global defaults. Works for most adult shooters; may misfire for users with atypical proportions. Acceptable for v1 — calibration is a later addition.
+- **Shot-context misclassification.** Pre-load hip translation is a coarse proxy. Edge cases: a set shot preceded by a shimmy could read as movement; a slow pull-up from a dead dribble could read as stationary. Acceptable for v1 because the leniency direction is always forgiving — worst case is a pull-up gets slightly harsher set-shot rules, not a scored-but-unfair false negative. Revisit after real users: if misclassification is frequent, fall back to user-toggled shot type.
