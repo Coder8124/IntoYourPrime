@@ -18,6 +18,7 @@ import { FriendsPage } from './pages/FriendsPage'
 import { ProgressPage } from './pages/ProgressPage'
 import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage'
 import { ProgramsPage } from './pages/ProgramsPage'
+import BasketballPage from './pages/BasketballPage'
 
 export default function App() {
   // Sync displayName to Firestore for any signed-in user (including existing accounts)
@@ -51,6 +52,7 @@ export default function App() {
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/friends" element={<FriendsPage />} />
       <Route path="/progress" element={<ProgressPage />} />
+      <Route path="/basketball" element={<BasketballPage />} />
       <Route path="/library" element={<ExerciseLibraryPage />} />
       <Route path="/programs" element={<ProgramsPage />} />
     </Routes>
