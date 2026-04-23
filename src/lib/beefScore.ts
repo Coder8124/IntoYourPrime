@@ -11,10 +11,9 @@ const LM = {
   L_ANKLE: 27,    R_ANKLE: 28,
 } as const
 
-const POST_RELEASE_GOOSENECK_MS  = 150
-const HOLD_DURATION_TARGET_MS    = 250
-const SNAP_SPEED_FULL_RAD_S      = 5
-const SNAP_SPEED_ZERO_RAD_S      = 1
+const GOOSENECK_MEASURE_MS       = 200
+const GOOSENECK_FULL_DEG         = 25
+const HOLD_TARGET_MS             = 400
 
 type Pt = { x: number; y: number }
 
@@ -111,60 +110,35 @@ export function scoreShot(window: ShotWindow): BeefScore {
   const elbow = 0.6 * releaseAlignScore + 0.4 * setPointScore
 
   // ---- Follow-through ----
-  function wristFlexion(lm: NormalizedLandmark[]): number {
-    const e = handedness === 'right' ? lm[LM.R_ELBOW] : lm[LM.L_ELBOW]
-    const w = handedness === 'right' ? lm[LM.R_WRIST] : lm[LM.L_WRIST]
-    const f = handedness === 'right' ? lm[LM.R_INDEX] : lm[LM.L_INDEX]
-    return Math.max(0, 180 - angleDeg(e, w, f))
-  }
-
+  // Hold (70%): total post-release time the shooting wrist stays above the shoulder — the
+  //   "hand in the cookie jar" signal. Robust across camera angles and MediaPipe jitter.
+  // Gooseneck (30%): wrist flexion at release+200ms. Bonus for clean side-on form; weak
+  //   signal on front-facing cameras so it's weighted small and thresholds are lenient.
+  const shootShoulderIdx = handedness === 'right' ? LM.R_SHOULDER : LM.L_SHOULDER
+  const shootWristIdx    = handedness === 'right' ? LM.R_WRIST    : LM.L_WRIST
   const relTs = relFrame.timestamp
 
-  // Gooseneck frame: first frame at relTs + 150ms, else releaseIndex
+  let holdMs = 0
+  for (let i = releaseIndex + 1; i < frames.length; i++) {
+    const lm = frames[i].landmarks
+    if (lm[shootWristIdx].y < lm[shootShoulderIdx].y) {
+      holdMs += frames[i].timestamp - frames[i - 1].timestamp
+    }
+  }
+  const holdScore = falloff(Math.max(0, HOLD_TARGET_MS - holdMs), 0, HOLD_TARGET_MS)
+
   let gooseneckIdx = releaseIndex
   for (let i = releaseIndex + 1; i < frames.length; i++) {
-    if (frames[i].timestamp >= relTs + POST_RELEASE_GOOSENECK_MS) {
-      gooseneckIdx = i
-      break
-    }
+    if (frames[i].timestamp >= relTs + GOOSENECK_MEASURE_MS) { gooseneckIdx = i; break }
   }
+  const gLm = frames[gooseneckIdx].landmarks
+  const e = handedness === 'right' ? gLm[LM.R_ELBOW] : gLm[LM.L_ELBOW]
+  const w = handedness === 'right' ? gLm[LM.R_WRIST] : gLm[LM.L_WRIST]
+  const fx = handedness === 'right' ? gLm[LM.R_INDEX] : gLm[LM.L_INDEX]
+  const gooseneckFlex = Math.max(0, 180 - angleDeg(e, w, fx))
+  const gooseneckScore = falloff(Math.max(0, GOOSENECK_FULL_DEG - gooseneckFlex), 0, GOOSENECK_FULL_DEG)
 
-  const gooseneckFlexion = wristFlexion(frames[gooseneckIdx].landmarks)
-  // Full marks when flexion >= 60, zero at <= 40
-  const gooseneckScore = falloff(Math.max(0, 60 - gooseneckFlexion), 0, 20)
-
-  // Hold: consecutive frames from gooseneck with flexion >= 40
-  const gooseneckTs = frames[gooseneckIdx].timestamp
-  let holdLastTs = gooseneckTs
-  for (let i = gooseneckIdx + 1; i < frames.length; i++) {
-    if (wristFlexion(frames[i].landmarks) >= 40) {
-      holdLastTs = frames[i].timestamp
-    } else {
-      break
-    }
-  }
-  const holdMs = holdLastTs - gooseneckTs
-  const holdScore = falloff(Math.max(0, HOLD_DURATION_TARGET_MS - holdMs), 0, HOLD_DURATION_TARGET_MS)
-
-  // Snap speed: peak |Δflexion/Δt| in rad/s from releaseIndex+1 through first frame > release+100ms
-  let peakRadS = 0
-  let prevFlexion = wristFlexion(relFrame.landmarks)
-  let prevTs = relTs
-  for (let i = releaseIndex + 1; i < frames.length; i++) {
-    const f = frames[i]
-    if (f.timestamp > relTs + 100) break
-    const flex = wristFlexion(f.landmarks)
-    const dt = (f.timestamp - prevTs) / 1000
-    if (dt > 0) {
-      const radS = Math.abs((flex - prevFlexion) * Math.PI / 180) / dt
-      if (radS > peakRadS) peakRadS = radS
-    }
-    prevFlexion = flex
-    prevTs = f.timestamp
-  }
-  const snapScore = falloff(Math.max(0, SNAP_SPEED_FULL_RAD_S - peakRadS), 0, SNAP_SPEED_FULL_RAD_S - SNAP_SPEED_ZERO_RAD_S)
-
-  const followThrough = 0.5 * gooseneckScore + 0.3 * holdScore + 0.2 * snapScore
+  const followThrough = 0.7 * holdScore + 0.3 * gooseneckScore
 
   // ---- Round components ----
   const bBalance      = Math.round(balance)

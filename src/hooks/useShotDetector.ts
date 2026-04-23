@@ -17,7 +17,7 @@ export interface DetectorOpts {
 export const DEFAULT_OPTS: DetectorOpts = {
   loadElbowDeg: 85,
   releaseElbowDeg: 160,
-  followThroughTailMs: 300,
+  followThroughTailMs: 800,
   bufferMs: 2000,
   preLoadWindowMs: 500,
   movementHipThreshold: 0.10,
