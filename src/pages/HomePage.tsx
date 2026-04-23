@@ -158,17 +158,48 @@ export function HomePage() {
     return sessions.length >= 5
   }, [sessions])
 
-  const FEATURES = [
-    { icon: '🤖', title: 'AI Form Analysis',      desc: 'GPT-4o vision watches your technique every 15s and gives real coaching feedback' },
-    { icon: '⚡', title: 'Injury Risk Score',      desc: 'Real-time geometry scoring blended with AI — turns red when your form breaks down' },
-    { icon: '🎙️', title: 'Voice Coaching',         desc: 'OpenAI TTS speaks feedback out loud so you never break your flow' },
-    { icon: '🔥', title: 'Fatigue Detection',      desc: 'Alerts you when form degrades mid-set before injury happens' },
-    { icon: '📈', title: 'Progress Dashboard',     desc: 'Form trends, volume charts, personal bests across all sessions' },
-    { icon: '🎯', title: 'Progressive Overload',   desc: 'AI suggests next session\'s rep targets based on your form score' },
-    { icon: '🧘', title: 'AI Cooldown',            desc: 'Personalized stretches generated based on what you actually trained' },
-    { icon: '📓', title: 'Recovery Log',           desc: 'Track sleep, soreness, energy — AI cross-references with your workouts' },
-    { icon: '🔢', title: 'Auto Rep Counting',      desc: 'MediaPipe tracks 33 body landmarks at 30fps — reps count themselves' },
-    { icon: '👥', title: 'Squad Accountability',   desc: 'Friend leaderboard, streaks, and Prime Intelligence weekly rankings' },
+  const NOVEL_FEATURES = [
+    {
+      icon: '🔥',
+      title: 'Fatigue Detection',
+      punch: 'Know before it hurts',
+      desc: 'Watches your risk score rep-by-rep and alerts you the instant form starts breaking down mid-set.',
+      color: '#f59e0b',
+      badge: 'New',
+    },
+    {
+      icon: '⚖️',
+      title: 'L/R Asymmetry',
+      punch: 'Both sides, every rep',
+      desc: 'Tracks left vs right joint angles live — catches compensation patterns most coaches never spot.',
+      color: '#a78bfa',
+      badge: 'New',
+    },
+    {
+      icon: '📈',
+      title: 'Form Trends',
+      punch: 'Is your form actually improving?',
+      desc: 'Per-exercise risk score trends across every session — not just today, but your whole arc.',
+      color: '#22c55e',
+      badge: 'New',
+    },
+    {
+      icon: '🤖',
+      title: 'AI Form Coaching',
+      punch: 'GPT-4o watches you lift',
+      desc: 'Real corrections spoken aloud every 15s using your actual camera frames — not generic advice.',
+      color: '#3b82f6',
+      badge: null,
+    },
+  ]
+
+  const STANDARD_FEATURES = [
+    { icon: '⚡', title: 'Injury Risk Score',   desc: 'Geometry + AI blended into a live 0–100 risk score' },
+    { icon: '🎙️', title: 'Voice Coaching',       desc: 'Feedback spoken out loud so you never break flow' },
+    { icon: '🎯', title: 'Progressive Overload', desc: 'AI-suggested rep targets based on your form score' },
+    { icon: '🧘', title: 'AI Cooldown',          desc: 'Personalised stretches based on what you actually trained' },
+    { icon: '🔢', title: 'Auto Rep Counting',    desc: '33 body landmarks tracked at 30 fps — reps count themselves' },
+    { icon: '👥', title: 'Squad Mode',           desc: 'Friend leaderboard, streaks, Prime Intelligence rankings' },
   ]
 
   return (
@@ -191,25 +222,57 @@ export function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_280px] gap-6 items-start">
 
           {/* ════ LEFT SIDEBAR — Features ════ */}
-          <aside className="order-2 lg:order-1 space-y-3">
-            <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-500 px-1">What it does</h2>
+          <aside className="order-2 lg:order-1 space-y-4">
 
-            {FEATURES.map(f => (
-              <div key={f.title} className="flex gap-3 rounded-xl p-3" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
-                <span className="text-xl shrink-0">{f.icon}</span>
-                <div>
-                  <p className="text-[13px] font-black text-white">{f.title}</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{f.desc}</p>
-                </div>
+            {/* Novel features — highlighted */}
+            <div>
+              <h2 className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500 px-1 mb-2">What makes us different</h2>
+              <div className="space-y-2">
+                {NOVEL_FEATURES.map(f => (
+                  <div key={f.title} className="relative flex gap-3 rounded-xl p-3"
+                    style={{ background: '#0e0e18', borderLeft: `3px solid ${f.color}`, border: `1px solid ${f.color}28`, borderLeftWidth: '3px' }}>
+                    {f.badge && (
+                      <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase"
+                        style={{ background: f.color + '22', color: f.color }}>
+                        {f.badge}
+                      </span>
+                    )}
+                    <span className="text-[18px] shrink-0 mt-0.5">{f.icon}</span>
+                    <div className="min-w-0 pr-6">
+                      <p className="text-[12.5px] font-black text-white">{f.title}</p>
+                      <p className="text-[10.5px] font-semibold mt-0.5" style={{ color: f.color }}>{f.punch}</p>
+                      <p className="text-[10.5px] text-gray-500 mt-0.5 leading-relaxed">{f.desc}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
 
-            {/* Rep counting chip list */}
+            {/* Divider */}
+            <div style={{ borderTop: '1px solid #1a1a28' }} />
+
+            {/* Standard features */}
+            <div>
+              <h2 className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500 px-1 mb-2">Also included</h2>
+              <div className="space-y-1.5">
+                {STANDARD_FEATURES.map(f => (
+                  <div key={f.title} className="flex gap-2.5 rounded-xl p-2.5" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+                    <span className="text-base shrink-0">{f.icon}</span>
+                    <div>
+                      <p className="text-[12px] font-bold text-white">{f.title}</p>
+                      <p className="text-[10.5px] text-gray-500 mt-0.5 leading-snug">{f.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Exercise chips */}
             <div className="rounded-xl p-3" style={{ background: 'linear-gradient(135deg,rgba(59,130,246,0.08),rgba(124,58,237,0.06))', border: '1px solid rgba(59,130,246,0.18)' }}>
-              <p className="text-[11px] font-bold text-blue-400 mb-2">Supported exercises</p>
+              <p className="text-[10.5px] font-bold text-blue-400 mb-2">30+ supported exercises</p>
               <div className="flex flex-wrap gap-1">
-                {['Squat','Push-Up','Lunge','Deadlift','Shoulder Press','Curl-Up','Bicep Curl','Hammer Curl','Tricep Ext','Lateral Raise','Pull-Up','Jumping Jack','High Knees','Plank','Wall Sit'].map(ex => (
-                  <span key={ex} className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-blue-300 bg-blue-500/10 border border-blue-500/20">{ex}</span>
+                {['Squat','Push-Up','Lunge','Deadlift','Bench Press','Shoulder Press','Bicep Curl','Jumping Jack','High Knees','Burpee','Jump Squat','Plank','Wall Sit','Side Lunge','Chest Fly'].map(ex => (
+                  <span key={ex} className="px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold text-blue-300 bg-blue-500/10 border border-blue-500/20">{ex}</span>
                 ))}
               </div>
             </div>
@@ -222,6 +285,9 @@ export function HomePage() {
             <header className="relative pt-6 pb-2">
               <p className="text-[15px] text-gray-400">{timeGreeting()}</p>
               <h1 className="mt-1 text-5xl font-black tracking-tight leading-tight">{welcomeName}</h1>
+              <p className="mt-2 text-[15px] text-gray-500 leading-snug max-w-sm">
+                The AI coach that watches <span className="text-white font-semibold">every rep</span>, flags <span className="text-amber-400 font-semibold">fatigue mid-set</span>, and tracks your form across <span className="text-blue-400 font-semibold">every session</span>.
+              </p>
               <div className="mt-4 inline-flex items-center gap-2.5 rounded-full px-5 py-2.5"
                 style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
                 <Flame className="h-5 w-5 text-amber-400" />
@@ -261,7 +327,7 @@ export function HomePage() {
                   boxShadow: '0 0 40px rgba(99,102,241,0.35), 0 2px 0 rgba(255,255,255,0.08) inset',
                 }}
               >
-                <span className="relative z-10">Start Workout</span>
+                <span className="relative z-10">Start Workout →</span>
                 <div className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity"
                   style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' }} />
               </button>
@@ -284,6 +350,31 @@ export function HomePage() {
                   style={{ background: '#111119', border: '1px solid #1e1e2e' }}>Squad →</Link>
               </div>
             </div>
+
+            {/* Feature spotlight — 2×2 grid of novel capabilities */}
+            <section className="mt-8">
+              <h2 className="mb-3 text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">Why IntoYourPrime</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { icon: '🔥', title: 'Fatigue Detection', sub: 'Mid-set alerts', desc: 'Form degrading? You\'ll know before it becomes an injury.', color: '#f59e0b' },
+                  { icon: '⚖️', title: 'L/R Balance', sub: 'Bilateral asymmetry', desc: 'Live left vs right tracking — comp patterns caught instantly.', color: '#a78bfa' },
+                  { icon: '📈', title: 'Form Trends', sub: 'Long-term analysis', desc: 'Your squat risk score across 20 sessions — not just today.', color: '#22c55e' },
+                  { icon: '🤖', title: 'AI Rep Review', sub: 'GPT-4o every 15s', desc: 'Real camera frames sent to AI. Actual feedback, not scripts.', color: '#3b82f6' },
+                ].map(f => (
+                  <div key={f.title} className="rounded-2xl p-4"
+                    style={{ background: '#0e0e18', border: `1px solid ${f.color}25` }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[22px]">{f.icon}</span>
+                      <div>
+                        <p className="text-[13px] font-black text-white leading-tight">{f.title}</p>
+                        <p className="text-[10px] font-semibold" style={{ color: f.color }}>{f.sub}</p>
+                      </div>
+                    </div>
+                    <p className="text-[11.5px] text-gray-500 leading-relaxed">{f.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
 
             {/* Recent sessions */}
             <section className="mt-8">

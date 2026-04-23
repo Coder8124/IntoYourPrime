@@ -54,6 +54,7 @@ export interface Session {
   avgRiskScore: number
   peakRiskScore: number
   repCounts: Record<string, number>
+  exerciseRiskScores?: Record<string, number>
   formSuggestions: string[]
   cooldownCompleted: boolean
   cooldownExercises: CooldownExercise[]
@@ -276,6 +277,9 @@ export function fromFirestoreSession(
     avgRiskScore: readNumber(doc.avgRiskScore, 'avgRiskScore'),
     peakRiskScore: readNumber(doc.peakRiskScore, 'peakRiskScore'),
     repCounts: readRecordStringNumber(doc.repCounts, 'repCounts'),
+    exerciseRiskScores: (doc.exerciseRiskScores != null && typeof doc.exerciseRiskScores === 'object' && !Array.isArray(doc.exerciseRiskScores))
+      ? readRecordStringNumber(doc.exerciseRiskScores, 'exerciseRiskScores')
+      : undefined,
     formSuggestions: readStringArray(doc.formSuggestions, 'formSuggestions'),
     cooldownCompleted: readBoolean(doc.cooldownCompleted, 'cooldownCompleted'),
     cooldownExercises: readCooldownExercises(doc.cooldownExercises),

@@ -167,6 +167,21 @@ export function ProgressPage() {
     return Object.entries(map).sort((a, b) => b[1] - a[1])
   }, [sessions])
 
+  // Per-exercise form risk trends (oldest → newest per exercise, across sessions)
+  const exerciseFormTrends = useMemo(() => {
+    const map: Record<string, number[]> = {}
+    for (const s of [...sessions].reverse()) {
+      if (!s.exerciseRiskScores) continue
+      for (const [ex, score] of Object.entries(s.exerciseRiskScores)) {
+        if (!map[ex]) map[ex] = []
+        map[ex].push(score)
+      }
+    }
+    return Object.entries(map)
+      .filter(([, scores]) => scores.length >= 2)
+      .sort((a, b) => b[1].length - a[1].length)
+  }, [sessions])
+
   // Personal bests: max reps in a single session per exercise
   const personalBests = useMemo(() => {
     const map: Record<string, number> = {}
@@ -268,6 +283,38 @@ export function ProgressPage() {
                       color="#3b82f6"
                     />
                   ))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Form trends by exercise ── */}
+            {exerciseFormTrends.length > 0 && (
+              <section className="mt-8">
+                <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.18em] text-gray-500">Form Risk by Exercise</h2>
+                <p className="text-[11px] text-gray-600 mb-3">Avg risk score per exercise across sessions. Lower = better form.</p>
+                <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #1e1e2e' }}>
+                  {exerciseFormTrends.map(([ex, scores], i) => {
+                    const latest = scores[scores.length - 1]
+                    const first = scores[0]
+                    const improving = latest < first
+                    const trend = improving ? '↓' : latest > first ? '↑' : '→'
+                    const trendColor = improving ? '#22c55e' : latest > first ? '#ef4444' : '#6b7280'
+                    return (
+                      <div key={ex}
+                        className="flex items-center justify-between px-5 py-3.5"
+                        style={{
+                          background: i % 2 === 0 ? '#111119' : '#0e0e16',
+                          borderBottom: i < exerciseFormTrends.length - 1 ? '1px solid #1a1a28' : 'none',
+                        }}>
+                        <span className="text-[14px] text-gray-300">{EXERCISE_LABELS[ex] ?? ex}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[11px] font-bold" style={{ color: trendColor }}>{trend}</span>
+                          <span className="font-mono font-black text-[15px]" style={{ color: riskColor(latest) }}>{latest}</span>
+                          <span className="text-[11px] text-gray-600">{scores.length}s</span>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </section>
             )}

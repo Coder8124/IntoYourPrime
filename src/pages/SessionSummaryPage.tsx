@@ -17,6 +17,7 @@ interface SessionSnapshot {
   warmupEndedAt: number | null
   repCounts: Record<string, number>
   riskScores: number[]
+  exerciseRiskLog: Record<string, number[]>
   suggestions: SuggestionEntry[]
   safetyConcerns: string[]
   lastExercise: string
@@ -63,6 +64,7 @@ function buildSnapshot(): SessionSnapshot | null {
     warmupEndedAt: s.warmupEndedAt ?? null,
     repCounts: { ...s.repCounts },
     riskScores: [...s.riskScores],
+    exerciseRiskLog: Object.fromEntries(Object.entries(s.exerciseRiskLog).map(([k, v]) => [k, [...v]])),
     suggestions: s.suggestions.map((e) => ({ ...e })),
     safetyConcerns: [...s.safetyConcerns],
     lastExercise: s.currentExercise,
@@ -86,6 +88,7 @@ function loadStoredSnapshot(): SessionSnapshot | null {
     if (!p.cooldownExercises) p.cooldownExercises = []
     if (p.cooldownCompleted === undefined) p.cooldownCompleted = false
     if (p.warmupEndedAt === undefined) p.warmupEndedAt = null
+    if (!p.exerciseRiskLog) p.exerciseRiskLog = {}
     return p
   } catch {
     return null
@@ -247,6 +250,13 @@ export function SessionSummaryPage() {
         ])
         const today = new Date().toISOString().slice(0, 10)
 
+        const exerciseRiskScores: Record<string, number> = {}
+        for (const [ex, scores] of Object.entries(snapshot.exerciseRiskLog)) {
+          if (scores.length > 0) {
+            exerciseRiskScores[ex] = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+          }
+        }
+
         const sessionId = await saveSession({
           userId,
           date: today,
@@ -257,6 +267,7 @@ export function SessionSummaryPage() {
           avgRiskScore: Math.round(stats.avgRisk),
           peakRiskScore: Math.round(stats.peakRisk),
           repCounts: snapshot.repCounts,
+          exerciseRiskScores,
           formSuggestions: snapshot.suggestions.map((s) => s.text).slice(0, 20),
           cooldownCompleted: snapshot.cooldownCompleted,
           cooldownExercises: snapshot.cooldownExercises,

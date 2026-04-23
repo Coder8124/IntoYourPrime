@@ -715,6 +715,45 @@ function BurpeePhaseIndicator({ phase }: { phase: BurpeePhase }) {
   )
 }
 
+// ── Bilateral asymmetry scoring ────────────────────────────────────────────
+
+function angleOf(a: Lm, b: Lm, c: Lm): number {
+  const ax = a.x - b.x, ay = a.y - b.y
+  const cx = c.x - b.x, cy = c.y - b.y
+  const dot = ax * cx + ay * cy
+  const mag = Math.sqrt((ax * ax + ay * ay) * (cx * cx + cy * cy))
+  return mag === 0 ? 180 : (Math.acos(Math.max(-1, Math.min(1, dot / mag))) * 180) / Math.PI
+}
+
+function computeAsymmetry(lms: Lm[], exercise: string): { left: number; right: number } | null {
+  if (lms.length < 29) return null
+  const ex = exercise.toLowerCase()
+
+  const toScore = (deg: number) => Math.round(Math.max(0, Math.min(100, (180 - deg) / 90 * 100)))
+
+  if (['squat', 'lunge', 'sidelunge', 'jumpsquat', 'deadlift'].includes(ex)) {
+    const lHip = lms[23], lKn = lms[25], lAn = lms[27]
+    const rHip = lms[24], rKn = lms[26], rAn = lms[28]
+    if (
+      (lHip?.visibility ?? 0) < 0.4 || (lKn?.visibility ?? 0) < 0.4 || (lAn?.visibility ?? 0) < 0.4 ||
+      (rHip?.visibility ?? 0) < 0.4 || (rKn?.visibility ?? 0) < 0.4 || (rAn?.visibility ?? 0) < 0.4
+    ) return null
+    return { left: toScore(angleOf(lHip, lKn, lAn)), right: toScore(angleOf(rHip, rKn, rAn)) }
+  }
+
+  if (['pushup', 'benchpress', 'chestfly', 'chestpress', 'shoulderpress', 'curlup', 'bicepcurl'].includes(ex)) {
+    const lSh = lms[11], lEl = lms[13], lWr = lms[15]
+    const rSh = lms[12], rEl = lms[14], rWr = lms[16]
+    if (
+      (lSh?.visibility ?? 0) < 0.3 || (lEl?.visibility ?? 0) < 0.3 || (lWr?.visibility ?? 0) < 0.3 ||
+      (rSh?.visibility ?? 0) < 0.3 || (rEl?.visibility ?? 0) < 0.3 || (rWr?.visibility ?? 0) < 0.3
+    ) return null
+    return { left: toScore(angleOf(lSh, lEl, lWr)), right: toScore(angleOf(rSh, rEl, rWr)) }
+  }
+
+  return null
+}
+
 // ── WorkoutPage ────────────────────────────────────────────────────────────
 
 export function WorkoutPage() {
@@ -742,7 +781,7 @@ export function WorkoutPage() {
     phase, currentExercise, repCounts,
     riskScores, suggestions, safetyConcerns, warmupScore, sessionStartTime,
     cooldownExercises,
-    setPhase, setExercise, addRep, resetExerciseReps, updateAnalysis, setWarmupScore,
+    setPhase, setExercise, addRep, resetExerciseReps, updateAnalysis, logExerciseRisk, setWarmupScore,
     setCooldownExercises, setCooldownCompleted, endSession, resetSession,
   } = useWorkoutStore()
 
@@ -775,6 +814,7 @@ export function WorkoutPage() {
 
   // ── Cooldown state ─────────────────────────────────────────────────────
   const [fatigueWarning,   setFatigueWarning]   = useState<string | null>(null)
+  const [asymmetry, setAsymmetry] = useState<{ left: number; right: number } | null>(null)
   const [loadingCooldown,  setLoadingCooldown]  = useState(false)
   const [cooldownIdx,      setCooldownIdx]      = useState(0)
   const [cooldownTimeLeft, setCooldownTimeLeft] = useState(0)
@@ -1103,6 +1143,7 @@ export function WorkoutPage() {
     // ── Fatigue detection (main phase only) ───────────────────────────
     if (phaseRef.current === 'main' && blended > 0) {
       sessionRiskLog.current.push(blended)
+      logExerciseRisk(exerciseRef.current, blended)
       const log = sessionRiskLog.current
       // Need at least 50 samples (≈5-6 s at 30fps with EMA) before evaluating
       if (log.length >= 50) {
@@ -1118,6 +1159,9 @@ export function WorkoutPage() {
         }
       }
     }
+
+    // ── Bilateral asymmetry ───────────────────────────────────────────
+    setAsymmetry(computeAsymmetry(landmarks, exerciseRef.current))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landmarks, isTracking])
 
@@ -2004,6 +2048,39 @@ export function WorkoutPage() {
                   </span>
                 </div>
                 <p className="text-[12px] text-amber-300 leading-relaxed">{fatigueWarning}</p>
+              </div>
+            )}
+
+            {/* Bilateral asymmetry indicator */}
+            {asymmetry && Math.abs(asymmetry.left - asymmetry.right) >= 10 && phase === 'main' && (
+              <div className="rounded-xl p-4 shrink-0" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+                <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 block mb-2.5">
+                  L / R Balance
+                </span>
+                <div className="space-y-1.5">
+                  {(['left', 'right'] as const).map((side) => (
+                    <div key={side} className="flex items-center gap-2">
+                      <span className="text-[10px] font-black w-3" style={{ color: side === 'left' ? '#60a5fa' : '#a78bfa' }}>
+                        {side === 'left' ? 'L' : 'R'}
+                      </span>
+                      <div className="flex-1 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <div
+                          className="h-1.5 rounded-full transition-all duration-300"
+                          style={{
+                            width: `${asymmetry[side]}%`,
+                            background: side === 'left' ? '#3b82f6' : '#7c3aed',
+                          }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-mono text-gray-500 w-5 text-right">{asymmetry[side]}</span>
+                    </div>
+                  ))}
+                </div>
+                {Math.abs(asymmetry.left - asymmetry.right) >= 20 && (
+                  <p className="text-[10.5px] text-amber-400 mt-2">
+                    {asymmetry.left > asymmetry.right ? 'Left' : 'Right'} side dominant
+                  </p>
+                )}
               </div>
             )}
 
