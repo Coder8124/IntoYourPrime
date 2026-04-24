@@ -438,7 +438,12 @@ export function HomePage() {
               <Link to="/programs"
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-bold transition-all hover:text-white"
                 style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>
-                ↺ Browse plans
+                ↺ Programs
+              </Link>
+              <Link to="/programs/generate"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-bold transition-all hover:text-white"
+                style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)', color: '#93c5fd' }}>
+                ✨ AI Generate
               </Link>
               <Link to="/basketball"
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-bold transition-all hover:text-white"
@@ -556,10 +561,14 @@ export function HomePage() {
             ) : (
               <div className="px-5 py-4 space-y-2">
                 {[
-                  { icon: '🏋️', label: 'Custom Workout',    desc: 'Any exercise, AI-coached',  to: '/workout' },
-                  { icon: '📋', label: 'Structured Program', desc: 'Follow a training plan',    to: '/programs' },
-                  { icon: '📖', label: 'Exercise Library',   desc: 'Browse all 30+ exercises',  to: '/library' },
-                  { icon: '🏀', label: 'Basketball',         desc: 'Shooting form analysis',    to: '/basketball' },
+                  { icon: '🏋️', label: 'Custom Workout',      desc: 'Any exercise, AI-coached',        to: '/workout' },
+                  { icon: '📋', label: 'Structured Program',   desc: 'Follow a preset training plan',   to: '/programs' },
+                  { icon: '✨', label: 'AI Workout Generator', desc: 'Describe a goal, get a program',  to: '/programs/generate' },
+                  { icon: '🔧', label: 'Build Your Program',   desc: 'Pick exercises, set reps & order', to: '/programs/builder' },
+                  { icon: '📖', label: 'Exercise Library',     desc: 'Browse all 30+ exercises',        to: '/library' },
+                  { icon: '🏀', label: 'Basketball',           desc: 'Shooting form + BEEF scoring',    to: '/basketball' },
+                  { icon: '🏆', label: 'Squad Leaderboard',    desc: 'See how you rank vs friends',     to: '/friends' },
+                  { icon: '📈', label: 'Progress',             desc: 'Sessions, reps & form trends',    to: '/progress' },
                 ].map(opt => (
                   <Link key={opt.to} to={opt.to}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all hover:brightness-110"
@@ -685,12 +694,23 @@ export function HomePage() {
               style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
               Recovery log →
             </Link>
+            <Link to="/programs/generate"
+              className="rounded-xl py-2.5 text-center text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+              style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)' }}>
+              ✨ AI Generate →
+            </Link>
+            <Link to="/programs/builder"
+              className="rounded-xl py-2.5 text-center text-[11px] font-semibold text-gray-400 hover:text-white transition-colors"
+              style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              🔧 Build plan →
+            </Link>
           </div>
 
           {/* Footer links */}
           <div className="flex justify-center gap-4 pt-2">
             <Link to="/profile" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Profile</Link>
-            <Link to="/settings" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Settings</Link>
+            <Link to="/progress" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Progress</Link>
+            <Link to="/friends" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Squad</Link>
           </div>
         </div>
       </div>
