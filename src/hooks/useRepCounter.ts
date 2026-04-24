@@ -121,7 +121,7 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // One knee drives to chest = diff grows = "down". Rep on up_to_down (each knee drive).
   mountainclimber: { joints: [LM.LEFT_KNEE,         LM.RIGHT_KNEE],     repOn: 'up_to_down', debounceMs: 350 },
   // Butt kick: absolute ankle-Y difference. Both level = diff≈0 = "up"; one heel kicked up = diff large = "down".
-  buttskick:       { joints: [LM.LEFT_ANKLE,        LM.RIGHT_ANKLE],    repOn: 'up_to_down', debounceMs: 400 },
+  buttskick:       { joints: [LM.LEFT_ANKLE,        LM.RIGHT_ANKLE],    repOn: 'up_to_down', debounceMs: 300 },
   // Calf raise: average heel Y. Heels on floor (high Y) = "down"; raised on toes (low Y) = "up".
   calfraise:       { joints: [LM.LEFT_HEEL,         LM.RIGHT_HEEL],     repOn: 'down_to_up', debounceMs: 1000 },
   // Sit-up: same hipY−shoulderY signal as curl-up, full range.
@@ -450,11 +450,14 @@ export function useRepCounter(
       rawSignal    = result.value
       invertSignal = true
     } else if (exerciseKey === 'mountainclimber') {
-      // Same signal as high knees: absolute knee-Y difference.
-      // Both legs extended in plank: diff≈0 → "up". One knee drives to chest: diff large → "down".
-      // Rep counted on up_to_down (each knee drive). Fast debounce for the pace of mountain climbers.
+      // Absolute knee-Y difference. Both legs extended in plank: diff≈0 → "up".
+      // One knee drives to chest: that knee rises → diff grows → "down".
+      // Rep counted on up_to_down (each knee drive). Fast debounce for rapid pace.
+      // Lower confidence threshold (0.2) — MediaPipe has reduced landmark confidence
+      // in plank position because the model is optimised for upright poses.
       const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
-      if ((lKn?.visibility ?? 0) < 0.3 || (rKn?.visibility ?? 0) < 0.3) return
+      const lKnConf = lKn?.visibility ?? 0, rKnConf = rKn?.visibility ?? 0
+      if (lKnConf < 0.2 || rKnConf < 0.2) return
       rawSignal    = Math.abs(lKn.y - rKn.y)
       invertSignal = false
     } else if (exerciseKey === 'benchpress') {
@@ -541,17 +544,21 @@ export function useRepCounter(
       rawSignal    = joint.y
       invertSignal = false
     } else if (exerciseKey === 'buttskick') {
-      // Knee angle (hip→knee→ankle). Neutral standing: ~160-170°. Heel kicked to butt: ~40-60°.
-      // Using min across both legs catches whichever leg is kicking.
+      // Knee angle (hip→knee→ankle). Neutral running: ~140-170°. Heel kicked to butt: ~40-70°.
+      // Min across both legs catches whichever leg is currently kicking.
       // No invert: low angle (kick) → low normalised → "up"; high angle (straight) → "down".
-      // Rep on up_to_down: foot returns to neutral (kick→neutral transition).
+      // Rep on up_to_down: counts when kicked leg straightens back (kick → neutral).
+      //
+      // Ankle confidence is intentionally lower (0.15) — during the kick the heel travels
+      // behind the body and becomes partially occluded from a front-facing camera.
+      // Hip and knee stay visible and anchor the angle calculation.
       const lHip = landmarks[LM.LEFT_HIP],  lKn = landmarks[LM.LEFT_KNEE],  lAn = landmarks[LM.LEFT_ANKLE]
       const rHip = landmarks[LM.RIGHT_HIP], rKn = landmarks[LM.RIGHT_KNEE], rAn = landmarks[LM.RIGHT_ANKLE]
-      const lConf = Math.min(lHip?.visibility ?? 0, lKn?.visibility ?? 0, lAn?.visibility ?? 0)
-      const rConf = Math.min(rHip?.visibility ?? 0, rKn?.visibility ?? 0, rAn?.visibility ?? 0)
       const angles: number[] = []
-      if (lConf >= 0.35) angles.push(calcAngle(lHip, lKn, lAn))
-      if (rConf >= 0.35) angles.push(calcAngle(rHip, rKn, rAn))
+      const lHipConf = lHip?.visibility ?? 0, lKnConf = lKn?.visibility ?? 0, lAnConf = lAn?.visibility ?? 0
+      const rHipConf = rHip?.visibility ?? 0, rKnConf = rKn?.visibility ?? 0, rAnConf = rAn?.visibility ?? 0
+      if (lHipConf >= 0.35 && lKnConf >= 0.35 && lAnConf >= 0.15) angles.push(calcAngle(lHip, lKn, lAn))
+      if (rHipConf >= 0.35 && rKnConf >= 0.35 && rAnConf >= 0.15) angles.push(calcAngle(rHip, rKn, rAn))
       if (angles.length === 0) return
       rawSignal    = Math.min(...angles)
       invertSignal = false
