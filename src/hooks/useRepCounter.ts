@@ -69,6 +69,8 @@ export interface UseRepCounterReturn {
   repLog:            RepLogEntry[]
   isCalibrating:     boolean
   reset:             () => void
+  /** Per-arm rep counts — only populated for bicepcurl / hammercurl, otherwise both 0. */
+  armReps:           { left: number; right: number }
 }
 
 // ── Exercise config ────────────────────────────────────────────────────────
@@ -332,9 +334,24 @@ export function useRepCounter(
   const [lastRepTimestamp, setLastRepTimestamp] = useState<number | null>(null)
   const [repLog,           setRepLog]           = useState<RepLogEntry[]>([])
   const [isCalibrating,    setIsCalibrating]    = useState(true)
+  const [armReps,          setArmReps]          = useState({ left: 0, right: 0 })
 
   const repCountRef     = useRef(0)
   const calibrateTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Per-arm refs for bicep/hammer curl tracking
+  const leftSmoothed  = useRef<number | null>(null)
+  const rightSmoothed = useRef<number | null>(null)
+  const leftMin       = useRef(Infinity)
+  const leftMax       = useRef(-Infinity)
+  const rightMin      = useRef(Infinity)
+  const rightMax      = useRef(-Infinity)
+  const leftPhaseRef  = useRef<'down' | 'up'>('down')
+  const rightPhaseRef = useRef<'down' | 'up'>('down')
+  const leftLastRep   = useRef(0)
+  const rightLastRep  = useRef(0)
+  const leftCountRef  = useRef(0)
+  const rightCountRef = useRef(0)
 
   const reset = useCallback(() => {
     smoothedY.current      = null
@@ -351,6 +368,20 @@ export function useRepCounter(
     setLastRepTimestamp(null)
     setRepLog([])
     setIsCalibrating(true)
+    // Reset per-arm state
+    leftSmoothed.current  = null
+    rightSmoothed.current = null
+    leftMin.current       = Infinity
+    leftMax.current       = -Infinity
+    rightMin.current      = Infinity
+    rightMax.current      = -Infinity
+    leftPhaseRef.current  = 'down'
+    rightPhaseRef.current = 'down'
+    leftLastRep.current   = 0
+    rightLastRep.current  = 0
+    leftCountRef.current  = 0
+    rightCountRef.current = 0
+    setArmReps({ left: 0, right: 0 })
     // Fallback: force calibration off after 2 s regardless of landmark confidence
     if (calibrateTimer.current) clearTimeout(calibrateTimer.current)
     calibrateTimer.current = setTimeout(() => setIsCalibrating(false), 2000)
@@ -510,24 +541,39 @@ export function useRepCounter(
       rawSignal    = joint.y
       invertSignal = false
     } else if (exerciseKey === 'buttskick') {
-      // Absolute ankle-Y difference. Both ankles level = diff≈0 = "up". One heel kicked up = diff large = "down".
-      // Mirror of high knees: same signal structure but with ankles instead of knees.
-      const lAn = landmarks[LM.LEFT_ANKLE], rAn = landmarks[LM.RIGHT_ANKLE]
-      if ((lAn?.visibility ?? 0) < 0.3 || (rAn?.visibility ?? 0) < 0.3) return
-      rawSignal    = Math.abs(lAn.y - rAn.y)
+      // Knee angle (hip→knee→ankle). Neutral standing: ~160-170°. Heel kicked to butt: ~40-60°.
+      // Using min across both legs catches whichever leg is kicking.
+      // No invert: low angle (kick) → low normalised → "up"; high angle (straight) → "down".
+      // Rep on up_to_down: foot returns to neutral (kick→neutral transition).
+      const lHip = landmarks[LM.LEFT_HIP],  lKn = landmarks[LM.LEFT_KNEE],  lAn = landmarks[LM.LEFT_ANKLE]
+      const rHip = landmarks[LM.RIGHT_HIP], rKn = landmarks[LM.RIGHT_KNEE], rAn = landmarks[LM.RIGHT_ANKLE]
+      const lConf = Math.min(lHip?.visibility ?? 0, lKn?.visibility ?? 0, lAn?.visibility ?? 0)
+      const rConf = Math.min(rHip?.visibility ?? 0, rKn?.visibility ?? 0, rAn?.visibility ?? 0)
+      const angles: number[] = []
+      if (lConf >= 0.35) angles.push(calcAngle(lHip, lKn, lAn))
+      if (rConf >= 0.35) angles.push(calcAngle(rHip, rKn, rAn))
+      if (angles.length === 0) return
+      rawSignal    = Math.min(...angles)
       invertSignal = false
     } else if (exerciseKey === 'calfraise') {
-      // Average heel Y. Heels on floor (high Y) = "down"; raised onto toes (low Y) = "up".
-      // Use heels (29/30) for better sensitivity than ankle joints (27/28).
+      // Average heel/ankle Y. Works even without face visible — only lower-body landmarks needed.
+      // Lower confidence threshold (0.15) so partial-frame shots still register.
+      const CALF_CONF = 0.15
       const lHeel = landmarks[LM.LEFT_HEEL], rHeel = landmarks[LM.RIGHT_HEEL]
-      const lConf = lHeel?.visibility ?? 0, rConf = rHeel?.visibility ?? 0
-      // Fall back to ankles if heels aren't detected
-      if (lConf >= 0.3 && rConf >= 0.3) {
+      const lHeelConf = lHeel?.visibility ?? 0, rHeelConf = rHeel?.visibility ?? 0
+      if (lHeelConf >= CALF_CONF && rHeelConf >= CALF_CONF) {
         rawSignal = (lHeel.y + rHeel.y) / 2
       } else {
         const lAn = landmarks[LM.LEFT_ANKLE], rAn = landmarks[LM.RIGHT_ANKLE]
-        if ((lAn?.visibility ?? 0) < 0.3 || (rAn?.visibility ?? 0) < 0.3) return
-        rawSignal = (lAn.y + rAn.y) / 2
+        const laConf = lAn?.visibility ?? 0, raConf = rAn?.visibility ?? 0
+        if (laConf >= CALF_CONF && raConf >= CALF_CONF) {
+          rawSignal = (lAn.y + rAn.y) / 2
+        } else {
+          // Knee Y as last resort — whole body rises slightly on tiptoes
+          const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
+          if ((lKn?.visibility ?? 0) < CALF_CONF || (rKn?.visibility ?? 0) < CALF_CONF) return
+          rawSignal = (lKn.y + rKn.y) / 2
+        }
       }
       invertSignal = false  // high Y (heels down) = "down" phase naturally
     } else if (exerciseKey === 'situp') {
@@ -700,8 +746,62 @@ export function useRepCounter(
       phaseRef.current = newPhase
       setPhase(newPhase)
     }
+
+    // ── Per-arm tracking for bicep / hammer curl ──────────────────────────
+    if (exerciseKey === 'bicepcurl' || exerciseKey === 'hammercurl') {
+      const ARM_DEBOUNCE_MS  = 800
+      const ARM_UP_THRESH    = 0.3
+      const ARM_DOWN_THRESH  = 0.65
+      const ARM_MIN_RANGE_DEG = 25  // degrees — ignore noise / tiny movements
+
+      const sides = ['left', 'right'] as const
+      for (const side of sides) {
+        const sh = landmarks[side === 'left' ? LM.LEFT_SHOULDER  : LM.RIGHT_SHOULDER]
+        const el = landmarks[side === 'left' ? LM.LEFT_ELBOW     : LM.RIGHT_ELBOW]
+        const wr = landmarks[side === 'left' ? LM.LEFT_WRIST     : LM.RIGHT_WRIST]
+        const conf = Math.min(sh?.visibility ?? 0, el?.visibility ?? 0, wr?.visibility ?? 0)
+        if (conf < 0.45) continue
+
+        const angle = calcAngle(sh, el, wr)
+
+        const smoothedRef  = side === 'left' ? leftSmoothed  : rightSmoothed
+        const minRef       = side === 'left' ? leftMin       : rightMin
+        const maxRef       = side === 'left' ? leftMax       : rightMax
+        const armPhaseRef  = side === 'left' ? leftPhaseRef  : rightPhaseRef
+        const lastRepRef   = side === 'left' ? leftLastRep   : rightLastRep
+        const countRef2    = side === 'left' ? leftCountRef  : rightCountRef
+
+        smoothedRef.current = smoothedRef.current === null
+          ? angle
+          : EMA_ALPHA * angle + (1 - EMA_ALPHA) * smoothedRef.current
+        const s = smoothedRef.current
+        minRef.current = Math.min(minRef.current, s)
+        maxRef.current = Math.max(maxRef.current, s)
+
+        const range = maxRef.current - minRef.current
+        if (range < ARM_MIN_RANGE_DEG) continue
+
+        // Normalise: extended (large angle) → HIGH ("down"); curled (small angle) → LOW ("up")
+        const norm = (s - minRef.current) / range
+
+        let newArmPhase = armPhaseRef.current
+        if (norm > ARM_DOWN_THRESH) newArmPhase = 'down'
+        else if (norm < ARM_UP_THRESH) newArmPhase = 'up'
+
+        // Count on down→up: curl completes (fully curled position reached)
+        if (newArmPhase === 'up' && armPhaseRef.current === 'down') {
+          const elapsed = now - lastRepRef.current
+          if (elapsed >= ARM_DEBOUNCE_MS) {
+            countRef2.current++
+            lastRepRef.current = now
+            setArmReps({ left: leftCountRef.current, right: rightCountRef.current })
+          }
+        }
+        armPhaseRef.current = newArmPhase
+      }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landmarks, exerciseKey])
 
-  return { repCount, phase, lastRepTimestamp, repLog, isCalibrating, reset }
+  return { repCount, phase, lastRepTimestamp, repLog, isCalibrating, reset, armReps }
 }

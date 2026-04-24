@@ -942,7 +942,7 @@ export function WorkoutPage() {
   const isBurpee = currentExercise === 'burpee'
 
   // Burpee uses its own 3-phase state machine — pass null to each hook when the other is active
-  const { repCount, phase: movementPhase, lastRepTimestamp, isCalibrating, reset: resetRepCounter } =
+  const { repCount, phase: movementPhase, lastRepTimestamp, isCalibrating, reset: resetRepCounter, armReps } =
     useRepCounter(isBurpee ? null : landmarks, currentExercise)
 
   const {
@@ -1747,6 +1747,18 @@ export function WorkoutPage() {
                   </div>
                   <span className="text-[11px] text-gray-600 mt-1">{EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}</span>
 
+                  {/* Per-arm counts for bicep / hammer curl */}
+                  {(currentExercise === 'bicepcurl' || currentExercise === 'hammercurl') && (
+                    <div className="mt-3 flex items-center gap-4">
+                      {(['left', 'right'] as const).map(side => (
+                        <div key={side} className="flex flex-col items-center" style={{ background: '#13131f', borderRadius: 8, padding: '6px 14px', border: '1px solid #1e1e2e' }}>
+                          <span className="text-[9px] font-bold tracking-widest uppercase text-gray-600 mb-0.5">{side}</span>
+                          <span className="text-[22px] font-black leading-none text-white">{String(armReps[side]).padStart(2, '0')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Movement phase indicator */}
                   {activeIsCalibrating ? (
                     <p className="mt-3 text-[11px] text-amber-500 animate-pulse">Calibrating…</p>
@@ -2147,6 +2159,26 @@ export function WorkoutPage() {
                 )}
               </div>
             </div>
+
+            {/* Exercise GIF */}
+            {(() => {
+              const gif = EXERCISE_GIFS[currentExercise as typeof EXERCISES[number]]
+              if (!gif) return null
+              return (
+                <div className="shrink-0 mt-3">
+                  <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2 block">
+                    Exercise Demo
+                  </span>
+                  <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #1e1e2e', background: '#0d0d18' }}>
+                    <img
+                      src={gif}
+                      alt={EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}
+                      style={{ width: '100%', display: 'block', maxHeight: 180, objectFit: 'cover' }}
+                    />
+                  </div>
+                </div>
+              )
+            })()}
           </aside>
         </div>
 
