@@ -823,6 +823,8 @@ export function WorkoutPage() {
   const [activeProgram, setActiveProgramState] = useState<ActiveProgram | null>(() => getActiveProgram())
   const [programAdvanceMsg, setProgramAdvanceMsg] = useState<string | null>(null)
   const programAdvanceRef = useRef(false) // guard: only fire once per exercise
+  // Stable ref so auto-advance effect can call handleEndWorkout before it's declared
+  const handleEndWorkoutRef = useRef<(() => Promise<void>) | null>(null)
 
   // ── Set counter ────────────────────────────────────────────────────────
   interface SetLogEntry { setNum: number; exercise: string; reps: number }
@@ -1025,11 +1027,11 @@ export function WorkoutPage() {
       } else {
         clearActiveProgram()
         setActiveProgramState(null)
-        void handleEndWorkout()
+        void handleEndWorkoutRef.current?.()
       }
     }, 2000)
     return () => window.clearTimeout(t)
-  }, [activeRepCount, holdSeconds, activeProgram, phase, isHoldExercise, handleNextProgramExercise, handleEndWorkout])
+  }, [activeRepCount, holdSeconds, activeProgram, phase, isHoldExercise, handleNextProgramExercise])
 
   // Reset the advance guard whenever the exercise changes
   useEffect(() => { programAdvanceRef.current = false }, [currentExercise])
@@ -1328,6 +1330,9 @@ export function WorkoutPage() {
     setCooldownTimeLeft(final[0].durationSeconds)
     setLoadingCooldown(false)
   }, [setPhase, repCounts, setCooldownExercises])
+
+  // Keep ref current so the auto-advance effect can call it before declaration
+  useEffect(() => { handleEndWorkoutRef.current = handleEndWorkout }, [handleEndWorkout])
 
   // ── Cooldown timer ─────────────────────────────────────────────────────
   useEffect(() => {
