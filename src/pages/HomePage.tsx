@@ -540,7 +540,7 @@ export function HomePage() {
               </div>
             </div>
 
-            {/* Basketball coming soon */}
+            {/* Basketball — live */}
             <Link to="/basketball" className="block rounded-2xl overflow-hidden hover:brightness-110 transition-all" style={{ border: '1px solid rgba(234,88,12,0.3)' }}>
               <div className="px-4 py-3 flex items-center justify-between"
                 style={{ background: 'linear-gradient(135deg,rgba(234,88,12,0.12),rgba(245,158,11,0.10))' }}>
