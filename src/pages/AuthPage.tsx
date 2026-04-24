@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   createUserWithEmailAndPassword,
@@ -7,7 +7,10 @@ import {
 } from 'firebase/auth'
 import { auth } from '../lib/firebase'
 import { getUserProfile, upsertUserDisplayName, firestoreProfileToLocal } from '../lib/firebaseHelpers'
-import { TactileBackground } from '../components/TactileBackground'
+
+const GymScene = lazy(() =>
+  import('../components/GymScene').then(m => ({ default: m.GymScene })),
+)
 
 type Mode = 'signin' | 'signup'
 
@@ -37,6 +40,14 @@ export function AuthPage() {
   const [password, setPassword] = useState('')
   const [error,    setError]    = useState<string | null>(null)
   const [loading,  setLoading]  = useState(false)
+  const [open,     setOpen]     = useState(false)
+
+  // Esc closes the modal
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const canSubmit =
     email.includes('@') &&
@@ -104,235 +115,314 @@ export function AuthPage() {
   }
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        minHeight: '100vh',
-        background: 'var(--bg)',
-        color: 'var(--text)',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Ambient background */}
-      <TactileBackground />
+    <div style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg)', overflow: 'hidden' }}>
+      {/* 3D scene */}
+      <Suspense fallback={<SceneLoading />}>
+        <GymScene onVendClick={() => setOpen(true)} />
+      </Suspense>
 
-      {/* Brand (top-left) */}
-      <div style={{ position: 'absolute', top: 28, left: 28, zIndex: 10 }}>
+      {/* Chrome — brand + footnote */}
+      <div style={{ position: 'absolute', top: 28, left: 28, zIndex: 10, pointerEvents: 'none' }}>
         <BrandMark />
       </div>
-
-      {/* Footnote (bottom-right) */}
       <div
         style={{
           position: 'absolute',
           right: 28,
           bottom: 28,
+          zIndex: 10,
+          pointerEvents: 'none',
           fontFamily: 'var(--font-mono)',
           fontSize: 10.5,
           letterSpacing: '0.2em',
-          color: 'var(--text-4)',
+          color: 'var(--text-3)',
           textTransform: 'uppercase',
-          zIndex: 10,
-          pointerEvents: 'none',
         }}
       >
         v2.6 · AI coach online · 33 landmarks · 30 fps
       </div>
-
-      {/* Form column — right-aligned on wide screens, centered on narrow */}
       <div
         style={{
-          position: 'relative',
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          padding: '0 clamp(20px, 5vw, 64px)',
-          zIndex: 5,
+          position: 'absolute',
+          left: '50%',
+          bottom: 28,
+          transform: 'translateX(-50%)',
+          zIndex: 10,
+          pointerEvents: 'none',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          letterSpacing: '0.22em',
+          color: 'var(--text-3)',
+          textTransform: 'uppercase',
+          textAlign: 'center',
+          textShadow: '0 2px 20px rgba(0,0,0,0.8)',
         }}
       >
-        <form
+        <span style={{ color: '#facc15' }}>↓</span> walk up to the vending machine to enter{' '}
+        <span style={{ color: '#facc15' }}>↓</span>
+      </div>
+
+      {/* Modal — login card appears when the vending machine is clicked */}
+      {open && (
+        <LoginModal
+          mode={mode}
+          name={name} email={email} password={password}
+          error={error} loading={loading} canSubmit={canSubmit}
+          onClose={() => setOpen(false)}
+          onNameChange={setName} onEmailChange={setEmail} onPasswordChange={setPassword}
           onSubmit={handleSubmit}
-          className="animate-fade-up"
+          onToggleMode={() => { setMode(m => m === 'signin' ? 'signup' : 'signin'); setError(null) }}
+          onGuest={continueAsGuest}
+        />
+      )}
+    </div>
+  )
+}
+
+function LoginModal(p: {
+  mode: Mode
+  name: string; email: string; password: string
+  error: string | null; loading: boolean; canSubmit: boolean
+  onClose: () => void
+  onNameChange: (v: string) => void
+  onEmailChange: (v: string) => void
+  onPasswordChange: (v: string) => void
+  onSubmit: (e: FormEvent) => void
+  onToggleMode: () => void
+  onGuest: () => void
+}) {
+  return (
+    <div
+      onClick={p.onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'radial-gradient(ellipse at center, rgba(5,4,10,0.35), rgba(5,4,10,0.82))',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        animation: 'fadeIn 0.28s ease',
+      }}
+    >
+      <form
+        onClick={e => e.stopPropagation()}
+        onSubmit={p.onSubmit}
+        className="animate-fade-up"
+        style={{
+          width: 'min(420px, 92vw)',
+          position: 'relative',
+          background: 'color-mix(in oklab, var(--surface) 90%, transparent)',
+          border: '1px solid var(--border-2)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 30,
+          backdropFilter: 'blur(18px)',
+          WebkitBackdropFilter: 'blur(18px)',
+          boxShadow: '0 32px 80px -20px rgba(0,0,0,0.8), 0 0 0 1px rgba(236,72,153,0.08)',
+        }}
+      >
+        {/* Top glow matching the vending machine's magenta */}
+        <div
+          aria-hidden
           style={{
-            width: 'min(420px, 92vw)',
-            position: 'relative',
-            background: 'color-mix(in oklab, var(--surface) 85%, transparent)',
+            position: 'absolute',
+            inset: 0,
+            borderRadius: 'inherit',
+            pointerEvents: 'none',
+            background:
+              'radial-gradient(ellipse 90% 50% at 50% 0%, rgba(236,72,153,0.16), transparent 72%)',
+          }}
+        />
+
+        {/* Close (X) */}
+        <button
+          type="button"
+          onClick={p.onClose}
+          aria-label="Close"
+          style={{
+            position: 'absolute',
+            top: 14,
+            right: 14,
+            width: 28,
+            height: 28,
+            borderRadius: 999,
             border: '1px solid var(--border-2)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 30,
-            backdropFilter: 'blur(14px)',
-            WebkitBackdropFilter: 'blur(14px)',
-            boxShadow: '0 24px 60px -20px rgba(0,0,0,0.6)',
+            background: 'transparent',
+            color: 'var(--text-3)',
+            cursor: 'pointer',
+            fontSize: 14,
           }}
         >
-          {/* Soft top-glow overlay */}
-          <div
-            aria-hidden
-            style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: 'inherit',
-              pointerEvents: 'none',
-              background:
-                'radial-gradient(ellipse 80% 40% at 50% 0%, rgba(var(--accent-rgb), 0.14), transparent 70%)',
-            }}
-          />
+          ×
+        </button>
 
-          {/* Header row */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="badge">AI coach online</span>
-            <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)', letterSpacing: '0.18em' }}>
-              v2.6
-            </span>
-          </div>
+        {/* Header row */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span className="badge">Dispensing access…</span>
+          <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)', letterSpacing: '0.18em' }}>
+            v2.6
+          </span>
+        </div>
 
-          {/* Headline */}
-          <h1
-            className="display"
-            style={{
-              position: 'relative',
-              marginTop: 22,
-              fontSize: 30,
-              fontWeight: 500,
-              lineHeight: 1.1,
-              color: 'var(--text)',
-            }}
-          >
-            {mode === 'signin' ? 'Step onto the platform.' : 'Claim your prime.'}
-          </h1>
-          <p
-            style={{
-              position: 'relative',
-              marginTop: 8,
-              fontSize: 13.5,
-              lineHeight: 1.55,
-              color: 'var(--text-2)',
-            }}
-          >
-            {mode === 'signin'
-              ? 'Sign in to sync your sessions, streaks, and shot scores across devices.'
-              : 'Create an account — pose coach, shot tracker, recovery log. All in.'}
-          </p>
+        {/* Headline */}
+        <h1
+          className="display"
+          style={{
+            position: 'relative',
+            marginTop: 22,
+            fontSize: 30,
+            fontWeight: 500,
+            lineHeight: 1.1,
+            color: 'var(--text)',
+          }}
+        >
+          {p.mode === 'signin' ? 'Step onto the platform.' : 'Claim your prime.'}
+        </h1>
+        <p
+          style={{
+            position: 'relative',
+            marginTop: 8,
+            fontSize: 13.5,
+            lineHeight: 1.55,
+            color: 'var(--text-2)',
+          }}
+        >
+          {p.mode === 'signin'
+            ? 'Drop in your credentials — the machine takes it from here.'
+            : 'New rack in town? Set up a locker.'}
+        </p>
 
-          {/* Fields */}
-          <div style={{ position: 'relative', marginTop: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {mode === 'signup' && (
-              <Field label="Display name">
-                <input
-                  className="field"
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Your name"
-                  autoComplete="name"
-                />
-              </Field>
-            )}
-
-            <Field label="Email">
+        <div style={{ position: 'relative', marginTop: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {p.mode === 'signup' && (
+            <Field label="Display name">
               <input
                 className="field"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
-                required
+                type="text"
+                value={p.name}
+                onChange={e => p.onNameChange(e.target.value)}
+                placeholder="Your name"
+                autoComplete="name"
+                autoFocus
               />
             </Field>
-
-            <Field label="Password">
-              <input
-                className="field"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                required
-                minLength={6}
-              />
-            </Field>
-          </div>
-
-          {error && (
-            <div
-              role="alert"
-              style={{
-                marginTop: 14,
-                padding: '10px 12px',
-                borderRadius: 10,
-                background: 'rgba(248, 113, 113, 0.08)',
-                border: '1px solid rgba(248, 113, 113, 0.3)',
-                fontSize: 12.5,
-                color: '#fca5a5',
-              }}
-            >
-              {error}
-            </div>
           )}
 
-          {/* Primary CTA */}
-          <button
-            type="submit"
-            disabled={!canSubmit || loading}
-            className="btn btn-primary pulse-glow"
-            style={{ marginTop: 18, width: '100%', padding: '14px 18px', fontSize: 14 }}
-          >
-            {loading
-              ? 'Please wait…'
-              : mode === 'signin'
-                ? 'Sign in →'
-                : 'Create account →'}
-          </button>
+          <Field label="Email">
+            <input
+              className="field"
+              type="email"
+              value={p.email}
+              onChange={e => p.onEmailChange(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+              autoFocus={p.mode === 'signin'}
+            />
+          </Field>
 
-          {/* Divider */}
-          <div style={{ margin: '18px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            <span className="mono" style={{ fontSize: 10, letterSpacing: '0.2em', color: 'var(--text-4)', textTransform: 'uppercase' }}>
-              or
-            </span>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          </div>
+          <Field label="Password">
+            <input
+              className="field"
+              type="password"
+              value={p.password}
+              onChange={e => p.onPasswordChange(e.target.value)}
+              placeholder="••••••••"
+              autoComplete={p.mode === 'signup' ? 'new-password' : 'current-password'}
+              required
+              minLength={6}
+            />
+          </Field>
+        </div>
 
-          {/* Ghost button */}
-          <button
-            type="button"
-            onClick={continueAsGuest}
-            disabled={loading}
-            className="btn btn-ghost"
-            style={{ width: '100%', padding: '12px 18px' }}
-          >
-            Continue as guest
-          </button>
-
-          {/* Mode toggle */}
-          <p
+        {p.error && (
+          <div
+            role="alert"
             style={{
-              marginTop: 18,
-              textAlign: 'center',
+              marginTop: 14,
+              padding: '10px 12px',
+              borderRadius: 10,
+              background: 'rgba(248, 113, 113, 0.08)',
+              border: '1px solid rgba(248, 113, 113, 0.3)',
               fontSize: 12.5,
-              color: 'var(--text-3)',
+              color: '#fca5a5',
             }}
           >
-            {mode === 'signin' ? "No account yet? " : 'Have an account? '}
-            <button
-              type="button"
-              onClick={() => { setMode(m => m === 'signin' ? 'signup' : 'signin'); setError(null) }}
-              style={{
-                background: 'transparent',
-                border: 0,
-                padding: 0,
-                color: 'var(--accent)',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              {mode === 'signin' ? 'Create one' : 'Sign in'}
-            </button>
-          </p>
-        </form>
+            {p.error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={!p.canSubmit || p.loading}
+          className="btn btn-primary pulse-glow"
+          style={{ marginTop: 18, width: '100%', padding: '14px 18px', fontSize: 14 }}
+        >
+          {p.loading ? 'Please wait…' : p.mode === 'signin' ? 'Sign in →' : 'Create account →'}
+        </button>
+
+        <div style={{ margin: '18px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          <span className="mono" style={{ fontSize: 10, letterSpacing: '0.2em', color: 'var(--text-4)', textTransform: 'uppercase' }}>
+            or
+          </span>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        </div>
+
+        <button
+          type="button"
+          onClick={p.onGuest}
+          disabled={p.loading}
+          className="btn btn-ghost"
+          style={{ width: '100%', padding: '12px 18px' }}
+        >
+          Continue as guest
+        </button>
+
+        <p
+          style={{
+            marginTop: 18,
+            textAlign: 'center',
+            fontSize: 12.5,
+            color: 'var(--text-3)',
+          }}
+        >
+          {p.mode === 'signin' ? "No account yet? " : 'Have an account? '}
+          <button
+            type="button"
+            onClick={p.onToggleMode}
+            style={{
+              background: 'transparent',
+              border: 0,
+              padding: 0,
+              color: 'var(--accent)',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {p.mode === 'signin' ? 'Create one' : 'Sign in'}
+          </button>
+        </p>
+      </form>
+    </div>
+  )
+}
+
+function SceneLoading() {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg)',
+      }}
+    >
+      <div className="mono" style={{ fontSize: 11, letterSpacing: '0.22em', color: 'var(--text-3)', textTransform: 'uppercase' }}>
+        · booting basement ·
       </div>
     </div>
   )
