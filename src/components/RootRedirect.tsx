@@ -37,7 +37,10 @@ export function RootRedirect() {
 
       // localStorage empty (new device/browser) — try Firestore
       try {
-        const profile = await getUserProfile(user.uid)
+        const profile = await Promise.race([
+          getUserProfile(user.uid),
+          new Promise<null>(r => setTimeout(() => r(null), 5000)),
+        ])
         if (profile?.displayName && profile.age && profile.biologicalSex) {
           const local = firestoreProfileToLocal(profile)
           const json = JSON.stringify(local)
