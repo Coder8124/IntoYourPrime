@@ -1,5 +1,3 @@
-import { useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
 const FLOOR_SIZE = 40
@@ -7,107 +5,201 @@ const WALL_HEIGHT = 8
 const ROOM = 14
 
 /**
- * Basement gym shell — concrete floor, breeze-block walls, steel I-beam ceiling
- * with 3 fluorescent tubes that flicker just enough to feel alive.
+ * Sun-drenched glass-walled gym — polished wood floor, floor-to-ceiling glass on
+ * three sides with steel mullions, a clear skylight in the roof, and a warm
+ * directional sun pouring in from the upper-left.
  */
 export function Environment() {
-  const tube1 = useRef<THREE.PointLight>(null)
-  const tube2 = useRef<THREE.PointLight>(null)
-  const tube3 = useRef<THREE.PointLight>(null)
-
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime
-    // Cheap cinematic flicker — each tube has its own phase
-    if (tube1.current) tube1.current.intensity = 2.2 + Math.sin(t * 9.0) * 0.15 + (Math.random() < 0.005 ? -1.5 : 0)
-    if (tube2.current) tube2.current.intensity = 1.9 + Math.sin(t * 7.4 + 1.5) * 0.1 + (Math.random() < 0.004 ? -1.2 : 0)
-    if (tube3.current) tube3.current.intensity = 2.0 + Math.sin(t * 6.2 + 3.0) * 0.12
-  })
-
   return (
     <group>
-      {/* Concrete floor */}
+      {/* Sky gradient — a large inverted sphere that fills the background */}
+      <mesh scale={[100, 100, 100]}>
+        <sphereGeometry args={[1, 32, 16]} />
+        <meshBasicMaterial
+          side={THREE.BackSide}
+          toneMapped={false}
+          vertexColors={false}
+          color="#bfe3ff"
+        />
+      </mesh>
+
+      {/* A softer gradient rim by offsetting a second larger sphere with lower opacity */}
+      <mesh>
+        <sphereGeometry args={[80, 32, 16]} />
+        <meshBasicMaterial
+          side={THREE.BackSide}
+          color="#f4e7c8"
+          transparent
+          opacity={0.45}
+          toneMapped={false}
+        />
+      </mesh>
+
+      {/* Polished floor — light wood-toned */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
         <planeGeometry args={[FLOOR_SIZE, FLOOR_SIZE]} />
-        <meshStandardMaterial color="#1a1815" roughness={0.95} metalness={0.05} />
+        <meshStandardMaterial color="#c9a377" roughness={0.55} metalness={0.1} />
       </mesh>
 
-      {/* Painted floor lane stripe */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
+      {/* Floor seams — thin lighter stripes running lengthwise */}
+      {[-6, -2, 2, 6].map((x, i) => (
+        <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.001, 0]}>
+          <planeGeometry args={[0.05, FLOOR_SIZE]} />
+          <meshBasicMaterial color="#a07e56" toneMapped={false} />
+        </mesh>
+      ))}
+
+      {/* Painted lane — still visible on the light floor */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
         <planeGeometry args={[2.2, FLOOR_SIZE * 0.7]} />
-        <meshStandardMaterial color="#3a2818" roughness={0.85} />
+        <meshStandardMaterial color="#b08854" roughness={0.6} />
       </mesh>
 
-      {/* Back wall (behind camera) */}
-      <mesh position={[0, WALL_HEIGHT / 2, -ROOM]} receiveShadow>
-        <boxGeometry args={[FLOOR_SIZE, WALL_HEIGHT, 0.3]} />
-        <meshStandardMaterial color="#14110d" roughness={0.9} />
+      {/* Glass walls — transparent with a slight blue tint + steel mullion frames */}
+      <GlassWall position={[0, WALL_HEIGHT / 2, -ROOM]}       size={[FLOOR_SIZE, WALL_HEIGHT]} />
+      <GlassWall position={[-ROOM, WALL_HEIGHT / 2, 0]}       size={[FLOOR_SIZE, WALL_HEIGHT]} rotation={[0, Math.PI / 2, 0]} />
+      <GlassWall position={[ROOM, WALL_HEIGHT / 2, 0]}        size={[FLOOR_SIZE, WALL_HEIGHT]} rotation={[0, -Math.PI / 2, 0]} />
+
+      {/* Ceiling with skylight strip down the middle */}
+      {/* Opaque roof panels on either side of the skylight */}
+      <mesh position={[-5, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[FLOOR_SIZE * 0.35, FLOOR_SIZE]} />
+        <meshStandardMaterial color="#eadfc9" roughness={0.85} />
+      </mesh>
+      <mesh position={[5, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[FLOOR_SIZE * 0.35, FLOOR_SIZE]} />
+        <meshStandardMaterial color="#eadfc9" roughness={0.85} />
+      </mesh>
+      {/* Skylight glass */}
+      <mesh position={[0, WALL_HEIGHT - 0.01, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[FLOOR_SIZE * 0.3, FLOOR_SIZE]} />
+        <meshStandardMaterial
+          color="#e8f4ff"
+          transparent
+          opacity={0.18}
+          emissive="#ffffff"
+          emissiveIntensity={0.6}
+          roughness={0.1}
+        />
       </mesh>
 
-      {/* Side walls */}
-      <mesh position={[-ROOM, WALL_HEIGHT / 2, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
-        <boxGeometry args={[FLOOR_SIZE, WALL_HEIGHT, 0.3]} />
-        <meshStandardMaterial color="#14110d" roughness={0.9} />
-      </mesh>
-      <mesh position={[ROOM, WALL_HEIGHT / 2, 0]} rotation={[0, -Math.PI / 2, 0]} receiveShadow>
-        <boxGeometry args={[FLOOR_SIZE, WALL_HEIGHT, 0.3]} />
-        <meshStandardMaterial color="#14110d" roughness={0.9} />
-      </mesh>
-
-      {/* Ceiling */}
-      <mesh position={[0, WALL_HEIGHT, 0]} rotation={[Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[FLOOR_SIZE, FLOOR_SIZE]} />
-        <meshStandardMaterial color="#0a0805" roughness={1} />
-      </mesh>
-
-      {/* I-beam trusses */}
-      {[-6, 0, 6].map((z, i) => (
-        <group key={i} position={[0, WALL_HEIGHT - 0.15, z]}>
-          <mesh>
-            <boxGeometry args={[FLOOR_SIZE * 0.7, 0.25, 0.4]} />
-            <meshStandardMaterial color="#2a2520" roughness={0.8} metalness={0.4} />
-          </mesh>
-        </group>
+      {/* Skylight mullions (crossbars every few meters) */}
+      {[-8, -4, 0, 4, 8].map((z, i) => (
+        <mesh key={i} position={[0, WALL_HEIGHT - 0.04, z]}>
+          <boxGeometry args={[FLOOR_SIZE * 0.32, 0.08, 0.2]} />
+          <meshStandardMaterial color="#5a5046" roughness={0.55} metalness={0.45} />
+        </mesh>
       ))}
 
-      {/* Fluorescent tubes (visual + light) */}
-      {[
-        { pos: [-5, WALL_HEIGHT - 0.35, -4] as const, ref: tube1 },
-        { pos: [5, WALL_HEIGHT - 0.35, 0] as const, ref: tube2 },
-        { pos: [-3, WALL_HEIGHT - 0.35, 4] as const, ref: tube3 },
-      ].map((t, i) => (
-        <group key={i} position={t.pos}>
-          <mesh>
-            <boxGeometry args={[3.6, 0.12, 0.22]} />
-            <meshStandardMaterial
-              color="#fff7d6"
-              emissive="#fff4b0"
-              emissiveIntensity={2.2}
-              toneMapped={false}
-            />
-          </mesh>
-          <pointLight
-            ref={t.ref}
-            color="#fff1c0"
-            intensity={2}
-            distance={16}
-            decay={1.8}
-          />
-        </group>
+      {/* I-beams flanking the skylight */}
+      {[-2.2, 2.2].map((x, i) => (
+        <mesh key={i} position={[x, WALL_HEIGHT - 0.15, 0]}>
+          <boxGeometry args={[0.35, 0.3, FLOOR_SIZE]} />
+          <meshStandardMaterial color="#5a5046" roughness={0.55} metalness={0.5} />
+        </mesh>
       ))}
 
-      {/* Warm rim light on back wall (adds atmospheric depth) */}
-      <spotLight
-        position={[0, 5, 2]}
-        angle={1.0}
-        penumbra={0.8}
-        intensity={1.2}
-        color="#f59e0b"
-        distance={18}
+      {/* ── Lighting ────────────────────────────────────────────────────────── */}
+
+      {/* Key — warm sun pouring in from the upper-left */}
+      <directionalLight
+        position={[-12, 18, 8]}
+        intensity={2.4}
+        color="#fff3d4"
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-camera-left={-18}
+        shadow-camera-right={18}
+        shadow-camera-top={18}
+        shadow-camera-bottom={-8}
+        shadow-camera-near={0.5}
+        shadow-camera-far={50}
       />
 
-      {/* Ambient base so shadows aren't pitch black */}
-      <ambientLight intensity={0.22} color="#5a4830" />
-      <hemisphereLight args={['#2a2015', '#07050a', 0.35]} />
+      {/* Fill — cool sky bounce from the opposite side */}
+      <directionalLight
+        position={[10, 14, -4]}
+        intensity={0.7}
+        color="#d5e8ff"
+      />
+
+      {/* Skylight glow — a soft downward spot from dead center */}
+      <spotLight
+        position={[0, WALL_HEIGHT - 0.2, 0]}
+        target-position={[0, 0, 0]}
+        angle={1.0}
+        penumbra={0.85}
+        intensity={1.8}
+        color="#fff8e0"
+        distance={22}
+      />
+
+      {/* Ambient daylight + hemisphere for natural sky/ground color balance */}
+      <ambientLight intensity={0.55} color="#fff6e3" />
+      <hemisphereLight args={['#bfe3ff', '#caa67a', 0.6]} />
+    </group>
+  )
+}
+
+function GlassWall({
+  position,
+  size,
+  rotation = [0, 0, 0],
+}: {
+  position: [number, number, number]
+  size: [number, number]
+  rotation?: [number, number, number]
+}) {
+  const [w, h] = size
+  const mullionsV = 6
+  const mullionsH = 3
+  return (
+    <group position={position} rotation={rotation}>
+      {/* Glass pane — very transparent, slight blue cool */}
+      <mesh>
+        <planeGeometry args={[w, h]} />
+        <meshStandardMaterial
+          color="#cfe4ff"
+          transparent
+          opacity={0.12}
+          roughness={0.05}
+          metalness={0.2}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* Floor/ceiling trim */}
+      <mesh position={[0, -h / 2 + 0.08, 0]}>
+        <boxGeometry args={[w, 0.18, 0.25]} />
+        <meshStandardMaterial color="#2c2420" roughness={0.55} metalness={0.4} />
+      </mesh>
+      <mesh position={[0, h / 2 - 0.08, 0]}>
+        <boxGeometry args={[w, 0.18, 0.25]} />
+        <meshStandardMaterial color="#2c2420" roughness={0.55} metalness={0.4} />
+      </mesh>
+
+      {/* Vertical mullions */}
+      {Array.from({ length: mullionsV }).map((_, i) => {
+        const x = -w / 2 + ((i + 1) * w) / (mullionsV + 1)
+        return (
+          <mesh key={`v${i}`} position={[x, 0, 0.01]}>
+            <boxGeometry args={[0.08, h - 0.25, 0.1]} />
+            <meshStandardMaterial color="#2c2420" roughness={0.55} metalness={0.4} />
+          </mesh>
+        )
+      })}
+
+      {/* Horizontal mullion cross-bars */}
+      {Array.from({ length: mullionsH }).map((_, i) => {
+        const y = -h / 2 + ((i + 1) * h) / (mullionsH + 1)
+        return (
+          <mesh key={`h${i}`} position={[0, y, 0.01]}>
+            <boxGeometry args={[w - 0.3, 0.06, 0.08]} />
+            <meshStandardMaterial color="#2c2420" roughness={0.55} metalness={0.4} />
+          </mesh>
+        )
+      })}
     </group>
   )
 }

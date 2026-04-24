@@ -77,8 +77,8 @@ export function GymScene({
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       style={{ position: 'absolute', inset: 0 }}
     >
-      <color attach="background" args={['#05040a']} />
-      <fog attach="fog" args={['#07050b', 10, 30]} />
+      <color attach="background" args={['#bfe3ff']} />
+      <fog attach="fog" args={['#e4f0ff', 22, 60]} />
 
       <Suspense fallback={null}>
         <CameraRig target={cameraTarget} />
@@ -111,14 +111,14 @@ export function GymScene({
         </mesh>
 
         <EffectComposer multisampling={0}>
-          <Bloom intensity={0.85} luminanceThreshold={0.35} luminanceSmoothing={0.3} mipmapBlur />
+          <Bloom intensity={0.55} luminanceThreshold={0.6} luminanceSmoothing={0.4} mipmapBlur />
           <ChromaticAberration
-            offset={new THREE.Vector2(0.0004, 0.0006)}
+            offset={new THREE.Vector2(0.0002, 0.0003)}
             radialModulation={false}
             modulationOffset={0}
           />
-          <Vignette eskil={false} offset={0.15} darkness={0.95} />
-          <Noise premultiply blendFunction={BlendFunction.SOFT_LIGHT} opacity={0.35} />
+          <Vignette eskil={false} offset={0.35} darkness={0.55} />
+          <Noise premultiply blendFunction={BlendFunction.SOFT_LIGHT} opacity={0.12} />
         </EffectComposer>
       </Suspense>
     </Canvas>

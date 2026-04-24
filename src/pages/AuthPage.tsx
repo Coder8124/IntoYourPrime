@@ -14,7 +14,7 @@ const GymScene = lazy(() =>
 )
 
 type Mode = 'signin' | 'signup'
-type VendingPhase = 'idle' | 'dispensed' | 'zooming' | 'ready'
+type VendingPhase = 'idle' | 'dispensed' | 'ready'
 type BenchState = null | { reps: number; hits: number; done: boolean }
 
 function BrandMark() {
@@ -54,13 +54,14 @@ export function AuthPage() {
 
   const cameraTarget =
     bench ? 'bench' :
-    vending === 'zooming' || vending === 'ready' ? 'vending' :
+    vending === 'dispensed' || vending === 'ready' ? 'vending' :
     'idle'
 
-  // When a drink is dispensed, zoom then open the login modal
+  // When a drink is dispensed, camera zooms (via cameraTarget='vending')
+  // and after 1200ms we flip to 'ready' and open the modal. Single-timer,
+  // no intermediate state — keeps the effect from cancelling its own timer.
   useEffect(() => {
     if (vending !== 'dispensed') return
-    setVending('zooming')
     const t = window.setTimeout(() => {
       setVending('ready')
       setLoginOpen(true)
@@ -164,7 +165,21 @@ export function AuthPage() {
       </Suspense>
 
       {/* Brand (top-left) */}
-      <div style={{ position: 'absolute', top: 28, left: 28, zIndex: 10, pointerEvents: 'none' }}>
+      <div
+        style={{
+          position: 'absolute',
+          top: 22,
+          left: 22,
+          zIndex: 10,
+          pointerEvents: 'none',
+          padding: '8px 14px',
+          borderRadius: 999,
+          background: 'rgba(15, 15, 25, 0.55)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255,255,255,0.06)',
+        }}
+      >
         <BrandMark />
       </div>
 
@@ -178,24 +193,29 @@ export function AuthPage() {
             transform: 'translateX(-50%)',
             zIndex: 10,
             pointerEvents: 'none',
+            padding: '10px 20px',
+            borderRadius: 999,
+            background: 'rgba(15, 15, 25, 0.7)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.08)',
             fontFamily: 'var(--font-mono)',
             fontSize: 11,
             letterSpacing: '0.24em',
-            color: 'var(--text-2)',
+            color: '#fff',
             textTransform: 'uppercase',
             textAlign: 'center',
-            textShadow: '0 2px 20px rgba(0,0,0,0.9)',
           }}
         >
           <div><span style={{ color: '#facc15' }}>↓</span> pick a drink to sign in <span style={{ color: '#facc15' }}>↓</span></div>
-          <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-3)' }}>
+          <div style={{ marginTop: 4, fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>
             or tap the bench · press a set
           </div>
         </div>
       )}
 
       {/* Dispensed drink banner (during zoom) */}
-      {pickedDrink && (vending === 'zooming' || vending === 'ready') && !loginOpen && (
+      {pickedDrink && (vending === 'dispensed' || vending === 'ready') && !loginOpen && (
         <div
           style={{
             position: 'absolute',
@@ -228,10 +248,16 @@ export function AuthPage() {
           bottom: 28,
           zIndex: 10,
           pointerEvents: 'none',
+          padding: '7px 14px',
+          borderRadius: 999,
+          background: 'rgba(15, 15, 25, 0.55)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255,255,255,0.06)',
           fontFamily: 'var(--font-mono)',
           fontSize: 10.5,
           letterSpacing: '0.2em',
-          color: 'var(--text-3)',
+          color: 'rgba(255,255,255,0.75)',
           textTransform: 'uppercase',
         }}
       >
