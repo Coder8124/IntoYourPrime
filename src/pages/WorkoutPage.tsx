@@ -428,23 +428,37 @@ const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
 const CATEGORY_TABS = ['All', 'Lower Body', 'Upper Body', 'Core', 'Cardio'] as const
 
 // Wikimedia Commons GIFs — CC BY-SA licensed, publicly embeddable
-const EXERCISE_GIFS: Partial<Record<typeof EXERCISES[number], string>> = {
-  squat:          'https://upload.wikimedia.org/wikipedia/commons/4/4f/Squats_wbs.gif',
-  pushup:         'https://upload.wikimedia.org/wikipedia/commons/d/d4/Pushups_wbs.gif',
-  benchpress:     'https://upload.wikimedia.org/wikipedia/commons/3/3c/SmithMachineBenchPress.gif',
-  chestpress:     'https://upload.wikimedia.org/wikipedia/commons/8/88/Chest_press-CDC_strength_training_for_older_adults.gif',
-  lunge:          'https://upload.wikimedia.org/wikipedia/commons/a/af/Lunge-CDC_strength_training_for_older_adults.gif',
-  deadlift:       'https://upload.wikimedia.org/wikipedia/commons/c/cb/Man_Lifting_Barbell_Deadlift_GIF_Animation_Loop.gif',
-  shoulderpress:  'https://upload.wikimedia.org/wikipedia/commons/b/b2/Overhead_press-CDC_strength_training_for_older_adults.gif',
-  curlup:         'https://upload.wikimedia.org/wikipedia/commons/d/db/Stability-ball-abdominal-crunch-1.gif',
-  situp:          'https://upload.wikimedia.org/wikipedia/commons/3/34/Situps_wbs.gif',
-  bicepcurl:      'https://upload.wikimedia.org/wikipedia/commons/6/66/Biceps_curl-CDC_strength_training_for_older_adults.gif',
-  jumpingjack:    'https://upload.wikimedia.org/wikipedia/commons/a/a4/Jumpingjacks_wbs.gif',
-  highnees:       'https://upload.wikimedia.org/wikipedia/commons/6/6b/Highknees_wbs.gif',
-  calfraise:      'https://upload.wikimedia.org/wikipedia/commons/1/11/Standing-calf-raises-1.gif',
-  tricepextension:'https://upload.wikimedia.org/wikipedia/commons/3/32/One-arm-tricep-extension-1.gif',
-  hammercurl:     'https://upload.wikimedia.org/wikipedia/commons/0/0e/Hammer-curls-with-rope-1.gif',
-  pullup:         'https://upload.wikimedia.org/wikipedia/commons/4/40/Pullup.gif',
+const EXERCISE_GIFS: Record<typeof EXERCISES[number], string> = {
+  squat:            'https://upload.wikimedia.org/wikipedia/commons/4/4f/Squats_wbs.gif',
+  pushup:           'https://upload.wikimedia.org/wikipedia/commons/d/d4/Pushups_wbs.gif',
+  benchpress:       'https://upload.wikimedia.org/wikipedia/commons/3/3c/SmithMachineBenchPress.gif',
+  chestpress:       'https://upload.wikimedia.org/wikipedia/commons/8/88/Chest_press-CDC_strength_training_for_older_adults.gif',
+  lunge:            'https://upload.wikimedia.org/wikipedia/commons/a/af/Lunge-CDC_strength_training_for_older_adults.gif',
+  sidelunge:        'https://upload.wikimedia.org/wikipedia/commons/a/af/Lunge-CDC_strength_training_for_older_adults.gif',
+  deadlift:         'https://upload.wikimedia.org/wikipedia/commons/c/cb/Man_Lifting_Barbell_Deadlift_GIF_Animation_Loop.gif',
+  shoulderpress:    'https://upload.wikimedia.org/wikipedia/commons/b/b2/Overhead_press-CDC_strength_training_for_older_adults.gif',
+  curlup:           'https://upload.wikimedia.org/wikipedia/commons/d/db/Stability-ball-abdominal-crunch-1.gif',
+  situp:            'https://upload.wikimedia.org/wikipedia/commons/3/34/Situps_wbs.gif',
+  bicepcurl:        'https://upload.wikimedia.org/wikipedia/commons/6/66/Biceps_curl-CDC_strength_training_for_older_adults.gif',
+  jumpingjack:      'https://upload.wikimedia.org/wikipedia/commons/a/a4/Jumpingjacks_wbs.gif',
+  highnees:         'https://upload.wikimedia.org/wikipedia/commons/6/6b/Highknees_wbs.gif',
+  mountainclimber:  'https://upload.wikimedia.org/wikipedia/commons/6/6b/Highknees_wbs.gif',
+  buttskick:        'https://upload.wikimedia.org/wikipedia/commons/9/9c/Knee_curl-CDC_strength_training_for_older_adults.gif',
+  calfraise:        'https://upload.wikimedia.org/wikipedia/commons/1/10/Toe_stand-CDC_strength_training_for_older_adults.gif',
+  hipcircle:        'https://upload.wikimedia.org/wikipedia/commons/d/db/Hip_abduction-CDC_strength_training_for_older_adults.gif',
+  plank:            'https://upload.wikimedia.org/wikipedia/commons/d/d4/Pushups_wbs.gif',
+  wallsit:          'https://upload.wikimedia.org/wikipedia/commons/4/4f/Squats_wbs.gif',
+  tricepextension:  'https://upload.wikimedia.org/wikipedia/commons/3/32/One-arm-tricep-extension-1.gif',
+  lateralraise:     'https://upload.wikimedia.org/wikipedia/commons/b/b2/Overhead_press-CDC_strength_training_for_older_adults.gif',
+  hammercurl:       'https://upload.wikimedia.org/wikipedia/commons/0/0e/Hammer-curls-with-rope-1.gif',
+  pullup:           'https://upload.wikimedia.org/wikipedia/commons/4/40/Pullup.gif',
+  armcircle:        'https://upload.wikimedia.org/wikipedia/commons/b/b2/Overhead_press-CDC_strength_training_for_older_adults.gif',
+  scapulasqueeze:   'https://upload.wikimedia.org/wikipedia/commons/8/88/Chest_press-CDC_strength_training_for_older_adults.gif',
+  crossbodystretch: 'https://upload.wikimedia.org/wikipedia/commons/4/41/Chest_stretch-CDC_strength_training_for_older_adults.gif',
+  tricepstretch:    'https://upload.wikimedia.org/wikipedia/commons/3/32/One-arm-tricep-extension-1.gif',
+  chestfly:         'https://upload.wikimedia.org/wikipedia/commons/a/a5/DumbbellFlye.gif',
+  jumpsquat:        'https://upload.wikimedia.org/wikipedia/commons/4/4f/Squats_wbs.gif',
+  burpee:           'https://upload.wikimedia.org/wikipedia/commons/d/df/Burpee.gif',
 }
 
 // Exercises appropriate for warm-up — no heavy compounds or isolation equipment work
@@ -2161,24 +2175,19 @@ export function WorkoutPage() {
             </div>
 
             {/* Exercise GIF */}
-            {(() => {
-              const gif = EXERCISE_GIFS[currentExercise as typeof EXERCISES[number]]
-              if (!gif) return null
-              return (
-                <div className="shrink-0 mt-3">
-                  <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2 block">
-                    Exercise Demo
-                  </span>
-                  <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #1e1e2e', background: '#0d0d18' }}>
-                    <img
-                      src={gif}
-                      alt={EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}
-                      style={{ width: '100%', display: 'block', maxHeight: 180, objectFit: 'cover' }}
-                    />
-                  </div>
-                </div>
-              )
-            })()}
+            <div className="shrink-0 mt-3">
+              <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2 block">
+                Exercise Demo
+              </span>
+              <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #1e1e2e', background: '#0d0d18' }}>
+                <img
+                  key={currentExercise}
+                  src={EXERCISE_GIFS[currentExercise as typeof EXERCISES[number]]}
+                  alt={EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}
+                  style={{ width: '100%', display: 'block', maxHeight: 180, objectFit: 'cover' }}
+                />
+              </div>
+            </div>
           </aside>
         </div>
 
