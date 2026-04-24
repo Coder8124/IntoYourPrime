@@ -116,11 +116,13 @@ export function AuthPage() {
             getUserProfile(uid),
             new Promise<null>(resolve => setTimeout(() => resolve(null), 4000)),
           ])
-          if (fp?.displayName && fp.biologicalSex) {
+          if (fp) {
             const local = JSON.stringify(firestoreProfileToLocal(fp))
             localStorage.setItem('formAI_profile', local)
             localStorage.setItem(`formAI_profile_${uid}`, local)
-            navigate('/home', { replace: true })
+            // Only send to onboarding if profile is genuinely incomplete
+            const needsOnboarding = !fp.displayName && !fp.age && !fp.heightCm
+            navigate(needsOnboarding ? '/onboarding' : '/home', { replace: true })
             return
           }
         } catch { /* offline */ }
