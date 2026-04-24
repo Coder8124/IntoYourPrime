@@ -1,47 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Flame } from 'lucide-react'
-import { hasApiKey } from '../lib/formAnalysis'
-import { PoseSkeletonDecor } from '../components/PoseSkeletonDecor'
+import { hasApiKey, generateRecoveryInsight } from '../lib/formAnalysis'
 import {
   getActivityFeed,
   getRecentLogs,
   getUserProfile,
   getUserSessions,
 } from '../lib/firebaseHelpers'
-import { generateRecoveryInsight } from '../lib/formAnalysis'
 import { getOrSignInUserId } from '../lib/firestoreUser'
 import { getOrCreateLocalUserId } from '../lib/localUserId'
-import type { ActivityFeedItem, Session } from '../types'
+import { getActiveProgram, EXERCISE_INFO, type ActiveProgram } from '../lib/programs'
+import type { ActivityFeedItem, DailyLog, Session } from '../types'
 
-const QUOTES = [
-  { text: "The only bad workout is the one that didn't happen.", author: "Unknown" },
-  { text: "Push yourself because no one else is going to do it for you.", author: "Unknown" },
-  { text: "Your body can stand almost anything. It's your mind you have to convince.", author: "Unknown" },
-  { text: "Strength does not come from the body. It comes from the will.", author: "Unknown" },
-  { text: "The pain you feel today will be the strength you feel tomorrow.", author: "Unknown" },
-  { text: "Don't stop when you're tired. Stop when you're done.", author: "Unknown" },
-  { text: "Fall in love with taking care of your body.", author: "Unknown" },
-  { text: "A one-hour workout is 4% of your day. No excuses.", author: "Unknown" },
-  { text: "Success starts with self-discipline.", author: "Unknown" },
-  { text: "Train insane or remain the same.", author: "Unknown" },
-  { text: "What seems impossible today will one day become your warm-up.", author: "Unknown" },
-  { text: "Your only competition is who you were yesterday.", author: "Unknown" },
-  { text: "Believe in yourself and all that you are.", author: "Christian D. Larson" },
-  { text: "It never gets easier. You just get stronger.", author: "Unknown" },
-]
-
-function getDailyQuote() {
-  const day = Math.floor(Date.now() / 86_400_000)
-  return QUOTES[day % QUOTES.length]
-}
-
-function timeGreeting(): string {
-  const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  return 'Good evening'
-}
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function displayNameFromLocal(): string {
   try {
@@ -50,527 +22,676 @@ function displayNameFromLocal(): string {
     const p = JSON.parse(raw) as { name?: string }
     const n = typeof p.name === 'string' ? p.name.trim() : ''
     return n || 'Athlete'
-  } catch {
-    return 'Athlete'
-  }
-}
-
-function formatSessionDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso.slice(0, 10)
-  return d.toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-function feedLine(item: ActivityFeedItem): string {
-  if (item.type === 'workout_completed') {
-    const w = item.warmupScore != null ? String(Math.round(item.warmupScore)) : '—'
-    const r = item.avgRiskScore != null ? String(Math.round(item.avgRiskScore)) : '—'
-    return `${item.displayName} completed a workout · warmup ${w} · risk ${r}`
-  }
-  if (item.type === 'streak_milestone') {
-    return `${item.displayName} hit a ${item.streak ?? '—'}-day streak 🔥`
-  }
-  return `${item.displayName} joined the crew`
+  } catch { return 'Athlete' }
 }
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
+  if (!parts.length) return '?'
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
+
+function timeGreeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return 'Morning'
+  if (h < 17) return 'Afternoon'
+  return 'Evening'
+}
+
+function fmtExercise(key: string): string {
+  const info = EXERCISE_INFO.find(e => e.id === key)
+  return info?.name ?? key.replace(/([A-Z])/g, ' $1').trim()
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────
+
+function MiniSparkline({
+  values,
+  color = '#3b82f6',
+  invert = false,
+}: {
+  values: number[]
+  color?: string
+  invert?: boolean
+}) {
+  if (values.length < 2) return <div className="h-10" />
+  const w = 160, h = 40, pad = 3
+  const mn = Math.min(...values)
+  const mx = Math.max(...values)
+  const range = mx - mn || 1
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (w - pad * 2)
+    const norm = invert ? (v - mn) / range : (mx - v) / range
+    const y = pad + norm * (h - pad * 2)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  })
+  return (
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-10">
+      <polyline
+        points={pts.join(' ')}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        opacity={0.75}
+      />
+    </svg>
+  )
+}
+
+function CircularGauge({ score }: { score: number }) {
+  const r = 48, cx = 65, cy = 65
+  const color = score >= 75 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444'
+  const zoneLabel = score >= 75 ? 'Peak Zone' : score >= 50 ? 'Good' : 'Rest Up'
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const startDeg = 135, sweep = 270
+  const endDeg = startDeg + sweep * (score / 100)
+  const p = (deg: number) => ({
+    x: cx + r * Math.cos(toRad(deg)),
+    y: cy + r * Math.sin(toRad(deg)),
+  })
+  const s = p(startDeg), e = p(startDeg + sweep), f = p(endDeg)
+  const trackD = `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 1 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`
+  const fillD  = `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${(sweep * score / 100) > 180 ? 1 : 0} 1 ${f.x.toFixed(2)} ${f.y.toFixed(2)}`
+  return (
+    <svg width={130} height={130} viewBox="0 0 130 130">
+      <path d={trackD} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={9} strokeLinecap="round" />
+      {score > 0 && <path d={fillD} fill="none" stroke={color} strokeWidth={9} strokeLinecap="round" />}
+      <text x={cx} y={cy + 2} textAnchor="middle" fill="white" fontSize={26} fontWeight={900}>{score}</text>
+      <text x={cx} y={cy + 18} textAnchor="middle" fill={color} fontSize={9.5} fontWeight={700} letterSpacing={1}>{zoneLabel.toUpperCase()}</text>
+    </svg>
+  )
+}
+
+function StreakBars({ sessions, streak }: { sessions: Session[]; streak: number }) {
+  const days = Array.from({ length: 8 }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() - (7 - i))
+    const key = d.toISOString().slice(0, 10)
+    const worked = sessions.some(s => s.date.slice(0, 10) === key)
+    return { key, worked, isToday: i === 7 }
+  })
+  const maxH = 28
+  return (
+    <div className="flex items-end gap-1.5">
+      {days.map((d) => (
+        <div key={d.key} className="flex flex-col items-center gap-1">
+          <div
+            className="w-5 rounded-sm transition-all"
+            style={{
+              height: d.worked ? maxH : d.isToday ? 6 : 4,
+              background: d.worked
+                ? 'linear-gradient(to top, #f59e0b, #fbbf24)'
+                : 'rgba(255,255,255,0.08)',
+            }}
+          />
+          <span className="text-[8px] text-gray-700 font-mono">
+            {new Date(d.key + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'narrow' })}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────
 
 export function HomePage() {
   const navigate = useNavigate()
   const welcomeName = useMemo(() => displayNameFromLocal(), [])
 
-  const [loading, setLoading] = useState(true)
-  const [apiKeyInput, setApiKeyInput] = useState('')
-  const [apiKeySet, setApiKeySet] = useState(hasApiKey)
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [streak, setStreak] = useState(0)
-  const [feed, setFeed] = useState<ActivityFeedItem[]>([])
-  const [insight, setInsight] = useState<string | null>(null)
-  const [insightLoading, setInsightLoading] = useState(false)
-
+  const [loading, setLoading]           = useState(true)
+  const [sessions, setSessions]         = useState<Session[]>([])
+  const [allSessions, setAllSessions]   = useState<Session[]>([])
+  const [streak, setStreak]             = useState(0)
+  const [feed, setFeed]                 = useState<ActivityFeedItem[]>([])
+  const [lastLog, setLastLog]           = useState<DailyLog | null>(null)
+  const [activeProgram, setActiveProgramState] = useState<ActiveProgram | null>(null)
+  const [apiKeyInput, setApiKeyInput]   = useState('')
+  const [apiKeySet, setApiKeySet]       = useState(hasApiKey)
+  const [showApiInput, setShowApiInput] = useState(false)
+  const [insight, setInsight]           = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     try {
-      // Use local id immediately so the page never hangs waiting for Firebase auth
       const localId = getOrCreateLocalUserId()
       const id = await Promise.race([
         getOrSignInUserId(),
-        new Promise<string>(resolve => setTimeout(() => resolve(localId), 3000)),
+        new Promise<string>(r => setTimeout(() => r(localId), 3000)),
       ])
 
-      const [sessAll, profile, activity] = await Promise.allSettled([
+      const [sessAll, profile, activity, logsAll] = await Promise.allSettled([
         getUserSessions(id, 50),
         getUserProfile(id),
         getActivityFeed(id),
+        getRecentLogs(id, 7),
       ])
-      const sessions = sessAll.status === 'fulfilled' ? sessAll.value : []
-      const prof     = profile.status === 'fulfilled' ? profile.value : null
-      const acts     = activity.status === 'fulfilled' ? activity.value : []
 
-      setSessions(sessions.slice(0, 5))
+      const allSess = sessAll.status === 'fulfilled' ? sessAll.value : []
+      const prof    = profile.status === 'fulfilled'  ? profile.value  : null
+      const acts    = activity.status === 'fulfilled' ? activity.value : []
+      const logs    = logsAll.status === 'fulfilled'  ? logsAll.value  : []
+
+      setAllSessions(allSess)
+      setSessions(allSess.slice(0, 10))
       setStreak(prof?.streakCount ?? 0)
-      setFeed(acts.filter((a) => a.userId !== id).slice(0, 10))
+      setFeed(acts.filter(a => a.userId !== id).slice(0, 10))
+      setLastLog(logs[0] ?? null)
 
-      if (sessions.length >= 5) {
-        setInsightLoading(true)
+      if (allSess.length >= 5) {
         try {
-          const logs = await getRecentLogs(id, 30)
-          const text = await generateRecoveryInsight({ sessions, logs })
+          const text = await generateRecoveryInsight({ sessions: allSess, logs })
           setInsight(text.trim() || null)
-        } catch {
-          setInsight(null)
-        } finally {
-          setInsightLoading(false)
-        }
-      } else {
-        setInsight(null)
-        setInsightLoading(false)
+        } catch { setInsight(null) }
       }
-    } catch {
-      setInsightLoading(false)
-    } finally {
+    } catch { /* show empty state */ } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
+  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => { setActiveProgramState(getActiveProgram()) }, [])
 
   const handleSaveApiKey = useCallback(() => {
-    const trimmed = apiKeyInput.trim()
-    if (!trimmed) return
-    localStorage.setItem('formAI_openai_key', trimmed)
+    const t = apiKeyInput.trim()
+    if (!t) return
+    localStorage.setItem('formAI_openai_key', t)
     setApiKeySet(true)
     setApiKeyInput('')
+    setShowApiInput(false)
   }, [apiKeyInput])
 
-  const sessionCountForInsight = useMemo(() => {
-    return sessions.length >= 5
+  // ── Computed stats ─────────────────────────────────────────────────────
+
+  const weekCutoff = useMemo(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10)
+  }, [])
+
+  const weeklyReps = useMemo(() => {
+    return allSessions
+      .filter(s => s.date.slice(0, 10) >= weekCutoff)
+      .reduce((sum, s) => sum + Object.values(s.repCounts ?? {}).reduce((a, b) => a + b, 0), 0)
+  }, [allSessions, weekCutoff])
+
+  const prevWeeklyReps = useMemo(() => {
+    const prev = new Date(); prev.setDate(prev.getDate() - 14)
+    const prevKey = prev.toISOString().slice(0, 10)
+    return allSessions
+      .filter(s => s.date.slice(0, 10) >= prevKey && s.date.slice(0, 10) < weekCutoff)
+      .reduce((sum, s) => sum + Object.values(s.repCounts ?? {}).reduce((a, b) => a + b, 0), 0)
+  }, [allSessions, weekCutoff])
+
+  const formScore = useMemo(() => {
+    const r = sessions.slice(0, 3)
+    if (!r.length) return null
+    return Math.round(100 - r.reduce((s, x) => s + x.avgRiskScore, 0) / r.length)
   }, [sessions])
 
-  const NOVEL_FEATURES = [
-    {
-      icon: '🔥',
-      title: 'Fatigue Detection',
-      punch: 'Know before it hurts',
-      desc: 'Watches your risk score rep-by-rep and alerts you the instant form starts breaking down mid-set.',
-      color: '#f59e0b',
-      badge: 'New',
-    },
-    {
-      icon: '⚖️',
-      title: 'L/R Asymmetry',
-      punch: 'Both sides, every rep',
-      desc: 'Tracks left vs right joint angles live — catches compensation patterns most coaches never spot.',
-      color: '#a78bfa',
-      badge: 'New',
-    },
-    {
-      icon: '📈',
-      title: 'Form Trends',
-      punch: 'Is your form actually improving?',
-      desc: 'Per-exercise risk score trends across every session — not just today, but your whole arc.',
-      color: '#22c55e',
-      badge: 'New',
-    },
-    {
-      icon: '🤖',
-      title: 'AI Form Coaching',
-      punch: 'GPT-4o watches you lift',
-      desc: 'Real corrections spoken aloud every 15s using your actual camera frames — not generic advice.',
-      color: '#3b82f6',
-      badge: null,
-    },
-  ]
+  const prevFormScore = useMemo(() => {
+    const r = sessions.slice(3, 6)
+    if (!r.length) return null
+    return Math.round(100 - r.reduce((s, x) => s + x.avgRiskScore, 0) / r.length)
+  }, [sessions])
 
-  const STANDARD_FEATURES = [
-    { icon: '⚡', title: 'Injury Risk Score',   desc: 'Geometry + AI blended into a live 0–100 risk score' },
-    { icon: '🎙️', title: 'Voice Coaching',       desc: 'Feedback spoken out loud so you never break flow' },
-    { icon: '🎯', title: 'Progressive Overload', desc: 'AI-suggested rep targets based on your form score' },
-    { icon: '🧘', title: 'AI Cooldown',          desc: 'Personalised stretches based on what you actually trained' },
-    { icon: '🔢', title: 'Auto Rep Counting',    desc: '33 body landmarks tracked at 30 fps — reps count themselves' },
-    { icon: '👥', title: 'Squad Mode',           desc: 'Friend leaderboard, streaks, Prime Intelligence rankings' },
+  const injuryRisk = useMemo(() =>
+    sessions[0] ? Math.round(sessions[0].avgRiskScore) : null,
+  [sessions])
+
+  const prevInjuryRisk = useMemo(() =>
+    sessions[1] ? Math.round(sessions[1].avgRiskScore) : null,
+  [sessions])
+
+  const readiness = useMemo(() => {
+    if (!lastLog) return null
+    const sleep   = Math.min(1, lastLog.sleepHours / 8) * 100 * 0.4
+    const energy  = ((lastLog.energyLevel - 1) / 4) * 100 * 0.4
+    const fresh   = ((5 - lastLog.overallSoreness) / 4) * 100 * 0.2
+    return Math.round(sleep + energy + fresh)
+  }, [lastLog])
+
+  const formSpark  = useMemo(() =>
+    [...sessions].reverse().map(s => 100 - s.avgRiskScore), [sessions])
+  const repsSpark  = useMemo(() =>
+    [...sessions].reverse().map(s => Object.values(s.repCounts ?? {}).reduce((a, b) => a + b, 0)), [sessions])
+  const riskSpark  = useMemo(() =>
+    [...sessions].reverse().map(s => s.avgRiskScore), [sessions])
+
+  const todayExercises = useMemo(() => {
+    if (!activeProgram) return null
+    return activeProgram.exercises.slice(activeProgram.currentIndex, activeProgram.currentIndex + 5)
+  }, [activeProgram])
+
+  const squadBoard = useMemo(() => {
+    const seen: Record<string, { name: string; score: number; streak: number }> = {}
+    for (const item of feed) {
+      if (!seen[item.userId] && item.avgRiskScore != null) {
+        seen[item.userId] = {
+          name: item.displayName,
+          score: Math.round(100 - (item.avgRiskScore ?? 50)),
+          streak: item.streak ?? 0,
+        }
+      }
+    }
+    const others = Object.values(seen)
+    const me = formScore != null
+      ? [{ name: welcomeName, score: formScore, streak, isMe: true }]
+      : []
+    return [...me, ...others.map(x => ({ ...x, isMe: false }))]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+  }, [feed, formScore, streak, welcomeName])
+
+  // ── Hero card content ──────────────────────────────────────────────────
+
+  const heroTitle = useMemo(() => {
+    if (activeProgram) return activeProgram.name
+    if (!sessions.length) return 'Start your first workout'
+    const recent = sessions[0]?.exercises ?? []
+    if (recent.includes('squat') || recent.includes('deadlift')) return 'Upper body day — time to push'
+    if (recent.includes('pushup') || recent.includes('benchpress')) return 'Lower body & core day'
+    return `Good ${timeGreeting()} — ready to move?`
+  }, [activeProgram, sessions])
+
+  const heroSub = useMemo(() => {
+    if (activeProgram) {
+      const remaining = activeProgram.exercises.length - activeProgram.currentIndex
+      return `${remaining} exercises queued${formScore != null ? ` · Form forecast ${formScore >= 80 ? 'strong' : formScore >= 60 ? 'moderate' : 'needs work'}` : ''}`
+    }
+    if (sessions.length) {
+      const lastEx = sessions[0]?.exercises?.map(fmtExercise).join(', ') ?? ''
+      return `Last session: ${lastEx || '—'} · ${formScore != null ? `Form score ${formScore}` : 'Start tracking your form'}`
+    }
+    return 'Your AI coach is ready. Camera-based form analysis, rep counting, and real-time coaching.'
+  }, [activeProgram, sessions, formScore])
+
+  // ── Nav tabs ───────────────────────────────────────────────────────────
+
+  const NAV_TABS = [
+    { label: 'Today',    to: '/home' },
+    { label: 'Workout',  to: '/workout' },
+    { label: 'Progress', to: '/progress' },
+    { label: 'Squad',    to: '/friends' },
+    { label: 'Recovery', to: '/recovery-log' },
   ]
 
   return (
-    <div className="min-h-screen bg-[#07070e] pb-24 text-white">
+    <div className="min-h-screen bg-[#07070e] text-white">
 
-      {/* ── Top nav ── */}
-      <nav className="sticky top-0 z-30 flex items-center justify-between px-5 py-4"
-        style={{ background: 'rgba(7,7,14,0.85)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <Link to="/home" className="text-[14px] font-black uppercase tracking-[0.18em] text-blue-400 hover:text-blue-300 transition-colors">
-          IntoYourPrime
-        </Link>
-        <Link to="/profile" className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-black text-white transition-opacity hover:opacity-70"
-          style={{ background: 'linear-gradient(135deg,#3b82f6,#7c3aed)' }}>
-          {welcomeName.slice(0, 1).toUpperCase()}
-        </Link>
-      </nav>
+      {/* ── Top Navigation ── */}
+      <nav className="sticky top-0 z-30"
+        style={{ background: 'rgba(7,7,14,0.9)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="mx-auto max-w-7xl flex items-center justify-between px-5 py-3">
 
-      {/* ── 3-column layout ── */}
-      <div className="mx-auto max-w-7xl px-4 pt-6">
-        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_280px] gap-6 items-start">
-
-          {/* ════ LEFT SIDEBAR — Features ════ */}
-          <aside className="order-2 lg:order-1 space-y-4">
-
-            {/* Novel features — highlighted */}
-            <div>
-              <h2 className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500 px-1 mb-2">What makes us different</h2>
-              <div className="space-y-2">
-                {NOVEL_FEATURES.map(f => (
-                  <div key={f.title} className="relative flex gap-3 rounded-xl p-3"
-                    style={{ background: '#0e0e18', borderLeft: `3px solid ${f.color}`, border: `1px solid ${f.color}28`, borderLeftWidth: '3px' }}>
-                    {f.badge && (
-                      <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase"
-                        style={{ background: f.color + '22', color: f.color }}>
-                        {f.badge}
-                      </span>
-                    )}
-                    <span className="text-[18px] shrink-0 mt-0.5">{f.icon}</span>
-                    <div className="min-w-0 pr-6">
-                      <p className="text-[12.5px] font-black text-white">{f.title}</p>
-                      <p className="text-[10.5px] font-semibold mt-0.5" style={{ color: f.color }}>{f.punch}</p>
-                      <p className="text-[10.5px] text-gray-500 mt-0.5 leading-relaxed">{f.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div style={{ borderTop: '1px solid #1a1a28' }} />
-
-            {/* Standard features */}
-            <div>
-              <h2 className="text-[10px] font-black uppercase tracking-[0.22em] text-gray-500 px-1 mb-2">Also included</h2>
-              <div className="space-y-1.5">
-                {STANDARD_FEATURES.map(f => (
-                  <div key={f.title} className="flex gap-2.5 rounded-xl p-2.5" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
-                    <span className="text-base shrink-0">{f.icon}</span>
-                    <div>
-                      <p className="text-[12px] font-bold text-white">{f.title}</p>
-                      <p className="text-[10.5px] text-gray-500 mt-0.5 leading-snug">{f.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Exercise chips */}
-            <div className="rounded-xl p-3" style={{ background: 'linear-gradient(135deg,rgba(59,130,246,0.08),rgba(124,58,237,0.06))', border: '1px solid rgba(59,130,246,0.18)' }}>
-              <p className="text-[10.5px] font-bold text-blue-400 mb-2">30+ supported exercises</p>
-              <div className="flex flex-wrap gap-1">
-                {['Squat','Push-Up','Lunge','Deadlift','Bench Press','Shoulder Press','Bicep Curl','Jumping Jack','High Knees','Burpee','Jump Squat','Plank','Wall Sit','Side Lunge','Chest Fly'].map(ex => (
-                  <span key={ex} className="px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold text-blue-300 bg-blue-500/10 border border-blue-500/20">{ex}</span>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          {/* ════ CENTER — Main content ════ */}
-          <main className="order-1 lg:order-2 min-w-0">
-
-            {/* Hero */}
-            <header className="relative pt-6 pb-2">
-              <p className="text-[15px] text-gray-400">{timeGreeting()}</p>
-              <h1 className="mt-1 text-5xl font-black tracking-tight leading-tight">{welcomeName}</h1>
-              <p className="mt-2 text-[15px] text-gray-500 leading-snug max-w-sm">
-                The AI coach that watches <span className="text-white font-semibold">every rep</span>, flags <span className="text-amber-400 font-semibold">fatigue mid-set</span>, and tracks your form across <span className="text-blue-400 font-semibold">every session</span>.
-              </p>
-              <div className="mt-4 inline-flex items-center gap-2.5 rounded-full px-5 py-2.5"
-                style={{ background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.22)' }}>
-                <Flame className="h-5 w-5 text-amber-400" />
-                <span className="text-[15px] font-semibold text-amber-200">
-                  <span className="font-mono text-[18px] font-black">{streak}</span>
-                  <span className="ml-1.5 text-amber-300/70"> day streak</span>
-                </span>
-              </div>
-              <div className="absolute top-6 right-0 opacity-60 rounded-2xl p-2"
-                style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.14)' }}>
-                <PoseSkeletonDecor size={90} />
-              </div>
-            </header>
-
-            {/* Daily quote */}
-            {(() => {
-              const q = getDailyQuote()
-              return (
-                <div className="mt-5 rounded-2xl px-5 py-4"
-                  style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.15)' }}>
-                  <p className="text-[14px] leading-relaxed text-gray-300 italic">&ldquo;{q.text}&rdquo;</p>
-                  {q.author !== 'Unknown' && (
-                    <p className="mt-1.5 text-[11px] font-semibold text-indigo-400">— {q.author}</p>
-                  )}
-                </div>
-              )
-            })()}
-
-            {/* CTA */}
-            <div className="mt-5">
-              <button
-                type="button"
-                onClick={() => navigate('/workout')}
-                className="relative w-full overflow-hidden rounded-2xl py-5 text-[17px] font-black tracking-tight text-white transition-all hover:scale-[1.01] active:scale-[0.99]"
-                style={{
-                  background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
-                  boxShadow: '0 0 40px rgba(99,102,241,0.35), 0 2px 0 rgba(255,255,255,0.08) inset',
-                }}
-              >
-                <span className="relative z-10">Start Workout →</span>
-                <div className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity"
-                  style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' }} />
-              </button>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <Link to="/programs" className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-bold text-blue-400 transition-all hover:text-blue-300"
-                  style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}>
-                  📋 Programs
-                </Link>
-                <Link to="/library" className="flex items-center justify-center gap-2 rounded-xl py-3 text-[13px] font-bold text-purple-400 transition-all hover:text-purple-300"
-                  style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}>
-                  📖 Library
-                </Link>
-              </div>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                <Link to="/session-summary" className="flex items-center justify-center rounded-xl py-2.5 text-[12px] font-semibold text-gray-400 hover:text-white transition-colors"
-                  style={{ background: '#111119', border: '1px solid #1e1e2e' }}>Last session →</Link>
-                <Link to="/progress" className="flex items-center justify-center rounded-xl py-2.5 text-[12px] font-semibold text-gray-400 hover:text-white transition-colors"
-                  style={{ background: '#111119', border: '1px solid #1e1e2e' }}>Progress →</Link>
-                <Link to="/friends" className="flex items-center justify-center rounded-xl py-2.5 text-[12px] font-semibold text-gray-400 hover:text-white transition-colors"
-                  style={{ background: '#111119', border: '1px solid #1e1e2e' }}>Squad →</Link>
-              </div>
-            </div>
-
-            {/* Feature spotlight — 2×2 grid of novel capabilities */}
-            <section className="mt-8">
-              <h2 className="mb-3 text-[11px] font-black uppercase tracking-[0.2em] text-gray-500">Why IntoYourPrime</h2>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { icon: '🔥', title: 'Fatigue Detection', sub: 'Mid-set alerts', desc: 'Form degrading? You\'ll know before it becomes an injury.', color: '#f59e0b' },
-                  { icon: '⚖️', title: 'L/R Balance', sub: 'Bilateral asymmetry', desc: 'Live left vs right tracking — comp patterns caught instantly.', color: '#a78bfa' },
-                  { icon: '📈', title: 'Form Trends', sub: 'Long-term analysis', desc: 'Your squat risk score across 20 sessions — not just today.', color: '#22c55e' },
-                  { icon: '🤖', title: 'AI Rep Review', sub: 'GPT-4o every 15s', desc: 'Real camera frames sent to AI. Actual feedback, not scripts.', color: '#3b82f6' },
-                ].map(f => (
-                  <div key={f.title} className="rounded-2xl p-4"
-                    style={{ background: '#0e0e18', border: `1px solid ${f.color}25` }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[22px]">{f.icon}</span>
-                      <div>
-                        <p className="text-[13px] font-black text-white leading-tight">{f.title}</p>
-                        <p className="text-[10px] font-semibold" style={{ color: f.color }}>{f.sub}</p>
-                      </div>
-                    </div>
-                    <p className="text-[11.5px] text-gray-500 leading-relaxed">{f.desc}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Recent sessions */}
-            <section className="mt-8">
-              <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.2em] text-gray-500">Recent sessions</h2>
-              {loading ? (
-                <div className="space-y-2">
-                  {[1,2].map(i => <div key={i} className="h-20 rounded-xl animate-pulse" style={{ background: '#111119' }} />)}
-                </div>
-              ) : sessions.length === 0 ? (
-                <div className="rounded-2xl p-6 text-center" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
-                  <p className="text-2xl mb-2">🏋️</p>
-                  <p className="text-[14px] text-gray-500">No sessions yet — complete your first workout!</p>
-                </div>
-              ) : (
-                <ul className="space-y-2">
-                  {sessions.map((s) => (
-                    <li key={s.id} className="rounded-xl px-4 py-3.5 hover:border-blue-500/30 transition-colors"
-                      style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[15px] font-bold text-white">{formatSessionDate(s.date)}</span>
-                        <div className="flex items-center gap-3 text-[12px]">
-                          <span className="text-amber-400 font-mono font-semibold">warmup {Math.round(s.warmupScore)}</span>
-                          <span className="text-blue-400 font-mono font-semibold">risk {Math.round(s.avgRiskScore)}</span>
-                        </div>
-                      </div>
-                      <p className="mt-1 text-[13px] capitalize text-gray-500">
-                        {s.exercises.length ? s.exercises.join(' · ') : '—'}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            {/* Recovery insight */}
-            <section className="mt-8">
-              <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.2em] text-gray-500">Recovery insight</h2>
-              <div className="rounded-2xl p-5" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
-                {!sessionCountForInsight ? (
-                  <div className="flex items-start gap-3">
-                    <span className="text-xl">🔒</span>
-                    <p className="text-[14px] leading-relaxed text-gray-500">Complete 5 sessions to unlock personalized recovery insights.</p>
-                  </div>
-                ) : insightLoading ? (
-                  <p className="text-[13px] text-gray-500 animate-pulse">Generating insight…</p>
-                ) : insight ? (
-                  <p className="text-[15px] leading-relaxed text-gray-200">{insight}</p>
-                ) : (
-                  <p className="text-[13px] text-gray-500">Add an OpenAI key to generate insights.</p>
-                )}
-              </div>
-            </section>
-
-            {/* Friends feed */}
-            <section className="mt-8">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-[13px] font-bold uppercase tracking-[0.2em] text-gray-500">Friends</h2>
-                <Link to="/friends" className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition-colors">Prime Intelligence →</Link>
-              </div>
-              {loading ? (
-                <div className="h-16 rounded-xl animate-pulse" style={{ background: '#111119' }} />
-              ) : feed.length === 0 ? (
-                <div className="rounded-2xl p-5 text-center" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
-                  <p className="text-[13px] text-gray-500">No friend activity yet.</p>
-                </div>
-              ) : (
-                <ul className="space-y-2">
-                  {feed.map((item) => (
-                    <li key={item.id} className="flex gap-3 items-center rounded-xl px-4 py-3"
-                      style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-black text-white"
-                        style={{ background: 'linear-gradient(135deg,#3b82f6,#7c3aed)' }}>
-                        {initials(item.displayName)}
-                      </div>
-                      <p className="min-w-0 flex-1 text-[14px] leading-snug text-gray-300">{feedLine(item)}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            {/* Footer */}
-            <div className="mt-12 flex justify-center gap-6 border-t border-[#111119] pt-6 pb-4">
-              <Link to="/profile" className="text-[12px] text-gray-600 hover:text-gray-400 transition-colors">Profile</Link>
-              <Link to="/pipeline-test" className="text-[12px] text-gray-600 hover:text-gray-400 transition-colors">Pipeline test</Link>
-              <Link to="/recovery-log" className="text-[12px] text-gray-600 hover:text-gray-400 transition-colors">Recovery log</Link>
-            </div>
-          </main>
-
-          {/* ════ RIGHT SIDEBAR — API key + Coming soon ════ */}
-          <aside className="order-3 space-y-4">
-
-            {/* API key — always visible when not set */}
-            {!apiKeySet ? (
-              <div className="rounded-2xl p-4" style={{ background: 'linear-gradient(135deg,rgba(245,158,11,0.10),rgba(234,88,12,0.08))', border: '1px solid rgba(245,158,11,0.3)', boxShadow: '0 0 24px rgba(245,158,11,0.08)' }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-lg">⚡</span>
-                  <p className="text-[13px] font-black text-amber-200">Add OpenAI Key</p>
-                </div>
-                <p className="text-[11px] text-amber-400/70 mb-3 leading-relaxed">
-                  Unlocks real-time AI form coaching, voice feedback &amp; personalized insights.
-                </p>
-                <input
-                  type="text"
-                  value={apiKeyInput}
-                  onChange={e => setApiKeyInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSaveApiKey()}
-                  placeholder="sk-proj-…"
-                  className="input-dark w-full font-mono text-[12px] mb-2"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveApiKey}
-                  disabled={!apiKeyInput.trim()}
-                  className="w-full rounded-xl py-2.5 text-[13px] font-black text-black transition-colors disabled:opacity-40"
-                  style={{ background: '#f59e0b' }}
-                >
-                  Save key →
-                </button>
-                <p className="mt-2 text-[10px] text-amber-700">Stored locally · never sent to a server</p>
-              </div>
-            ) : (
-              <div className="rounded-xl px-4 py-3 flex items-center gap-2" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
-                <span className="text-green-400 text-sm">✓</span>
-                <p className="text-[12px] font-semibold text-green-400">AI coaching active</p>
-              </div>
-            )}
-
-            {/* Pro coming soon */}
-            <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(99,102,241,0.3)' }}>
-              <div className="px-4 py-3 flex items-center justify-between"
-                style={{ background: 'linear-gradient(135deg,rgba(59,130,246,0.12),rgba(124,58,237,0.12))' }}>
-                <div>
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-indigo-400">Pro</span>
-                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Soon</span>
-                  </div>
-                  <p className="text-[13px] font-bold text-white">$15 / month</p>
-                </div>
-                <span className="text-xl opacity-60">🔒</span>
-              </div>
-              <div className="px-4 py-3 space-y-2" style={{ background: 'rgba(10,10,20,0.8)' }}>
-                {[
-                  { icon: '🧠', text: 'GPT-4o real-time analysis' },
-                  { icon: '🎙️', text: 'AI voice coaching' },
-                  { icon: '📊', text: 'Advanced analytics' },
-                  { icon: '📋', text: 'Custom programs' },
-                ].map(({ icon, text }) => (
-                  <div key={text} className="flex items-center gap-2">
-                    <span className="text-sm">{icon}</span>
-                    <span className="text-[12px] text-gray-400">{text}</span>
-                  </div>
-                ))}
-                <button
-                  className="w-full mt-2 py-2.5 rounded-xl text-[12px] font-bold text-indigo-300 transition-all"
-                  style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)' }}
-                  onClick={() => alert('Pro plan launching soon — stay tuned!')}
-                >
-                  Notify me →
-                </button>
-              </div>
-            </div>
-
-            {/* Basketball — live */}
-            <Link to="/basketball" className="block rounded-2xl overflow-hidden hover:brightness-110 transition-all" style={{ border: '1px solid rgba(234,88,12,0.3)' }}>
-              <div className="px-4 py-3 flex items-center justify-between"
-                style={{ background: 'linear-gradient(135deg,rgba(234,88,12,0.12),rgba(245,158,11,0.10))' }}>
-                <div>
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-[10px] font-black uppercase tracking-[0.15em] text-orange-400">Basketball</span>
-                  </div>
-                  <p className="text-[13px] font-black text-white">Shooting Form Tracker</p>
-                </div>
-                <span className="text-2xl">🏀</span>
-              </div>
-              <div className="px-4 py-3 space-y-2" style={{ background: 'rgba(10,10,20,0.8)' }}>
-                <p className="text-[11px] text-gray-400 leading-relaxed">
-                  Real-time shooting mechanics analysis — elbow, release point, follow-through &amp; arc.
-                </p>
-                {[
-                  { icon: '📐', text: 'Elbow tuck & wrist alignment' },
-                  { icon: '🎯', text: 'Release point consistency' },
-                  { icon: '🔄', text: 'Follow-through & arc scoring' },
-                  { icon: '📊', text: 'Shot-by-shot breakdown' },
-                ].map(({ icon, text }) => (
-                  <div key={text} className="flex items-center gap-2">
-                    <span className="text-sm">{icon}</span>
-                    <span className="text-[12px] text-gray-400">{text}</span>
-                  </div>
-                ))}
-              </div>
+          {/* Logo */}
+          <div className="flex items-center gap-5">
+            <Link to="/home" className="flex items-center gap-2 group">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black"
+                style={{ background: 'linear-gradient(135deg,#3b82f6,#7c3aed)' }}>I</div>
+              <span className="text-[14px] font-black text-white tracking-tight hidden sm:block">IntoYourPrime</span>
             </Link>
 
-          </aside>
+            {/* Tabs */}
+            <div className="flex items-center gap-1">
+              {NAV_TABS.map(tab => {
+                const active = tab.to === '/home'
+                return (
+                  <Link key={tab.label} to={tab.to}
+                    className="px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all"
+                    style={{
+                      color: active ? '#fff' : 'rgba(255,255,255,0.4)',
+                      background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    }}>
+                    {tab.label}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Right side */}
+          <div className="flex items-center gap-3">
+            {!apiKeySet ? (
+              <button
+                onClick={() => setShowApiInput(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-all"
+                style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#fbbf24' }}>
+                ⚡ Add AI Key
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold"
+                style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', color: '#4ade80' }}>
+                ✓ AI Active
+              </div>
+            )}
+            <Link to="/profile"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black text-white"
+              style={{ background: 'linear-gradient(135deg,#3b82f6,#7c3aed)' }}>
+              {welcomeName.slice(0, 1).toUpperCase()}
+            </Link>
+          </div>
+        </div>
+
+        {/* API key dropdown */}
+        {showApiInput && (
+          <div className="mx-auto max-w-7xl px-5 pb-3">
+            <div className="flex gap-2 max-w-sm">
+              <input
+                type="text"
+                value={apiKeyInput}
+                onChange={e => setApiKeyInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSaveApiKey()}
+                placeholder="sk-proj-…"
+                className="input-dark flex-1 font-mono text-[12px]"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <button onClick={handleSaveApiKey} disabled={!apiKeyInput.trim()}
+                className="px-4 py-2 rounded-xl text-[12px] font-black text-black disabled:opacity-40"
+                style={{ background: '#f59e0b' }}>
+                Save
+              </button>
+            </div>
+            <p className="text-[10px] text-amber-700 mt-1">Stored locally · never sent to a server</p>
+          </div>
+        )}
+      </nav>
+
+      {/* ── Dashboard ── */}
+      <div className="mx-auto max-w-7xl px-4 py-5 grid grid-cols-1 lg:grid-cols-[1fr_296px] gap-5">
+
+        {/* ════ LEFT COLUMN ════ */}
+        <div className="space-y-5 min-w-0">
+
+          {/* Hero workout card */}
+          <div className="relative rounded-2xl overflow-hidden p-6"
+            style={{
+              background: 'linear-gradient(135deg, #0d1f12 0%, #0a1628 50%, #0e0e22 100%)',
+              border: '1px solid rgba(34,197,94,0.2)',
+              boxShadow: '0 0 60px rgba(34,197,94,0.06), inset 0 1px 0 rgba(255,255,255,0.05)',
+            }}>
+            {/* Label pill */}
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-green-400">
+                {new Date().toLocaleDateString(undefined, { weekday: 'long' }).toUpperCase()} · {activeProgram ? 'PROGRAM' : 'READY TO TRAIN'}
+              </span>
+            </div>
+
+            {/* Title */}
+            <h1 className="text-[26px] sm:text-[32px] font-black text-white leading-tight max-w-lg mb-2">
+              {heroTitle}
+            </h1>
+            <p className="text-[14px] text-gray-400 leading-relaxed mb-5 max-w-md">
+              {heroSub}
+            </p>
+
+            {/* CTAs */}
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => navigate('/workout')}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-black text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
+                style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)', boxShadow: '0 0 20px rgba(34,197,94,0.25)' }}>
+                ▶ Start session
+              </button>
+              <Link to="/programs"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-bold transition-all hover:text-white"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>
+                ↺ Browse plans
+              </Link>
+              <Link to="/basketball"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-bold transition-all hover:text-white"
+                style={{ background: 'rgba(234,88,12,0.12)', border: '1px solid rgba(234,88,12,0.25)', color: '#fb923c' }}>
+                🏀 Shooting
+              </Link>
+            </div>
+
+            {/* Decorative glow */}
+            <div className="absolute top-0 right-0 w-48 h-48 rounded-full pointer-events-none"
+              style={{ background: 'radial-gradient(circle, rgba(34,197,94,0.08) 0%, transparent 70%)', transform: 'translate(30%,-30%)' }} />
+          </div>
+
+          {/* Stats row */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              {
+                label: 'FORM SCORE',
+                value: formScore,
+                prev: prevFormScore,
+                spark: formSpark,
+                color: '#3b82f6',
+                higherBetter: true,
+                suffix: '',
+              },
+              {
+                label: 'WEEKLY REPS',
+                value: weeklyReps || null,
+                prev: prevWeeklyReps || null,
+                spark: repsSpark,
+                color: '#a78bfa',
+                higherBetter: true,
+                suffix: '',
+              },
+              {
+                label: 'INJURY RISK',
+                value: injuryRisk,
+                prev: prevInjuryRisk,
+                spark: riskSpark,
+                color: '#f59e0b',
+                higherBetter: false,
+                suffix: '',
+              },
+            ].map(({ label, value, prev, spark, color, higherBetter }) => {
+              const diff = value != null && prev != null ? value - prev : null
+              const trendGood = diff != null ? (higherBetter ? diff > 0 : diff < 0) : null
+              const trendColor = trendGood === true ? '#22c55e' : trendGood === false ? '#ef4444' : '#6b7280'
+              return (
+                <div key={label} className="rounded-2xl p-4"
+                  style={{ background: '#0e0e18', border: '1px solid #1a1a2a' }}>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 mb-1">{label}</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[30px] font-black text-white leading-none">
+                      {loading ? '—' : value ?? '—'}
+                    </span>
+                    {diff != null && (
+                      <span className="text-[12px] font-bold" style={{ color: trendColor }}>
+                        {diff > 0 ? '+' : ''}{diff}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-2">
+                    <MiniSparkline values={spark} color={color} invert={!higherBetter} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Today's plan */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#0e0e18', border: '1px solid #1a1a2a' }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a1a2a]">
+              <div>
+                <h2 className="text-[13px] font-black text-white">
+                  {activeProgram ? "Today's Plan" : "Quick Start"}
+                </h2>
+                {activeProgram && (
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {activeProgram.exercises.length - activeProgram.currentIndex} exercises remaining
+                  </p>
+                )}
+              </div>
+              <Link to={activeProgram ? '/workout' : '/programs'}
+                className="text-[12px] font-bold text-blue-400 hover:text-blue-300 transition-colors">
+                {activeProgram ? 'Start →' : 'Browse plans →'}
+              </Link>
+            </div>
+
+            {todayExercises ? (
+              <ul>
+                {todayExercises.map((ex, i) => {
+                  const done = i < 0  // none done yet
+                  const isNext = i === 0
+                  return (
+                    <li key={ex + i}
+                      className="flex items-center gap-4 px-5 py-3.5 border-b border-[#161625] last:border-0">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black"
+                        style={{
+                          background: done ? '#22c55e' : isNext ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)',
+                          border: isNext ? '1px solid rgba(59,130,246,0.4)' : 'none',
+                          color: done ? 'white' : isNext ? '#60a5fa' : '#6b7280',
+                        }}>
+                        {done ? '✓' : activeProgram!.currentIndex + i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] font-semibold text-white capitalize">{fmtExercise(ex)}</p>
+                      </div>
+                      {isNext && (
+                        <span className="text-[11px] font-bold text-blue-400 shrink-0">Up next</span>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <div className="px-5 py-4 space-y-2">
+                {[
+                  { icon: '🏋️', label: 'Custom Workout',    desc: 'Any exercise, AI-coached',  to: '/workout' },
+                  { icon: '📋', label: 'Structured Program', desc: 'Follow a training plan',    to: '/programs' },
+                  { icon: '📖', label: 'Exercise Library',   desc: 'Browse all 30+ exercises',  to: '/library' },
+                  { icon: '🏀', label: 'Basketball',         desc: 'Shooting form analysis',    to: '/basketball' },
+                ].map(opt => (
+                  <Link key={opt.to} to={opt.to}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all hover:brightness-110"
+                    style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+                    <span className="text-[18px]">{opt.icon}</span>
+                    <div>
+                      <p className="text-[13px] font-bold text-white">{opt.label}</p>
+                      <p className="text-[11px] text-gray-500">{opt.desc}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recovery insight */}
+          {insight && (
+            <div className="rounded-2xl px-5 py-4"
+              style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)' }}>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400 mb-2">AI Recovery Insight</p>
+              <p className="text-[14px] leading-relaxed text-gray-300">{insight}</p>
+            </div>
+          )}
+        </div>
+
+        {/* ════ RIGHT COLUMN ════ */}
+        <div className="space-y-4">
+
+          {/* Readiness */}
+          <div className="rounded-2xl p-5" style={{ background: '#0e0e18', border: '1px solid #1a1a2a' }}>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-4">Readiness</p>
+            <div className="flex justify-center mb-3">
+              {readiness != null
+                ? <CircularGauge score={readiness} />
+                : (
+                  <div className="flex flex-col items-center justify-center h-32 gap-2">
+                    <span className="text-2xl">📓</span>
+                    <p className="text-[11px] text-gray-600 text-center">Log recovery to<br />see readiness score</p>
+                    <Link to="/recovery-log" className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold">Log now →</Link>
+                  </div>
+                )
+              }
+            </div>
+            {lastLog && (
+              <div className="grid grid-cols-3 gap-2 text-center mt-1">
+                {[
+                  { label: 'Sleep', value: `${lastLog.sleepHours}h` },
+                  { label: 'Energy', value: `${lastLog.energyLevel}/5` },
+                  { label: 'Soreness', value: `${lastLog.overallSoreness}/5` },
+                ].map(({ label, value }) => (
+                  <div key={label} className="rounded-lg py-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <p className="text-[14px] font-black text-white">{value}</p>
+                    <p className="text-[9px] text-gray-600 uppercase tracking-wider mt-0.5">{label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Streak */}
+          <div className="rounded-2xl p-5" style={{ background: '#0e0e18', border: '1px solid #1a1a2a' }}>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Streak</p>
+              <Flame className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="flex items-baseline gap-2 mb-4">
+              <span className="text-[40px] font-black text-white leading-none">{streak}</span>
+              <span className="text-[14px] text-gray-500">days</span>
+            </div>
+            <StreakBars sessions={allSessions} streak={streak} />
+          </div>
+
+          {/* Squad */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#0e0e18', border: '1px solid #1a1a2a' }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a1a2a]">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Squad This Week</p>
+              <Link to="/friends" className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold transition-colors">
+                {squadBoard.length} active →
+              </Link>
+            </div>
+            {squadBoard.length === 0 ? (
+              <div className="px-5 py-6 text-center">
+                <p className="text-[12px] text-gray-600">No squad activity yet.</p>
+                <Link to="/friends" className="text-[12px] text-blue-400 hover:text-blue-300 font-semibold mt-1 block">Add friends →</Link>
+              </div>
+            ) : (
+              <ul>
+                {squadBoard.map((member, i) => (
+                  <li key={i}
+                    className="flex items-center gap-3 px-5 py-3 border-b border-[#161625] last:border-0"
+                    style={member.isMe ? { background: 'rgba(59,130,246,0.06)' } : {}}>
+                    <span className="text-[12px] font-black text-gray-600 w-4 shrink-0">
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white shrink-0"
+                      style={{ background: member.isMe ? 'linear-gradient(135deg,#3b82f6,#7c3aed)' : 'linear-gradient(135deg,#374151,#1f2937)' }}>
+                      {initials(member.name)}
+                    </div>
+                    <span className="flex-1 text-[13px] font-semibold text-white truncate">
+                      {member.isMe ? 'You' : member.name}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[14px] font-black text-white">{member.score}</span>
+                      {member.streak > 0 && (
+                        <span className="text-[10px] text-amber-400 font-bold">🔥{member.streak}</span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Quick links */}
+          <div className="grid grid-cols-2 gap-2">
+            <Link to="/session-summary"
+              className="rounded-xl py-2.5 text-center text-[11px] font-semibold text-gray-400 hover:text-white transition-colors"
+              style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              Last session →
+            </Link>
+            <Link to="/recovery-log"
+              className="rounded-xl py-2.5 text-center text-[11px] font-semibold text-gray-400 hover:text-white transition-colors"
+              style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              Recovery log →
+            </Link>
+          </div>
+
+          {/* Footer links */}
+          <div className="flex justify-center gap-4 pt-2">
+            <Link to="/profile" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Profile</Link>
+            <Link to="/pipeline-test" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Pipeline</Link>
+          </div>
         </div>
       </div>
     </div>
