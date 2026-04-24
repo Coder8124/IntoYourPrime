@@ -1,17 +1,61 @@
-import type { JSX } from 'react'
+import { useRef, useState, type JSX } from 'react'
+import { useFrame, type ThreeEvent } from '@react-three/fiber'
+import { useCursor } from '@react-three/drei'
+import * as THREE from 'three'
 
 /**
  * Static gym equipment — bench press with loaded bar, dumbbell pair, stacked weight plates.
  * All built from primitive geometries; no external meshes.
+ *
+ * BenchPress accepts:
+ *   - onClick: fires when the user taps it to start the minigame
+ *   - liftProgress: 0..1 drives the barbell's Y lift for the minigame animation
  */
 
-export function BenchPress({ position }: { position: [number, number, number] }): JSX.Element {
+export function BenchPress({
+  position,
+  onClick,
+  liftProgress = 0,
+}: {
+  position: [number, number, number]
+  onClick?: () => void
+  liftProgress?: number
+}): JSX.Element {
+  const barRef = useRef<THREE.Group>(null)
+  const [hovered, setHovered] = useState(false)
+  useCursor(hovered && !!onClick)
+
+  useFrame(() => {
+    if (!barRef.current) return
+    // Rest height 1.7 (J-hook rest) → lift target 2.5 at full progress
+    const target = 1.7 + liftProgress * 0.8
+    barRef.current.position.y += (target - barRef.current.position.y) * 0.25
+  })
+
+  const handleClick = (e: ThreeEvent<MouseEvent>) => {
+    if (!onClick) return
+    e.stopPropagation()
+    onClick()
+  }
+
   return (
     <group position={position}>
       {/* Bench pad */}
-      <mesh position={[0, 0.55, 0]} castShadow>
+      <mesh
+        position={[0, 0.55, 0]}
+        castShadow
+        onClick={handleClick}
+        onPointerOver={(e) => { e.stopPropagation(); setHovered(true) }}
+        onPointerOut={() => setHovered(false)}
+      >
         <boxGeometry args={[0.55, 0.16, 1.9]} />
-        <meshStandardMaterial color="#0a0a0a" roughness={0.75} metalness={0.15} />
+        <meshStandardMaterial
+          color="#0a0a0a"
+          emissive={hovered ? '#22d3ee' : '#000'}
+          emissiveIntensity={hovered ? 0.25 : 0}
+          roughness={0.75}
+          metalness={0.15}
+        />
       </mesh>
       {/* Pad inner stitching band */}
       <mesh position={[0, 0.63, 0]}>
@@ -52,8 +96,8 @@ export function BenchPress({ position }: { position: [number, number, number] })
         </group>
       ))}
 
-      {/* Barbell */}
-      <group position={[0, 1.7, 0.3]}>
+      {/* Barbell — lifts when liftProgress rises */}
+      <group ref={barRef} position={[0, 1.7, 0.3]}>
         <mesh castShadow rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.035, 0.035, 2.4, 12]} />
           <meshStandardMaterial color="#3a3835" roughness={0.35} metalness={0.8} />

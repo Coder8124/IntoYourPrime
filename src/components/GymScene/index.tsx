@@ -1,33 +1,75 @@
-import { Suspense, useRef } from 'react'
+import { Suspense, useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { EffectComposer, Bloom, Vignette, Noise, ChromaticAberration } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
 import { PerspectiveCamera } from '@react-three/drei'
 import * as THREE from 'three'
 import { Environment } from './Environment'
-import { VendingMachine } from './VendingMachine'
+import { VendingMachine, type Drink } from './VendingMachine'
 import { BenchPress, Dumbbell, WeightStack } from './Equipment'
 
-/**
- * Parallax-y camera drift tied to mouse position — sells "you're standing in this room."
- * Kept small: max ~0.4 units of drift so the scene composition never breaks.
- */
-function CameraRig() {
+export type { Drink } from './VendingMachine'
+
+type CameraTarget = 'idle' | 'vending' | 'bench'
+
+const DEFAULT_CAM: [number, number, number] = [0, 2.6, 11]
+const DEFAULT_LOOK: [number, number, number] = [0, 2.3, 0]
+// Zoom target when a can is dispensed — pull right in on the tray
+const VENDING_ZOOM_CAM: [number, number, number] = [0, 1.0, 4.0]
+const VENDING_ZOOM_LOOK: [number, number, number] = [0, 0.25, 0]
+// Camera position looking at the bench
+const BENCH_CAM: [number, number, number] = [3.0, 1.8, 5.5]
+const BENCH_LOOK: [number, number, number] = [4.5, 1.2, 0.5]
+
+function CameraRig({ target }: { target: CameraTarget }) {
   const rig = useRef<THREE.Group>(null)
-  useFrame(({ mouse, camera }) => {
+  const lookAtRef = useRef(new THREE.Vector3(...DEFAULT_LOOK))
+  const targetLook = useRef(new THREE.Vector3(...DEFAULT_LOOK))
+
+  useFrame(({ mouse, camera }, delta) => {
     if (!rig.current) return
-    const tx = mouse.x * 0.5
-    const ty = 2.6 + mouse.y * 0.18
-    rig.current.position.x += (tx - rig.current.position.x) * 0.05
-    rig.current.position.y += (ty - rig.current.position.y) * 0.05
-    camera.lookAt(0, 2.3, 0)
+
+    const [cx, cy, cz] =
+      target === 'vending' ? VENDING_ZOOM_CAM :
+      target === 'bench'   ? BENCH_CAM :
+      DEFAULT_CAM
+    const [lx, ly, lz] =
+      target === 'vending' ? VENDING_ZOOM_LOOK :
+      target === 'bench'   ? BENCH_LOOK :
+      DEFAULT_LOOK
+
+    // Idle parallax follows mouse; during zoom, ignore mouse
+    const tx = target === 'idle' ? cx + mouse.x * 0.5 : cx
+    const ty = target === 'idle' ? cy + mouse.y * 0.18 : cy
+
+    const lerp = Math.min(1, delta * (target === 'idle' ? 5 : 2.2))
+    rig.current.position.x += (tx - rig.current.position.x) * lerp
+    rig.current.position.y += (ty - rig.current.position.y) * lerp
+    rig.current.position.z += (cz - rig.current.position.z) * lerp
+
+    targetLook.current.set(lx, ly, lz)
+    lookAtRef.current.lerp(targetLook.current, lerp)
+    camera.lookAt(lookAtRef.current)
   })
-  return <group ref={rig} position={[0, 2.6, 11]}>
-    <PerspectiveCamera makeDefault fov={55} near={0.1} far={60} />
-  </group>
+
+  return (
+    <group ref={rig} position={DEFAULT_CAM}>
+      <PerspectiveCamera makeDefault fov={55} near={0.1} far={60} />
+    </group>
+  )
 }
 
-export function GymScene({ onVendClick }: { onVendClick: () => void }) {
+export function GymScene({
+  onVendingDispensed,
+  onBenchClicked,
+  cameraTarget = 'idle',
+}: {
+  onVendingDispensed: (drink: Drink) => void
+  onBenchClicked: () => void
+  cameraTarget?: CameraTarget
+}) {
+  const [benchRepProgress, setBenchRepProgress] = useState(0)
+
   return (
     <Canvas
       shadows
@@ -39,37 +81,37 @@ export function GymScene({ onVendClick }: { onVendClick: () => void }) {
       <fog attach="fog" args={['#07050b', 10, 30]} />
 
       <Suspense fallback={null}>
-        <CameraRig />
+        <CameraRig target={cameraTarget} />
         <Environment />
 
-        {/* Hero — vending machine, dead center and slightly forward */}
-        <VendingMachine position={[0, 0, -1]} onClick={onVendClick} />
+        <VendingMachine
+          position={[0, 0, -1]}
+          onDispensed={(drink) => { onVendingDispensed(drink) }}
+        />
 
-        {/* Bench press on the right */}
-        <BenchPress position={[4.5, 0, 0.5]} />
+        <BenchPress
+          position={[4.5, 0, 0.5]}
+          onClick={onBenchClicked}
+          liftProgress={benchRepProgress}
+        />
 
-        {/* Weight stack on the left */}
+        {/* Bench minigame progress exposed to window so the HUD can animate the 3D bar */}
+        <BenchRepBridge onProgress={setBenchRepProgress} />
+
         <WeightStack position={[-4.8, 0, 0.2]} />
 
-        {/* Dumbbells scattered */}
         <Dumbbell position={[-3.2, 0.13, 2.2]} rotation={[0, 0.4, 0]} color="#dc2626" />
         <Dumbbell position={[-2.6, 0.13, 2.0]} rotation={[0, 0.6, 0]} color="#dc2626" />
         <Dumbbell position={[3.1, 0.13, 2.4]} rotation={[0, -0.3, 0]} color="#0ea5e9" />
         <Dumbbell position={[2.5, 0.13, 2.1]} rotation={[0, -0.1, 0]} color="#0ea5e9" />
 
-        {/* Stray plate on the ground as detritus */}
         <mesh position={[-1.2, 0.05, 3.2]} rotation={[Math.PI / 2, 0, 0.3]} castShadow>
           <cylinderGeometry args={[0.32, 0.32, 0.08, 28]} />
           <meshStandardMaterial color="#facc15" emissive="#facc15" emissiveIntensity={0.12} roughness={0.55} />
         </mesh>
 
         <EffectComposer multisampling={0}>
-          <Bloom
-            intensity={0.85}
-            luminanceThreshold={0.35}
-            luminanceSmoothing={0.3}
-            mipmapBlur
-          />
+          <Bloom intensity={0.85} luminanceThreshold={0.35} luminanceSmoothing={0.3} mipmapBlur />
           <ChromaticAberration
             offset={new THREE.Vector2(0.0004, 0.0006)}
             radialModulation={false}
@@ -81,4 +123,14 @@ export function GymScene({ onVendClick }: { onVendClick: () => void }) {
       </Suspense>
     </Canvas>
   )
+}
+
+/** Subscribes to the global bench-minigame event bus so the 3D scene can react. */
+function BenchRepBridge({ onProgress }: { onProgress: (v: number) => void }) {
+  useFrame(() => {
+    const anyWin = window as unknown as { __benchLift?: number }
+    const v = anyWin.__benchLift ?? 0
+    onProgress(v)
+  })
+  return null
 }
