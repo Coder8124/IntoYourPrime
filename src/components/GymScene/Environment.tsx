@@ -106,8 +106,8 @@ export function Environment() {
       />
 
       {/* Ambient base so shadows aren't pitch black */}
-      <ambientLight intensity={0.12} color="#5a4830" />
-      <hemisphereLight args={['#2a2015', '#07050a', 0.2]} />
+      <ambientLight intensity={0.22} color="#5a4830" />
+      <hemisphereLight args={['#2a2015', '#07050a', 0.35]} />
     </group>
   )
 }

@@ -16,14 +16,14 @@ function CameraRig() {
   const rig = useRef<THREE.Group>(null)
   useFrame(({ mouse, camera }) => {
     if (!rig.current) return
-    const tx = mouse.x * 0.4
-    const ty = 2.4 + mouse.y * 0.15
+    const tx = mouse.x * 0.5
+    const ty = 2.6 + mouse.y * 0.18
     rig.current.position.x += (tx - rig.current.position.x) * 0.05
     rig.current.position.y += (ty - rig.current.position.y) * 0.05
-    camera.lookAt(0, 2.2, 0)
+    camera.lookAt(0, 2.3, 0)
   })
-  return <group ref={rig} position={[0, 2.4, 9]}>
-    <PerspectiveCamera makeDefault fov={45} near={0.1} far={60} />
+  return <group ref={rig} position={[0, 2.6, 11]}>
+    <PerspectiveCamera makeDefault fov={55} near={0.1} far={60} />
   </group>
 }
 
@@ -71,7 +71,7 @@ export function GymScene({ onVendClick }: { onVendClick: () => void }) {
             mipmapBlur
           />
           <ChromaticAberration
-            offset={new THREE.Vector2(0.0008, 0.0012)}
+            offset={new THREE.Vector2(0.0004, 0.0006)}
             radialModulation={false}
             modulationOffset={0}
           />

@@ -145,20 +145,20 @@ export function AuthPage() {
         style={{
           position: 'absolute',
           left: '50%',
-          bottom: 28,
+          top: 32,
           transform: 'translateX(-50%)',
           zIndex: 10,
           pointerEvents: 'none',
           fontFamily: 'var(--font-mono)',
           fontSize: 11,
-          letterSpacing: '0.22em',
-          color: 'var(--text-3)',
+          letterSpacing: '0.24em',
+          color: 'var(--text-2)',
           textTransform: 'uppercase',
           textAlign: 'center',
-          textShadow: '0 2px 20px rgba(0,0,0,0.8)',
+          textShadow: '0 2px 20px rgba(0,0,0,0.9)',
         }}
       >
-        <span style={{ color: '#facc15' }}>↓</span> walk up to the vending machine to enter{' '}
+        <span style={{ color: '#facc15' }}>↓</span> tap the vending machine to enter{' '}
         <span style={{ color: '#facc15' }}>↓</span>
       </div>
 
