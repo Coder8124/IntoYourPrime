@@ -826,6 +826,7 @@ export function WorkoutPage() {
   interface SetLogEntry { setNum: number; exercise: string; reps: number }
   const [setCount, setSetCount] = useState(0)
   const [setLog,   setSetLog]   = useState<SetLogEntry[]>([])
+  const [apiKeyBannerDismissed, setApiKeyBannerDismissed] = useState(false)
 
   // ── Cooldown state ─────────────────────────────────────────────────────
   const [fatigueWarning,   setFatigueWarning]   = useState<string | null>(null)
@@ -2129,6 +2130,28 @@ export function WorkoutPage() {
               </div>
             )}
 
+            {/* No API key banner */}
+            {!hasApiKey() && !apiKeyBannerDismissed && (phase === 'warmup' || phase === 'main') && (
+              <div className="shrink-0 mb-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.07)' }}>
+                <div className="flex items-start gap-3 p-3">
+                  <span style={{ fontSize: 16, lineHeight: 1, marginTop: 1 }}>⚠️</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11.5px] font-bold text-amber-400 mb-0.5">No API Key</p>
+                    <p className="text-[10.5px] text-amber-300/70 leading-relaxed">
+                      AI coaching is disabled. Add your OpenAI key in&nbsp;
+                      <a href="/profile" className="underline text-amber-400 hover:text-amber-300">Profile</a>
+                      &nbsp;to enable real-time form feedback.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setApiKeyBannerDismissed(true)}
+                    className="text-amber-400/50 hover:text-amber-400 text-[14px] leading-none shrink-0 mt-0.5"
+                    aria-label="Dismiss"
+                  >✕</button>
+                </div>
+              </div>
+            )}
+
             {/* Coach feedback / suggestions */}
             <div className="flex-1 flex flex-col min-h-0">
               <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-3 shrink-0">
@@ -2187,6 +2210,18 @@ export function WorkoutPage() {
                   style={{ width: '100%', display: 'block', maxHeight: 180, objectFit: 'cover' }}
                 />
               </div>
+              <p className="text-[9px] text-gray-700 mt-1 text-right leading-tight">
+                GIF via{' '}
+                <a
+                  href="https://commons.wikimedia.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-gray-500"
+                >
+                  Wikimedia Commons
+                </a>
+                {' '}· CDC Public Domain / CC BY-SA
+              </p>
             </div>
           </aside>
         </div>
