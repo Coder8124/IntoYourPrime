@@ -57,7 +57,7 @@ export function RootRedirect() {
 
   if (!authReady) return null
 
-  if (!isAuthed)   return <Navigate to="/landing"    replace />
+  if (!isAuthed)   return <Navigate to="/auth"       replace />
   if (!hasProfile) return <Navigate to="/onboarding" replace />
   return                  <Navigate to="/home"       replace />
 }

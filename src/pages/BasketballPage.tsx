@@ -193,13 +193,13 @@ export default function BasketballPage() {
   const latestNote = latestShot ? (latestShot.beef.notes[0] ?? 'Solid shot — repeat it.') : null
 
   return (
-    <div className="min-h-screen bg-[#05050a] text-white">
+    <div data-accent="ember" className="min-h-screen text-white" style={{ background: 'var(--bg)' }}>
 
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-[#111119]">
+      <header className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-4">
-          <Link to="/" className="text-gray-400 hover:text-white transition-colors text-sm">&larr; Back</Link>
-          <h1 className="text-lg font-semibold tracking-tight">🏀 Shooting Form</h1>
+          <Link to="/" className="text-sm transition-colors" style={{ color: 'var(--text-3)' }}>&larr; Back</Link>
+          <h1 className="display text-lg font-semibold tracking-tight">🏀 Shooting Form</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full"
@@ -210,8 +210,8 @@ export default function BasketballPage() {
             {modelLoading ? '⏳ Loading…' : modelReady ? '● Ball tracked' : '○ No tracker'}
           </div>
           <button onClick={toggleHandedness}
-            style={{ background: 'linear-gradient(135deg,#1a1a2e,#16213e)', border: '1px solid #2a2a4a' }}
-            className="px-4 py-1.5 rounded-full text-sm font-medium text-gray-200 hover:text-white transition-colors">
+            style={{ background: 'var(--surface)', border: '1px solid var(--border-2)' }}
+            className="px-4 py-1.5 rounded-full text-sm font-medium transition-colors hover:border-[color:var(--text-3)]">
             {handedness === 'right' ? 'Right hand' : 'Left hand'}
           </button>
         </div>
@@ -219,8 +219,8 @@ export default function BasketballPage() {
 
       {/* Session stats bar */}
       {stats && (
-        <div className="flex items-center gap-5 px-6 py-2.5 border-b border-[#0f0f18] overflow-x-auto"
-          style={{ background: '#080810' }}>
+        <div className="flex items-center gap-5 px-6 py-2.5 overflow-x-auto"
+          style={{ background: 'var(--bg-2)', borderBottom: '1px solid var(--border)' }}>
           <StatChip label="SHOTS" value={String(stats.total)} />
           {stats.makePct !== null && (
             <StatChip
@@ -311,8 +311,8 @@ export default function BasketballPage() {
                     </div>
                   )}
                   <div className="text-center">
-                    <span className="text-[10px] text-gray-500 font-bold block">FORM</span>
-                    <span className="text-2xl font-bold tabular-nums" style={{ color: scoreColor(latestShot.beef.overall) }}>
+                    <span className="mono text-[10px] font-bold block uppercase tracking-[0.18em]" style={{ color: 'var(--text-3)' }}>FORM</span>
+                    <span className="display tnum text-2xl font-semibold" style={{ color: scoreColor(latestShot.beef.overall) }}>
                       {latestShot.beef.overall}
                     </span>
                   </div>
@@ -330,8 +330,8 @@ export default function BasketballPage() {
 
         {/* Shot list */}
         <div>
-          <div className="rounded-2xl bg-[#0a0a14] border border-[#111119] p-3 space-y-2 max-h-[70vh] overflow-y-auto">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest px-1 pb-1">
+          <div className="card p-3 space-y-2 max-h-[70vh] overflow-y-auto">
+            <p className="mono text-[10px] font-semibold uppercase tracking-[0.18em] px-1 pb-1" style={{ color: 'var(--text-3)' }}>
               Recent shots
             </p>
             {shots.length === 0 ? (
@@ -353,11 +353,11 @@ function StatChip({
 }: { label: string; value: string; valueColor?: string; sub?: string }) {
   return (
     <div className="flex flex-col items-center shrink-0">
-      <span className="text-[9px] font-black uppercase tracking-[0.18em] text-gray-600">{label}</span>
-      <span className="text-[15px] font-black tabular-nums leading-tight" style={{ color: valueColor ?? '#fff' }}>
+      <span className="mono text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: 'var(--text-4)' }}>{label}</span>
+      <span className="display tnum text-[16px] font-semibold leading-tight" style={{ color: valueColor ?? 'var(--text)' }}>
         {value}
       </span>
-      {sub && <span className="text-[9px] text-gray-600">{sub}</span>}
+      {sub && <span className="mono text-[9px]" style={{ color: 'var(--text-4)' }}>{sub}</span>}
     </div>
   )
 }
@@ -375,7 +375,7 @@ function ShotRow({ shot }: { shot: Shot }) {
 
   return (
     <div className="rounded-xl p-3"
-      style={{ background: 'linear-gradient(135deg,#0d0d1a,#0f0f20)', border: '1px solid #1a1a2e' }}>
+      style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
 
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -392,7 +392,7 @@ function ShotRow({ shot }: { shot: Shot }) {
             </span>
           )}
         </div>
-        <span className="text-2xl font-bold tabular-nums" style={{ color: scoreColor(beef.overall) }}>
+        <span className="display tnum text-2xl font-semibold" style={{ color: scoreColor(beef.overall) }}>
           {beef.overall}
         </span>
       </div>
@@ -413,7 +413,7 @@ function ShotRow({ shot }: { shot: Shot }) {
             }}>
             <span className="text-[10px] font-semibold mb-0.5"
               style={{ color: label === '⌒' ? '#fb923c' : '#6b7280' }}>{label}</span>
-            <span className="text-sm font-bold tabular-nums" style={{ color: scoreColor(value) }}>{value}</span>
+            <span className="display tnum text-sm font-semibold" style={{ color: scoreColor(value) }}>{value}</span>
           </div>
         ))}
       </div>
