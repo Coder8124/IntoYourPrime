@@ -821,8 +821,9 @@ export function WorkoutPage() {
 
   // ── Program mode ──────────────────────────────────────────────────────
   const [activeProgram, setActiveProgramState] = useState<ActiveProgram | null>(() => getActiveProgram())
-  const [programAdvanceMsg, setProgramAdvanceMsg] = useState<string | null>(null)
-  const programAdvanceRef = useRef(false) // guard: only fire once per exercise
+  const [programRestCountdown, setProgramRestCountdown] = useState<number | null>(null) // seconds remaining in rest
+  const programAdvanceFiredRef = useRef(false) // guard: only start timer once per exercise
+  const programAdvanceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Stable ref so auto-advance effect can call handleEndWorkout before it's declared
   const handleEndWorkoutRef = useRef<(() => Promise<void>) | null>(null)
 
@@ -1006,35 +1007,57 @@ export function WorkoutPage() {
   }, [setExercise, resetExerciseReps, resetRepCounter, resetHoldTimer])
 
   // ── Program auto-advance when rep/hold target is reached ─────────────
+  // Uses a ref-based interval so re-renders (extra reps) don't cancel the countdown.
+  const startProgramRestCountdown = useCallback((hasMore: boolean) => {
+    if (programAdvanceFiredRef.current) return  // already counting down
+    programAdvanceFiredRef.current = true
+
+    const REST_SECS = 5
+    setProgramRestCountdown(REST_SECS)
+
+    let remaining = REST_SECS
+    programAdvanceTimerRef.current = setInterval(() => {
+      remaining -= 1
+      if (remaining <= 0) {
+        clearInterval(programAdvanceTimerRef.current!)
+        programAdvanceTimerRef.current = null
+        setProgramRestCountdown(null)
+        if (hasMore) {
+          handleNextProgramExercise()
+        } else {
+          clearActiveProgram()
+          setActiveProgramState(null)
+          void handleEndWorkoutRef.current?.()
+        }
+      } else {
+        setProgramRestCountdown(remaining)
+      }
+    }, 1000)
+  // handleNextProgramExercise is stable (useCallback with stable deps)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleNextProgramExercise])
+
   useEffect(() => {
-    if (!activeProgram || phase !== 'main') return
-    const target = isHoldExercise ? activeProgram.targetHoldSecs : activeProgram.targetReps
+    if (!activeProgram || phase !== 'main' || programAdvanceFiredRef.current) return
+    const target = isHoldExercise
+      ? (activeProgram.targetHoldSecs ?? 30)
+      : (activeProgram.targetReps ?? 10)
     const current = isHoldExercise ? holdSeconds : activeRepCount
-    if (current < target || programAdvanceRef.current) return
-    programAdvanceRef.current = true
+    if (current < target) return
 
     const hasMore = activeProgram.currentIndex + 1 < activeProgram.exercises.length
-    const nextName = hasMore
-      ? (EXERCISE_LABELS[activeProgram.exercises[activeProgram.currentIndex + 1] as typeof EXERCISES[number]] ?? activeProgram.exercises[activeProgram.currentIndex + 1])
-      : null
-    setProgramAdvanceMsg(hasMore ? `Next up: ${nextName}` : 'Program complete!')
+    startProgramRestCountdown(hasMore)
+  }, [activeRepCount, holdSeconds, activeProgram, phase, isHoldExercise, startProgramRestCountdown])
 
-    const t = window.setTimeout(() => {
-      setProgramAdvanceMsg(null)
-      programAdvanceRef.current = false
-      if (hasMore) {
-        handleNextProgramExercise()
-      } else {
-        clearActiveProgram()
-        setActiveProgramState(null)
-        void handleEndWorkoutRef.current?.()
-      }
-    }, 2000)
-    return () => window.clearTimeout(t)
-  }, [activeRepCount, holdSeconds, activeProgram, phase, isHoldExercise, handleNextProgramExercise])
-
-  // Reset the advance guard whenever the exercise changes
-  useEffect(() => { programAdvanceRef.current = false }, [currentExercise])
+  // Reset the advance guard and cancel any running countdown when the exercise changes
+  useEffect(() => {
+    programAdvanceFiredRef.current = false
+    if (programAdvanceTimerRef.current) {
+      clearInterval(programAdvanceTimerRef.current)
+      programAdvanceTimerRef.current = null
+    }
+    setProgramRestCountdown(null)
+  }, [currentExercise])
 
   // ── Keep mutable refs in sync with latest values ───────────────────────
   useEffect(() => { repCountRef.current      = activeRepCount  }, [activeRepCount])
@@ -2214,14 +2237,18 @@ export function WorkoutPage() {
               </div>
             )}
 
-            {/* Program auto-advance toast */}
-            {programAdvanceMsg && (
+            {/* Program rest countdown toast */}
+            {programRestCountdown !== null && activeProgram && (
               <div className="shrink-0 mb-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.1)' }}>
                 <div className="flex items-center gap-3 p-3">
-                  <span style={{ fontSize: 18, lineHeight: 1 }}>✓</span>
+                  <span className="text-[22px] font-black text-green-400 leading-none w-6 text-center">{programRestCountdown}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11.5px] font-bold text-green-400">Target reached!</p>
-                    <p className="text-[10.5px] text-green-300/70">{programAdvanceMsg}</p>
+                    <p className="text-[11.5px] font-bold text-green-400">Target reached! Rest up.</p>
+                    <p className="text-[10.5px] text-green-300/70">
+                      {activeProgram.currentIndex + 1 < activeProgram.exercises.length
+                        ? `Next: ${EXERCISE_LABELS[activeProgram.exercises[activeProgram.currentIndex + 1] as typeof EXERCISES[number]] ?? ''}`
+                        : 'Program complete — cooldown next'}
+                    </p>
                   </div>
                 </div>
               </div>
