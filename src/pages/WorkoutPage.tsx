@@ -1242,7 +1242,16 @@ export function WorkoutPage() {
   const handleStartWorkout = useCallback(() => {
     setShowModal(false)
     setPhase('main')
-  }, [setPhase])
+    // Restore the program's exercise now that warmup restrictions are lifted
+    const prog = getActiveProgram()
+    if (prog) {
+      const ex = prog.exercises[prog.currentIndex]
+      if (ex && EXERCISES.includes(ex as typeof EXERCISES[number])) {
+        setExercise(ex)
+        resetExerciseReps(ex)
+      }
+    }
+  }, [setPhase, setExercise, resetExerciseReps])
 
   const handleEndWorkout = useCallback(async () => {
     setPhase('cooldown')

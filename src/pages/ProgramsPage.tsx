@@ -87,6 +87,7 @@ function ProgramCard({ program, onStart }: { program: WorkoutProgram; onStart: (
         >
           Start Program →
         </button>
+        <p className="text-[10px] text-gray-700 text-center">Warmup first, then program exercises begin</p>
       </div>
     </div>
   )

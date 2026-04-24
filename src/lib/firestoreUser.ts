@@ -38,10 +38,17 @@ export function isFirebaseAuthed(): boolean {
 /** Sign out and clear session localStorage (generic keys only, not uid-keyed profile cache). */
 export async function signOutUser(): Promise<void> {
   const { signOut } = await import('firebase/auth')
+
+  // Back up current profile to uid-specific key BEFORE signing out (uid becomes null after signOut)
+  const uid = auth.currentUser?.uid
+  const profile = localStorage.getItem('formAI_profile')
+  if (uid && profile) {
+    localStorage.setItem(`formAI_profile_${uid}`, profile)
+  }
+
   await signOut(auth)
   cachedUid = null
-  // Clear session data — uid-keyed profiles (formAI_profile_<uid>) are kept
-  // so the user doesn't have to re-onboard on every sign-in
+  // Clear generic session data — uid-keyed profiles (formAI_profile_<uid>) are kept
   const keysToRemove = [
     'formAI_profile',
     'formAI_streak',
