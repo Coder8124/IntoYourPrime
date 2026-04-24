@@ -108,7 +108,10 @@ export function RecoveryLogPage() {
       const today = getTodayLocalDateString()
       let existing: DailyLog | null = null
       try {
-        existing = await getTodayLog(id)
+        existing = await Promise.race([
+          getTodayLog(id),
+          new Promise<DailyLog | null>(resolve => setTimeout(() => resolve(null), 2500)),
+        ])
       } catch {
         /* permission / network */
       }

@@ -540,14 +540,13 @@ export function HomePage() {
               </div>
             </div>
 
-            {/* Basketball coming soon */}
-            <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(234,88,12,0.3)' }}>
+            {/* Basketball — live */}
+            <Link to="/basketball" className="block rounded-2xl overflow-hidden hover:brightness-110 transition-all" style={{ border: '1px solid rgba(234,88,12,0.3)' }}>
               <div className="px-4 py-3 flex items-center justify-between"
                 style={{ background: 'linear-gradient(135deg,rgba(234,88,12,0.12),rgba(245,158,11,0.10))' }}>
                 <div>
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-[10px] font-black uppercase tracking-[0.15em] text-orange-400">Basketball</span>
-                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-orange-500/20 text-orange-300 border border-orange-500/30">Soon</span>
                   </div>
                   <p className="text-[13px] font-black text-white">Shooting Form Tracker</p>
                 </div>
@@ -569,7 +568,7 @@ export function HomePage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Link>
 
           </aside>
         </div>
