@@ -2216,7 +2216,7 @@ export function WorkoutPage() {
                   key={currentExercise}
                   src={EXERCISE_GIFS[currentExercise as typeof EXERCISES[number]]}
                   alt={EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}
-                  style={{ width: '100%', display: 'block', maxHeight: 180, objectFit: 'cover' }}
+                  style={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'contain' }}
                 />
               </div>
               <p className="text-[9px] text-gray-700 mt-1 text-right leading-tight">
