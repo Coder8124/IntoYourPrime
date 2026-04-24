@@ -105,7 +105,7 @@ function CircularGauge({ score }: { score: number }) {
   )
 }
 
-function StreakBars({ sessions, streak }: { sessions: Session[]; streak: number }) {
+function StreakBars({ sessions }: { sessions: Session[]; streak: number }) {
   const days = Array.from({ length: 8 }, (_, i) => {
     const d = new Date()
     d.setDate(d.getDate() - (7 - i))
