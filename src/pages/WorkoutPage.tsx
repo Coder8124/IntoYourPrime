@@ -1609,6 +1609,21 @@ export function WorkoutPage() {
           </div>
         </header>
 
+        {/* Program pending banner during warmup */}
+        {phase === 'warmup' && activeProgram && (
+          <div className="shrink-0 mx-4 mt-3 px-4 py-2.5 rounded-xl flex items-center gap-3"
+            style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)' }}>
+            <span className="text-[18px] shrink-0">🏋️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">Program queued</p>
+              <p className="text-[12px] text-gray-300 truncate">
+                <span className="font-semibold text-white">{activeProgram.name}</span>
+                {' '}— starts after you complete your warmup
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ── THREE COLUMNS ───────────────────────────────────────────── */}
         <div className="flex-1 flex overflow-hidden min-h-0">
 

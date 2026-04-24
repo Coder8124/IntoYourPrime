@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '../lib/firebase'
 import { usePoseDetection } from '../hooks/usePoseDetection'
@@ -8,6 +8,7 @@ import { useBallDetector, scoreArcFromTrajectory, estimateMake } from '../hooks/
 import type { BallPos } from '../hooks/useBallDetector'
 import { scoreShot } from '../lib/beefScore'
 import { saveBasketballShot } from '../lib/basketballShots'
+import { saveSession } from '../lib/firebaseHelpers'
 import type { Handedness, Shot, ShotWindow } from '../types/basketball'
 
 function scoreColor(v: number): string {
@@ -66,11 +67,14 @@ function drawBallOverlay(
 }
 
 export default function BasketballPage() {
+  const navigate   = useNavigate()
   const videoRef   = useRef<HTMLVideoElement>(null)
   const canvasRef  = useRef<HTMLCanvasElement>(null)
   const ballCanvas = useRef<HTMLCanvasElement>(null)
 
   const [uid, setUid] = useState<string | null>(null)
+  const sessionStartRef = useRef<number>(Date.now())
+  const [savingSession, setSavingSession] = useState(false)
   const [handedness, setHandedness] = useState<Handedness>(() => {
     const stored = localStorage.getItem('basketball:handedness')
     return stored === 'left' ? 'left' : 'right'
@@ -184,6 +188,38 @@ export default function BasketballPage() {
     return { total, makes, misses, known, makePct, avgForm, bestForm, avgArc, trend }
   }, [shots])
 
+  // ── End session ────────────────────────────────────────────────────────────
+  const handleEndSession = useCallback(async () => {
+    if (!uid || !stats) return
+    setSavingSession(true)
+    try {
+      const durationMinutes = Math.max(1, Math.round((Date.now() - sessionStartRef.current) / 60000))
+      const suggestions: string[] = []
+      if (stats.avgForm < 70) suggestions.push('Work on your shooting form — aim for 70+ overall score.')
+      if (stats.avgArc !== null && stats.avgArc < 60) suggestions.push('Increase your arc — flat shots have lower percentage.')
+      if (stats.makePct !== null && stats.makePct < 40) suggestions.push('Focus on balance and follow-through to improve accuracy.')
+      await saveSession({
+        userId: uid,
+        date: new Date().toISOString().split('T')[0],
+        exercises: ['basketball'],
+        durationMinutes,
+        warmupScore: 0,
+        warmupDurationMinutes: 0,
+        avgRiskScore: 0,
+        peakRiskScore: 0,
+        repCounts: { basketball: stats.total },
+        formSuggestions: suggestions,
+        cooldownCompleted: false,
+        cooldownExercises: [],
+        feelRating: null,
+        totalRiskEvents: 0,
+      })
+      navigate('/home')
+    } catch {
+      setSavingSession(false)
+    }
+  }, [uid, stats, navigate])
+
   // ── UI helpers ─────────────────────────────────────────────────────────────
   const phaseColor =
     phase === 'RELEASED' ? '#22c55e' :
@@ -214,6 +250,16 @@ export default function BasketballPage() {
             className="px-4 py-1.5 rounded-full text-sm font-medium transition-colors hover:border-[color:var(--text-3)]">
             {handedness === 'right' ? 'Right hand' : 'Left hand'}
           </button>
+          {shots.length > 0 && uid && (
+            <button
+              onClick={() => void handleEndSession()}
+              disabled={savingSession}
+              className="px-4 py-1.5 rounded-full text-sm font-semibold transition-colors"
+              style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.35)', color: '#4ade80' }}
+            >
+              {savingSession ? 'Saving…' : 'Save Session'}
+            </button>
+          )}
         </div>
       </header>
 

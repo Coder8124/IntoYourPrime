@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { BottomNav } from '../components/BottomNav'
 import toast from 'react-hot-toast'
 import { Star } from 'lucide-react'
 import {
@@ -387,6 +388,7 @@ export function RecoveryLogPage() {
           </button>
         </form>
       </div>
+      <BottomNav />
     </div>
   )
 }

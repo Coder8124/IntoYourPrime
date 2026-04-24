@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { BottomNav } from '../components/BottomNav'
 import { getUserSessions } from '../lib/firebaseHelpers'
 import { getOrSignInUserId } from '../lib/firestoreUser'
 import { getOrCreateLocalUserId } from '../lib/localUserId'
@@ -385,6 +386,7 @@ export function ProgressPage() {
           </Link>
         </div>
       </div>
+      <BottomNav />
     </div>
   )
 }

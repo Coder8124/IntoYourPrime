@@ -10,9 +10,7 @@ import { AuthPage } from './pages/AuthPage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { HomePage } from './pages/HomePage'
 import { WorkoutPage } from './pages/WorkoutPage'
-import { PipelineTestPage } from './pages/PipelineTestPage'
 import { SessionSummaryPage } from './pages/SessionSummaryPage'
-import { CooldownPage } from './pages/CooldownPage'
 import { RecoveryLogPage } from './pages/RecoveryLogPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { FriendsPage } from './pages/FriendsPage'
@@ -46,9 +44,7 @@ export default function App() {
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/home" element={<HomePage />} />
         <Route path="/workout" element={<WorkoutPage />} />
-        <Route path="/pipeline-test" element={<PipelineTestPage />} />
         <Route path="/session-summary" element={<SessionSummaryPage />} />
-        <Route path="/cooldown" element={<CooldownPage />} />
         <Route path="/recovery-log" element={<RecoveryLogPage />} />
         <Route path="/recovery" element={<RecoveryLogPage />} />
         <Route path="/profile" element={<ProfilePage />} />

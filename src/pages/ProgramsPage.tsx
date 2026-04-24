@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { WORKOUT_PROGRAMS, EXERCISE_INFO, setActiveProgram, getActiveProgram, clearActiveProgram, type WorkoutProgram } from '../lib/programs'
+import { BottomNav } from '../components/BottomNav'
 
 const LEVEL_COLOR = {
   Beginner:     { bg: 'rgba(34,197,94,0.12)',  border: 'rgba(34,197,94,0.3)',  text: '#86efac' },
@@ -108,7 +109,7 @@ export function ProgramsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white pb-12">
+    <div className="min-h-screen bg-[#0a0a0f] text-white pb-24">
       <header className="sticky top-0 z-10 bg-[#0d0d18]/90 backdrop-blur border-b border-[#1e1e2e] px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -182,6 +183,7 @@ export function ProgramsPage() {
           ))}
         </div>
       </div>
+      <BottomNav />
     </div>
   )
 }

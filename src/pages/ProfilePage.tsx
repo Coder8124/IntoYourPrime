@@ -1,5 +1,6 @@
 import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { BottomNav } from '../components/BottomNav'
 import { hasApiKey } from '../lib/formAnalysis'
 import { signOutUser } from '../lib/firestoreUser'
 import { upsertFullUserProfile, getUserProfile } from '../lib/firebaseHelpers'
@@ -114,7 +115,7 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] px-4 py-8 text-white">
+    <div className="min-h-screen bg-[#0a0a0f] px-4 py-8 pb-24 text-white">
       <div className="mx-auto max-w-[480px] space-y-6">
 
         {/* Header */}
@@ -325,6 +326,7 @@ export function ProfilePage() {
         </div>
 
       </div>
+      <BottomNav />
     </div>
   )
 }

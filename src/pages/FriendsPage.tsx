@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { BottomNav } from '../components/BottomNav'
 import { getPIBriefing, getDemoBriefing } from '../lib/primeIntelligence'
 import { hasApiKey } from '../lib/formAnalysis'
 import type { MemberData, PIBriefing, AvatarState } from '../lib/primeIntelligence'
@@ -420,7 +421,7 @@ export function FriendsPage() {
   }, [members, groupStreak])
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white pb-12">
+    <div className="min-h-screen bg-[#0a0a0f] text-white pb-24">
 
       {/* Header */}
       <header className="sticky top-0 z-10 bg-[#0d0d18]/90 backdrop-blur border-b border-[#1e1e2e] px-5 py-4 flex items-center justify-between">
@@ -958,6 +959,7 @@ export function FriendsPage() {
           </>
         )}
       </div>
+      <BottomNav />
     </div>
   )
 }
