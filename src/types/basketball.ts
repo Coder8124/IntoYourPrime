@@ -34,4 +34,5 @@ export interface Shot {
   handedness: Handedness
   context: ShotContext
   beef: BeefScore
+  result?: 'make' | 'miss' | 'unknown'  // estimated from ball trajectory
 }

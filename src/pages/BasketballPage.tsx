@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '../lib/firebase'
 import { usePoseDetection } from '../hooks/usePoseDetection'
 import { useShotDetector } from '../hooks/useShotDetector'
-import { useBallDetector, scoreArcFromTrajectory } from '../hooks/useBallDetector'
+import { useBallDetector, scoreArcFromTrajectory, estimateMake } from '../hooks/useBallDetector'
 import type { BallPos } from '../hooks/useBallDetector'
 import { scoreShot } from '../lib/beefScore'
 import { saveBasketballShot } from '../lib/basketballShots'
@@ -19,7 +19,6 @@ function scoreColor(v: number): string {
 
 const MAX_SHOTS = 20
 
-// Draw ball position and trajectory trail on a canvas
 function drawBallOverlay(
   canvas: HTMLCanvasElement,
   ballPos: BallPos | null,
@@ -28,53 +27,37 @@ function drawBallOverlay(
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-  const w = canvas.width
-  const h = canvas.height
+  const w = canvas.width, h = canvas.height
   const now = Date.now()
 
-  // Draw trajectory trail (last 30 positions, fading out)
   const recent = trajectory.filter(p => now - p.ts < 1200).slice(-30)
   if (recent.length > 1) {
     for (let i = 1; i < recent.length; i++) {
       const alpha = (i / recent.length) * 0.6
-      const prev = recent[i - 1]
-      const cur  = recent[i]
-      // Mirror x because video is mirrored
-      const x1 = (1 - prev.x) * w
-      const y1 = prev.y * h
-      const x2 = (1 - cur.x) * w
-      const y2 = cur.y * h
+      const prev = recent[i - 1], cur = recent[i]
       ctx.beginPath()
-      ctx.moveTo(x1, y1)
-      ctx.lineTo(x2, y2)
+      ctx.moveTo((1 - prev.x) * w, prev.y * h)
+      ctx.lineTo((1 - cur.x) * w, cur.y * h)
       ctx.strokeStyle = `rgba(251,146,60,${alpha})`
       ctx.lineWidth = 2.5
       ctx.stroke()
     }
   }
 
-  // Draw ball circle
   if (ballPos) {
     const bx = (1 - ballPos.x) * w
     const by = ballPos.y * h
     const br = Math.max(14, ballPos.r * Math.min(w, h))
-
-    // Outer glow
     ctx.beginPath()
     ctx.arc(bx, by, br + 6, 0, Math.PI * 2)
     ctx.strokeStyle = 'rgba(251,146,60,0.25)'
     ctx.lineWidth = 4
     ctx.stroke()
-
-    // Ball circle
     ctx.beginPath()
     ctx.arc(bx, by, br, 0, Math.PI * 2)
     ctx.strokeStyle = '#f97316'
     ctx.lineWidth = 2.5
     ctx.stroke()
-
-    // Center dot
     ctx.beginPath()
     ctx.arc(bx, by, 3, 0, Math.PI * 2)
     ctx.fillStyle = '#fb923c'
@@ -102,21 +85,14 @@ export default function BasketballPage() {
 
   // Keep ball canvas in sync with video dimensions
   useEffect(() => {
-    const video = videoRef.current
-    const bc = ballCanvas.current
+    const video = videoRef.current, bc = ballCanvas.current
     if (!bc || !video) return
-    const sync = () => {
-      if (video.videoWidth) {
-        bc.width  = video.videoWidth
-        bc.height = video.videoHeight
-      }
-    }
+    const sync = () => { if (video.videoWidth) { bc.width = video.videoWidth; bc.height = video.videoHeight } }
     video.addEventListener('loadedmetadata', sync)
     sync()
     return () => video.removeEventListener('loadedmetadata', sync)
   }, [])
 
-  // Redraw ball overlay on every ballPos change
   useEffect(() => {
     const bc = ballCanvas.current
     if (!bc) return
@@ -135,27 +111,38 @@ export default function BasketballPage() {
   }, [])
 
   const onShot = useCallback((window: ShotWindow) => {
+    const releaseTime = Date.now()
     const beef = scoreShot(window)
 
-    // Attempt to score ball arc from trajectory
     const traj = getTrajectory()
     const arc = scoreArcFromTrajectory(traj) ?? undefined
     if (arc !== undefined) beef.arc = arc
     clearTrajectory()
 
+    const shotId = `local-${releaseTime}`
     const shot: Shot = {
-      id: `local-${Date.now()}`,
-      timestamp: Date.now(),
+      id: shotId,
+      timestamp: releaseTime,
       handedness: window.handedness,
       context: window.context,
       beef,
+      result: modelReady ? 'unknown' : undefined,
     }
     setShots(prev => [shot, ...prev].slice(0, MAX_SHOTS))
     if (uid) {
       const { id: _id, ...shotWithoutId } = shot
       void saveBasketballShot(uid, shotWithoutId)
     }
-  }, [uid, getTrajectory, clearTrajectory])
+
+    // After 1.8 s, check ball trajectory for make/miss
+    if (modelReady) {
+      setTimeout(() => {
+        const postRelease = getTrajectory().filter(p => p.ts >= releaseTime - 50)
+        const result = estimateMake(postRelease)
+        setShots(prev => prev.map(s => s.id === shotId ? { ...s, result } : s))
+      }, 1800)
+    }
+  }, [uid, getTrajectory, clearTrajectory, modelReady])
 
   const { phase } = useShotDetector(landmarks, handedness, onShot)
 
@@ -167,86 +154,121 @@ export default function BasketballPage() {
     })
   }
 
+  // ── Session stats ──────────────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const total = shots.length
+    if (!total) return null
+
+    const makes  = shots.filter(s => s.result === 'make').length
+    const misses = shots.filter(s => s.result === 'miss').length
+    const known  = makes + misses
+    const makePct = known >= 2 ? Math.round((makes / known) * 100) : null
+
+    const avgForm = Math.round(shots.reduce((s, x) => s + x.beef.overall, 0) / total)
+    const bestForm = Math.max(...shots.map(s => s.beef.overall))
+
+    const arcShots = shots.filter(s => s.beef.arc !== undefined)
+    const avgArc = arcShots.length
+      ? Math.round(arcShots.reduce((s, x) => s + x.beef.arc!, 0) / arcShots.length)
+      : null
+
+    // Trend: last 3 vs previous 3
+    let trend: 'up' | 'down' | 'flat' | null = null
+    if (shots.length >= 6) {
+      const recent = shots.slice(0, 3).reduce((s, x) => s + x.beef.overall, 0) / 3
+      const prev   = shots.slice(3, 6).reduce((s, x) => s + x.beef.overall, 0) / 3
+      const diff = recent - prev
+      trend = diff > 3 ? 'up' : diff < -3 ? 'down' : 'flat'
+    }
+
+    return { total, makes, misses, known, makePct, avgForm, bestForm, avgArc, trend }
+  }, [shots])
+
+  // ── UI helpers ─────────────────────────────────────────────────────────────
   const phaseColor =
     phase === 'RELEASED' ? '#22c55e' :
-    phase === 'LOADED'   ? '#eab308' :
-    '#6b7280'
+    phase === 'LOADED'   ? '#eab308' : '#6b7280'
 
   const latestShot = shots[0] ?? null
-  const latestNote = latestShot
-    ? (latestShot.beef.notes[0] ?? 'Solid shot — repeat it.')
-    : null
+  const latestNote = latestShot ? (latestShot.beef.notes[0] ?? 'Solid shot — repeat it.') : null
 
   return (
     <div className="min-h-screen bg-[#05050a] text-white">
+
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-[#111119]">
         <div className="flex items-center gap-4">
-          <Link to="/" className="text-gray-400 hover:text-white transition-colors text-sm">
-            &larr; Back
-          </Link>
+          <Link to="/" className="text-gray-400 hover:text-white transition-colors text-sm">&larr; Back</Link>
           <h1 className="text-lg font-semibold tracking-tight">🏀 Shooting Form</h1>
         </div>
         <div className="flex items-center gap-3">
-          {/* Ball tracker status */}
           <div className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-full"
             style={modelReady
               ? { background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', color: '#4ade80' }
               : { background: 'rgba(107,114,128,0.1)', border: '1px solid rgba(107,114,128,0.2)', color: '#6b7280' }
             }>
-            {modelLoading ? '⏳ Loading ball tracker…' : modelReady ? '● Ball tracked' : '○ No ball tracker'}
+            {modelLoading ? '⏳ Loading…' : modelReady ? '● Ball tracked' : '○ No tracker'}
           </div>
-          <button
-            onClick={toggleHandedness}
-            style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', border: '1px solid #2a2a4a' }}
-            className="px-4 py-1.5 rounded-full text-sm font-medium text-gray-200 hover:text-white transition-colors"
-          >
+          <button onClick={toggleHandedness}
+            style={{ background: 'linear-gradient(135deg,#1a1a2e,#16213e)', border: '1px solid #2a2a4a' }}
+            className="px-4 py-1.5 rounded-full text-sm font-medium text-gray-200 hover:text-white transition-colors">
             {handedness === 'right' ? 'Right hand' : 'Left hand'}
           </button>
         </div>
       </header>
 
+      {/* Session stats bar */}
+      {stats && (
+        <div className="flex items-center gap-5 px-6 py-2.5 border-b border-[#0f0f18] overflow-x-auto"
+          style={{ background: '#080810' }}>
+          <StatChip label="SHOTS" value={String(stats.total)} />
+          {stats.makePct !== null && (
+            <StatChip
+              label="MAKE %"
+              value={`${stats.makePct}%`}
+              valueColor={stats.makePct >= 50 ? '#22c55e' : stats.makePct >= 35 ? '#eab308' : '#ef4444'}
+              sub={`${stats.makes}/${stats.known}`}
+            />
+          )}
+          <StatChip label="AVG FORM" value={String(stats.avgForm)} valueColor={scoreColor(stats.avgForm)} />
+          <StatChip label="BEST" value={String(stats.bestForm)} valueColor={scoreColor(stats.bestForm)} />
+          {stats.avgArc !== null && (
+            <StatChip label="AVG ARC" value={String(stats.avgArc)} valueColor={scoreColor(stats.avgArc)} />
+          )}
+          {stats.trend && (
+            <StatChip
+              label="TREND"
+              value={stats.trend === 'up' ? '↑ Improving' : stats.trend === 'down' ? '↓ Dropping' : '→ Steady'}
+              valueColor={stats.trend === 'up' ? '#22c55e' : stats.trend === 'down' ? '#ef4444' : '#6b7280'}
+            />
+          )}
+        </div>
+      )}
+
       {/* Content */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 p-4">
-        {/* Camera column */}
+
+        {/* Camera */}
         <div className="flex flex-col gap-3">
           <div className="relative w-full overflow-hidden rounded-2xl bg-[#050508]"
             style={{ aspectRatio: '16/9', border: '1px solid #111119' }}>
-            <video
-              ref={videoRef}
-              autoPlay playsInline muted
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{ transform: 'scaleX(-1)' }}
-            />
-            {/* Pose skeleton canvas */}
-            <canvas
-              ref={canvasRef}
-              className="absolute inset-0 h-full w-full"
-              style={{ transform: 'scaleX(-1)' }}
-            />
-            {/* Ball tracking canvas (no scaleX — we mirror x ourselves in drawBallOverlay) */}
-            <canvas
-              ref={ballCanvas}
-              className="absolute inset-0 h-full w-full"
-            />
+            <video ref={videoRef} autoPlay playsInline muted
+              className="absolute inset-0 h-full w-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+            <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" style={{ transform: 'scaleX(-1)' }} />
+            <canvas ref={ballCanvas} className="absolute inset-0 h-full w-full" />
 
-            {/* Loading / not tracking overlay */}
             {(isLoading || !isTracking) && (
               <div className="absolute inset-0 flex items-center justify-center z-10 bg-[#050508]/80">
                 <div className="rounded-2xl px-6 py-5 max-w-xs text-center"
-                  style={{ background: 'linear-gradient(135deg, #0d0d1a 0%, #111127 100%)', border: '1px solid #1e1e3a' }}>
-                  <p className="text-white font-semibold mb-2">
-                    {isLoading ? 'Starting camera…' : 'Ready to track'}
-                  </p>
+                  style={{ background: 'linear-gradient(135deg,#0d0d1a,#111127)', border: '1px solid #1e1e3a' }}>
+                  <p className="text-white font-semibold mb-2">{isLoading ? 'Starting camera…' : 'Ready to track'}</p>
                   <p className="text-gray-400 text-sm leading-relaxed">
-                    Stand perpendicular to the camera — shooting arm facing it.
-                    Back up so your full body is in frame.
+                    Stand perpendicular to the camera — shooting arm facing it. Back up so your full body is in frame.
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Error banner */}
             {error && (
               <div className="absolute top-3 left-3 z-20 px-3 py-1.5 rounded-lg text-xs text-red-300"
                 style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)' }}>
@@ -254,13 +276,11 @@ export default function BasketballPage() {
               </div>
             )}
 
-            {/* Phase pill */}
             <div className="absolute top-3 right-3 z-20 px-3 py-1 rounded-full text-xs font-semibold tracking-wider"
               style={{ background: 'rgba(5,5,10,0.7)', border: `1px solid ${phaseColor}55`, color: phaseColor }}>
               {phase}
             </div>
 
-            {/* Ball detected indicator */}
             {ballPos && (
               <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
                 style={{ background: 'rgba(249,115,22,0.2)', border: '1px solid rgba(249,115,22,0.4)', color: '#fb923c' }}>
@@ -269,12 +289,19 @@ export default function BasketballPage() {
               </div>
             )}
 
-            {/* Latest shot banner */}
             {latestShot && latestNote && (
               <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3"
-                style={{ background: 'linear-gradient(to top, rgba(5,5,10,0.92) 0%, rgba(5,5,10,0.0) 100%)' }}>
-                <p className="text-sm text-gray-300 flex-1 pr-4 leading-tight">{latestNote}</p>
-                <div className="flex items-center gap-2 shrink-0">
+                style={{ background: 'linear-gradient(to top,rgba(5,5,10,0.92),rgba(5,5,10,0))' }}>
+                <div className="flex items-center gap-2 flex-1 pr-4">
+                  {latestShot.result === 'make' && (
+                    <span className="text-[13px] shrink-0">🟢</span>
+                  )}
+                  {latestShot.result === 'miss' && (
+                    <span className="text-[13px] shrink-0">🔴</span>
+                  )}
+                  <p className="text-sm text-gray-300 leading-tight">{latestNote}</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
                   {latestShot.beef.arc !== undefined && (
                     <div className="text-center">
                       <span className="text-[10px] text-orange-400 font-bold block">ARC</span>
@@ -294,15 +321,14 @@ export default function BasketballPage() {
             )}
           </div>
 
-          {/* Tips */}
-          <div className="text-[11px] text-gray-600 leading-relaxed px-1">
+          <p className="text-[11px] text-gray-600 leading-relaxed px-1">
             {modelReady
-              ? 'Orange circle tracks the ball. Arc score appears after each shot when the ball is visible.'
-              : 'Ball tracker loading in background — pose-based BEEF scores available immediately.'}
-          </div>
+              ? 'Orange circle = ball. Arc score + make/miss appear after each shot.'
+              : 'Ball tracker loading — BEEF form scores are available immediately.'}
+          </p>
         </div>
 
-        {/* Shot list column */}
+        {/* Shot list */}
         <div>
           <div className="rounded-2xl bg-[#0a0a14] border border-[#111119] p-3 space-y-2 max-h-[70vh] overflow-y-auto">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest px-1 pb-1">
@@ -310,9 +336,7 @@ export default function BasketballPage() {
             </p>
             {shots.length === 0 ? (
               <div className="flex items-center justify-center py-10 text-center">
-                <p className="text-gray-600 text-sm leading-relaxed">
-                  Take your first shot — scores will appear here.
-                </p>
+                <p className="text-gray-600 text-sm leading-relaxed">Take your first shot — scores will appear here.</p>
               </div>
             ) : (
               shots.map(shot => <ShotRow key={shot.id} shot={shot} />)
@@ -324,28 +348,56 @@ export default function BasketballPage() {
   )
 }
 
+function StatChip({
+  label, value, valueColor, sub,
+}: { label: string; value: string; valueColor?: string; sub?: string }) {
+  return (
+    <div className="flex flex-col items-center shrink-0">
+      <span className="text-[9px] font-black uppercase tracking-[0.18em] text-gray-600">{label}</span>
+      <span className="text-[15px] font-black tabular-nums leading-tight" style={{ color: valueColor ?? '#fff' }}>
+        {value}
+      </span>
+      {sub && <span className="text-[9px] text-gray-600">{sub}</span>}
+    </div>
+  )
+}
+
 function ShotRow({ shot }: { shot: Shot }) {
-  const { beef, context } = shot
+  const { beef, context, result } = shot
   const isMovement = context === 'movement'
   const hasArc = beef.arc !== undefined
 
+  const resultBadge =
+    result === 'make'  ? { icon: '🟢', label: 'Make',    color: '#22c55e' } :
+    result === 'miss'  ? { icon: '🔴', label: 'Miss',    color: '#ef4444' } :
+    result === 'unknown' ? { icon: '⚪', label: 'Unknown', color: '#6b7280' } :
+    null
+
   return (
     <div className="rounded-xl p-3"
-      style={{ background: 'linear-gradient(135deg, #0d0d1a 0%, #0f0f20 100%)', border: '1px solid #1a1a2e' }}>
+      style={{ background: 'linear-gradient(135deg,#0d0d1a,#0f0f20)', border: '1px solid #1a1a2e' }}>
+
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-          style={isMovement
-            ? { background: 'rgba(234,179,8,0.15)', color: '#eab308', border: '1px solid rgba(234,179,8,0.25)' }
-            : { background: 'rgba(59,130,246,0.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)' }
-          }>
-          {isMovement ? 'Pull-up' : 'Set'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+            style={isMovement
+              ? { background: 'rgba(234,179,8,0.15)', color: '#eab308', border: '1px solid rgba(234,179,8,0.25)' }
+              : { background: 'rgba(59,130,246,0.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)' }
+            }>
+            {isMovement ? 'Pull-up' : 'Set'}
+          </span>
+          {resultBadge && (
+            <span className="text-[11px] font-semibold" style={{ color: resultBadge.color }}>
+              {resultBadge.icon} {resultBadge.label}
+            </span>
+          )}
+        </div>
         <span className="text-2xl font-bold tabular-nums" style={{ color: scoreColor(beef.overall) }}>
           {beef.overall}
         </span>
       </div>
 
-      {/* BEEF + optional Arc grid */}
+      {/* BEEF + Arc grid */}
       <div className={`grid gap-1 ${hasArc ? 'grid-cols-5' : 'grid-cols-4'}`}>
         {([
           { label: 'B', value: beef.balance },
@@ -361,16 +413,18 @@ function ShotRow({ shot }: { shot: Shot }) {
             }}>
             <span className="text-[10px] font-semibold mb-0.5"
               style={{ color: label === '⌒' ? '#fb923c' : '#6b7280' }}>{label}</span>
-            <span className="text-sm font-bold tabular-nums" style={{ color: scoreColor(value) }}>
-              {value}
-            </span>
+            <span className="text-sm font-bold tabular-nums" style={{ color: scoreColor(value) }}>{value}</span>
           </div>
         ))}
       </div>
 
       {hasArc && (
         <p className="text-[10px] text-orange-500/60 mt-1.5 px-0.5">
-          {beef.arc! >= 70 ? '↑ Good arc height' : beef.arc! >= 40 ? '↑ Moderate arc — try to lift higher' : '↗ Flat shot — add more arc for better percentage'}
+          {beef.arc! >= 70
+            ? '↑ Good arc height'
+            : beef.arc! >= 40
+            ? '↑ Moderate arc — try to get it higher'
+            : '↗ Flat shot — more arc = better percentage'}
         </p>
       )}
     </div>

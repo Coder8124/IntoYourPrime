@@ -34,6 +34,34 @@ export function scoreArcFromTrajectory(trajectory: BallPos[]): number | null {
   return arcScore
 }
 
+// Estimate make/miss from ball positions captured after shot release.
+// Heuristic: a make = ball rises, then disappears in the upper 45% of frame.
+// A miss = ball rises then comes back down to lower half.
+export function estimateMake(trajectory: BallPos[]): 'make' | 'miss' | 'unknown' {
+  if (trajectory.length < 4) return 'unknown'
+
+  const ys = trajectory.map(p => p.y)
+  const lastPos = trajectory[trajectory.length - 1]
+  const now = Date.now()
+
+  // Need arc: ball must have gone up meaningfully
+  const minY = Math.min(...ys)
+  const arcHeight = ys[0] - minY  // positive = ball went higher in frame
+  if (arcHeight < 0.05) return 'unknown'
+
+  // Ball disappeared (not detected for ≥400ms after its last position)
+  const ballGone = now - lastPos.ts > 400
+
+  // Last known position is in top 45% of frame (near where hoop would be)
+  if (ballGone && lastPos.y < 0.45) return 'make'
+
+  // Ball came back down into lower half after going up = miss
+  const tailY = ys.slice(-3).reduce((a, b) => a + b, 0) / Math.min(3, ys.length)
+  if (tailY > 0.55 && minY < 0.40) return 'miss'
+
+  return 'unknown'
+}
+
 export function useBallDetector(videoRef: React.RefObject<HTMLVideoElement | null>) {
   const modelRef = useRef<{ detect: (img: HTMLVideoElement) => Promise<Array<{ class: string; score: number; bbox: [number, number, number, number] }>> } | null>(null)
   const [modelReady, setModelReady] = useState(false)
