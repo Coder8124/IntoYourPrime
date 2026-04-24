@@ -193,19 +193,30 @@ export function VendingMachine({
               <meshBasicMaterial color={drink.color} transparent opacity={0.95} toneMapped={false} />
             </mesh>
 
-            {/* Slot number pip below the can */}
+            {/* Drink name label below the can */}
             <Text
-              position={[0, -CAN_H * 0.7, 0.01]}
-              fontSize={0.095}
-              color={hovered ? drink.color : '#4a4455'}
+              position={[0, -CAN_H * 0.62, 0.01]}
+              fontSize={0.085}
+              color={hovered ? drink.color : '#8888aa'}
               anchorX="center"
               anchorY="middle"
               fontWeight={700}
-              letterSpacing={0.2}
-              outlineWidth={hovered ? 0.003 : 0}
+              letterSpacing={0.18}
+              outlineWidth={hovered ? 0.004 : 0}
               outlineColor="#000"
             >
-              {`A${i + 1}`}
+              {drink.name}
+            </Text>
+            {/* Flavor subtitle */}
+            <Text
+              position={[0, -CAN_H * 0.9, 0.01]}
+              fontSize={0.058}
+              color={hovered ? '#d4d4e8' : '#3a3a52'}
+              anchorX="center"
+              anchorY="middle"
+              letterSpacing={0.1}
+            >
+              {drink.flavor.toUpperCase()}
             </Text>
           </group>
         )

@@ -19,23 +19,34 @@ export function RootRedirect() {
 
       setIsAuthed(true)
 
-      // Check localStorage first (fast path)
-      const localComplete = (() => {
+      const isProfileComplete = (raw: string | null): boolean => {
         try {
-          const raw = localStorage.getItem('formAI_profile')
           if (!raw) return false
           const p = JSON.parse(raw) as Record<string, unknown>
           return Boolean(p.name) && Boolean(p.age) && Boolean(p.sex)
         } catch { return false }
-      })()
+      }
 
-      if (localComplete) {
+      // 1. Check uid-specific localStorage key first — persists across sign-out on same device
+      const uidKey = `formAI_profile_${user.uid}`
+      const uidRaw = localStorage.getItem(uidKey)
+      if (isProfileComplete(uidRaw)) {
+        localStorage.setItem('formAI_profile', uidRaw!)
         setHasProfile(true)
         setAuthReady(true)
         return
       }
 
-      // localStorage empty (new device/browser) — try Firestore
+      // 2. Fall back to generic key (same session, not yet signed out)
+      if (isProfileComplete(localStorage.getItem('formAI_profile'))) {
+        // Back-fill the uid-specific key so future sign-ins skip Firestore
+        localStorage.setItem(uidKey, localStorage.getItem('formAI_profile')!)
+        setHasProfile(true)
+        setAuthReady(true)
+        return
+      }
+
+      // 3. No local data (new device/browser) — try Firestore
       try {
         const profile = await Promise.race([
           getUserProfile(user.uid),
@@ -45,7 +56,7 @@ export function RootRedirect() {
           const local = firestoreProfileToLocal(profile)
           const json = JSON.stringify(local)
           localStorage.setItem('formAI_profile', json)
-          localStorage.setItem(`formAI_profile_${user.uid}`, json)
+          localStorage.setItem(uidKey, json)
           setHasProfile(true)
         }
       } catch { /* network failure — fall through to onboarding */ }

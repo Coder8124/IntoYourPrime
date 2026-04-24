@@ -56,14 +56,17 @@ export function OnboardingPage() {
     const uid = auth.currentUser?.uid
     if (uid) {
       localStorage.setItem(`formAI_profile_${uid}`, profileJson)
+      const saveToFirestore = () =>
+        upsertFullUserProfile(uid, { ...form, email: auth.currentUser?.email ?? '' })
       try {
         await Promise.race([
-          upsertFullUserProfile(uid, { ...form, email: auth.currentUser?.email ?? '' }),
-          new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000)),
+          saveToFirestore(),
+          new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
         ])
       } catch {
-        // Save failed — profile is in localStorage, user can re-save from Profile page
         setSaveError(true)
+        // Retry once in the background — profile is already in localStorage
+        setTimeout(() => saveToFirestore().catch(() => {}), 3000)
       }
     }
 
