@@ -818,6 +818,38 @@ export function FriendsPage() {
           {error && <p className="text-[12px] text-red-400 text-center">{error}</p>}
         </div>
 
+        {/* ── Leaderboard ─────────────────────────────────────────────── */}
+        {members.length > 1 && (
+          <div className="card-surface p-5 space-y-3">
+            <p className="text-[11px] font-bold tracking-[0.15em] uppercase text-gray-500">🏆 Streak Leaderboard</p>
+            <div className="space-y-2">
+              {[...members]
+                .sort((a, b) => b.streakDays - a.streakDays)
+                .map((m, i) => {
+                  const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`
+                  const isMe = m.name === (members[0]?.name)
+                  return (
+                    <div key={m.name}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                      style={isMe
+                        ? { background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }
+                        : { background: 'rgba(255,255,255,0.02)', border: '1px solid #1a1a28' }
+                      }
+                    >
+                      <span className="text-[16px] w-7 text-center shrink-0">{medal}</span>
+                      <span className="flex-1 text-[13px] font-semibold text-white truncate">{m.name}{isMe && ' (you)'}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-orange-400 text-[14px]">🔥</span>
+                        <span className="font-black text-white text-[14px]">{m.streakDays}</span>
+                        <span className="text-[11px] text-gray-600">day{m.streakDays !== 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          </div>
+        )}
+
         {/* ── PI Briefing output ───────────────────────────────────────── */}
         {briefing && (
           <>

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { onAuthStateChanged } from 'firebase/auth'
+import { ThemeProvider } from './contexts/ThemeContext'
 import { auth } from './lib/firebase'
 import { upsertUserDisplayName } from './lib/firebaseHelpers'
 import { RootRedirect } from './components/RootRedirect'
@@ -17,6 +18,8 @@ import { FriendsPage } from './pages/FriendsPage'
 import { ProgressPage } from './pages/ProgressPage'
 import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage'
 import { ProgramsPage } from './pages/ProgramsPage'
+import { CustomProgramPage } from './pages/CustomProgramPage'
+import { AIWorkoutPage } from './pages/AIWorkoutPage'
 import BasketballPage from './pages/BasketballPage'
 
 export default function App() {
@@ -36,24 +39,28 @@ export default function App() {
   }, [])
 
   return (
-    <RouteFade>
-      <Routes>
-        <Route path="/" element={<RootRedirect />} />
-        <Route path="/landing" element={<LandingPage />} />
-        <Route path="/auth" element={<AuthPage />} />
-        <Route path="/onboarding" element={<OnboardingPage />} />
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/workout" element={<WorkoutPage />} />
-        <Route path="/session-summary" element={<SessionSummaryPage />} />
-        <Route path="/recovery-log" element={<RecoveryLogPage />} />
-        <Route path="/recovery" element={<RecoveryLogPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/friends" element={<FriendsPage />} />
-        <Route path="/progress" element={<ProgressPage />} />
-        <Route path="/basketball" element={<BasketballPage />} />
-        <Route path="/library" element={<ExerciseLibraryPage />} />
-        <Route path="/programs" element={<ProgramsPage />} />
-      </Routes>
-    </RouteFade>
+    <ThemeProvider>
+      <RouteFade>
+        <Routes>
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/landing" element={<LandingPage />} />
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/onboarding" element={<OnboardingPage />} />
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/workout" element={<WorkoutPage />} />
+          <Route path="/session-summary" element={<SessionSummaryPage />} />
+          <Route path="/recovery-log" element={<RecoveryLogPage />} />
+          <Route path="/recovery" element={<RecoveryLogPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/friends" element={<FriendsPage />} />
+          <Route path="/progress" element={<ProgressPage />} />
+          <Route path="/basketball" element={<BasketballPage />} />
+          <Route path="/library" element={<ExerciseLibraryPage />} />
+          <Route path="/programs" element={<ProgramsPage />} />
+          <Route path="/programs/builder" element={<CustomProgramPage />} />
+          <Route path="/programs/generate" element={<AIWorkoutPage />} />
+        </Routes>
+      </RouteFade>
+    </ThemeProvider>
   )
 }

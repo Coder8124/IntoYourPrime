@@ -833,6 +833,35 @@ export function WorkoutPage() {
   const [setLog,   setSetLog]   = useState<SetLogEntry[]>([])
   const [apiKeyBannerDismissed, setApiKeyBannerDismissed] = useState(false)
 
+  // ── Rest timer ─────────────────────────────────────────────────────────
+  const [restDuration,  setRestDuration]  = useState(60)   // seconds
+  const [restRemaining, setRestRemaining] = useState<number | null>(null)
+  const restTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const startRestTimer = useCallback((secs: number) => {
+    if (restTimerRef.current) clearInterval(restTimerRef.current)
+    setRestRemaining(secs)
+    restTimerRef.current = setInterval(() => {
+      setRestRemaining(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(restTimerRef.current!)
+          restTimerRef.current = null
+          return null
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }, [])
+
+  const skipRestTimer = useCallback(() => {
+    if (restTimerRef.current) clearInterval(restTimerRef.current)
+    restTimerRef.current = null
+    setRestRemaining(null)
+  }, [])
+
+  // Cleanup on unmount
+  useEffect(() => () => { if (restTimerRef.current) clearInterval(restTimerRef.current) }, [])
+
   // ── Cooldown state ─────────────────────────────────────────────────────
   const [fatigueWarning,   setFatigueWarning]   = useState<string | null>(null)
   const [asymmetry, setAsymmetry] = useState<{ left: number; right: number } | null>(null)
@@ -1087,7 +1116,13 @@ export function WorkoutPage() {
     resetBurpeeCounter()
     sessionRiskLog.current = []
     setFatigueWarning(null)
-  }, [resetExerciseReps, resetRepCounter, resetHoldTimer, resetBurpeeCounter, isHoldExercise])
+    // Start rest timer between sets
+    setRestRemaining(prev => {
+      if (prev !== null) return prev // already ticking
+      return null
+    })
+    startRestTimer(restDuration)
+  }, [resetExerciseReps, resetRepCounter, resetHoldTimer, resetBurpeeCounter, isHoldExercise, startRestTimer, restDuration])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1951,6 +1986,46 @@ export function WorkoutPage() {
                 </div>
               )}
               <p className="mt-2 text-[10px] text-gray-700">Press <kbd className="px-1 rounded bg-white/10 font-mono">S</kbd> or <kbd className="px-1 rounded bg-white/10 font-mono">Space</kbd></p>
+            </div>
+
+            {/* Rest timer */}
+            <div className="card-surface p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500">Rest</span>
+                <div className="flex items-center gap-1">
+                  {([30, 60, 90] as const).map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setRestDuration(d)}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors"
+                      style={restDuration === d
+                        ? { background: 'rgba(59,130,246,0.2)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.4)' }
+                        : { background: 'transparent', color: '#4b5563', border: '1px solid transparent' }
+                      }
+                    >{d}s</button>
+                  ))}
+                </div>
+              </div>
+              {restRemaining !== null ? (
+                <div className="flex items-center justify-between">
+                  <div className="font-mono text-[30px] font-black leading-none"
+                    style={{ color: restRemaining <= 10 ? '#f87171' : '#34d399' }}>
+                    {String(restRemaining).padStart(2, '0')}s
+                  </div>
+                  <button
+                    type="button"
+                    onClick={skipRestTimer}
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-gray-400 border border-gray-700 hover:border-gray-500 transition-colors"
+                  >Skip</button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => startRestTimer(restDuration)}
+                  className="w-full py-1.5 rounded-lg text-[11px] font-bold text-gray-500 border border-dashed border-gray-700 hover:border-gray-500 hover:text-gray-300 transition-colors"
+                >Start rest timer</button>
+              )}
             </div>
 
             {/* Phase badge */}

@@ -614,3 +614,24 @@ export function advanceProgramExercise(): ActiveProgram | null {
 export function clearActiveProgram(): void {
   localStorage.removeItem(PROGRAM_KEY)
 }
+
+// ── Custom programs (user-created / AI-generated) ──────────────────────────
+
+const CUSTOM_PROGRAMS_KEY = 'formAI_custom_programs'
+
+export function getCustomPrograms(): WorkoutProgram[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_PROGRAMS_KEY)
+    return raw ? (JSON.parse(raw) as WorkoutProgram[]) : []
+  } catch { return [] }
+}
+
+export function saveCustomProgram(program: WorkoutProgram): void {
+  const existing = getCustomPrograms().filter(p => p.id !== program.id)
+  localStorage.setItem(CUSTOM_PROGRAMS_KEY, JSON.stringify([program, ...existing]))
+}
+
+export function deleteCustomProgram(id: string): void {
+  const programs = getCustomPrograms().filter(p => p.id !== id)
+  localStorage.setItem(CUSTOM_PROGRAMS_KEY, JSON.stringify(programs))
+}

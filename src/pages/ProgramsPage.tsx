@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { WORKOUT_PROGRAMS, EXERCISE_INFO, setActiveProgram, getActiveProgram, clearActiveProgram, type WorkoutProgram } from '../lib/programs'
+import { WORKOUT_PROGRAMS, EXERCISE_INFO, setActiveProgram, getActiveProgram, clearActiveProgram, getCustomPrograms, deleteCustomProgram, type WorkoutProgram } from '../lib/programs'
 import { BottomNav } from '../components/BottomNav'
 
 const LEVEL_COLOR = {
@@ -98,6 +98,12 @@ export function ProgramsPage() {
   const navigate = useNavigate()
   const active = getActiveProgram()
   const [levelFilter, setLevelFilter] = useState<'All' | 'Beginner' | 'Intermediate' | 'Advanced'>('All')
+  const [customPrograms, setCustomPrograms] = useState(() => getCustomPrograms())
+
+  const handleDeleteCustom = (id: string) => {
+    deleteCustomProgram(id)
+    setCustomPrograms(getCustomPrograms())
+  }
 
   const filtered = WORKOUT_PROGRAMS.filter(p =>
     levelFilter === 'All' || p.level === levelFilter
@@ -117,12 +123,20 @@ export function ProgramsPage() {
             <div className="w-px h-4 bg-[#1e1e2e]" />
             <h1 className="font-black text-white tracking-tight">Programs</h1>
           </div>
-          <Link
-            to="/library"
-            className="px-3 py-1.5 rounded-xl border border-[#2e2e3e] text-[12px] font-semibold text-gray-400 hover:text-white transition-colors"
-          >
-            Exercise Library
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/programs/generate"
+              className="px-3 py-1.5 rounded-xl border border-blue-500/30 text-[12px] font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              ✨ AI Generate
+            </Link>
+            <Link
+              to="/programs/builder"
+              className="px-3 py-1.5 rounded-xl border border-[#2e2e3e] text-[12px] font-semibold text-gray-400 hover:text-white transition-colors"
+            >
+              + Build
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -176,8 +190,28 @@ export function ProgramsPage() {
           ))}
         </div>
 
+        {/* Custom programs */}
+        {customPrograms.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 px-1">My Programs</p>
+            {customPrograms.map(p => (
+              <div key={p.id} className="relative">
+                <ProgramCard program={p} onStart={handleStart} />
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCustom(p.id)}
+                  className="absolute top-3 right-3 px-2 py-0.5 rounded-lg text-[10px] text-red-400 border border-red-900/40 hover:border-red-700 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Program cards */}
         <div className="space-y-4">
+          {customPrograms.length > 0 && <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 px-1">Built-in Programs</p>}
           {filtered.map(p => (
             <ProgramCard key={p.id} program={p} onStart={handleStart} />
           ))}
