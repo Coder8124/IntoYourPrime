@@ -111,7 +111,9 @@ function userProfileFromDoc(snap: DocumentSnapshot): UserProfile | null {
     heightCm: Number(d.heightCm),
     biologicalSex: d.biologicalSex as UserProfile['biologicalSex'],
     fitnessLevel: d.fitnessLevel as UserProfile['fitnessLevel'],
-    createdAt: readTimestampAsDate(d.createdAt, 'createdAt'),
+    createdAt: (d.createdAt instanceof Timestamp || d.createdAt instanceof Date)
+      ? readTimestampAsDate(d.createdAt, 'createdAt')
+      : new Date(0),
     streakCount: Number(d.streakCount ?? 0),
     lastWorkoutDate:
       d.lastWorkoutDate === null || d.lastWorkoutDate === undefined
@@ -329,6 +331,7 @@ export async function upsertFullUserProfile(
         heightCm,
         biologicalSex: p.sex,
         fitnessLevel:  p.fitnessLevel ?? 'intermediate',
+        createdAt: Timestamp.now(),
       },
       { merge: true },
     )
