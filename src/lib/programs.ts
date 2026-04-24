@@ -475,6 +475,8 @@ export interface WorkoutProgram {
   exercises: string[]
   tags: string[]
   emoji: string
+  targetReps: number     // reps to complete before auto-advancing to next exercise
+  targetHoldSecs: number // seconds for hold exercises (plank, wallsit, etc.)
 }
 
 export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
@@ -487,6 +489,8 @@ export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     exercises: ['squat', 'pushup', 'lunge', 'curlup'],
     tags: ['Full Body', 'No Equipment', 'Strength'],
     emoji: '🌱',
+    targetReps: 10,
+    targetHoldSecs: 30,
   },
   {
     id: 'upper-body-burn',
@@ -497,6 +501,8 @@ export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     exercises: ['pushup', 'shoulderpress', 'bicepcurl', 'tricepextension'],
     tags: ['Upper Body', 'Push', 'Strength'],
     emoji: '💪',
+    targetReps: 12,
+    targetHoldSecs: 30,
   },
   {
     id: 'lower-body-power',
@@ -507,6 +513,8 @@ export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     exercises: ['squat', 'deadlift', 'lunge'],
     tags: ['Lower Body', 'Strength', 'Power'],
     emoji: '🦵',
+    targetReps: 10,
+    targetHoldSecs: 30,
   },
   {
     id: 'hiit-circuit',
@@ -517,6 +525,8 @@ export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     exercises: ['jumpingjack', 'squat', 'highnees', 'pushup'],
     tags: ['Cardio', 'HIIT', 'Full Body'],
     emoji: '⚡',
+    targetReps: 20,
+    targetHoldSecs: 30,
   },
   {
     id: 'core-stability',
@@ -527,6 +537,8 @@ export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     exercises: ['plank', 'wallsit', 'curlup'],
     tags: ['Core', 'Stability', 'Isometric'],
     emoji: '🎯',
+    targetReps: 10,
+    targetHoldSecs: 30,
   },
   {
     id: 'strength-builder',
@@ -537,6 +549,8 @@ export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     exercises: ['deadlift', 'squat', 'pullup', 'pushup', 'shoulderpress', 'lunge'],
     tags: ['Full Body', 'Compound', 'Strength'],
     emoji: '🏋️',
+    targetReps: 10,
+    targetHoldSecs: 30,
   },
   {
     id: 'arms-shoulders',
@@ -547,6 +561,8 @@ export const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     exercises: ['bicepcurl', 'hammercurl', 'tricepextension', 'lateralraise', 'shoulderpress'],
     tags: ['Upper Body', 'Isolation', 'Arms'],
     emoji: '💪',
+    targetReps: 12,
+    targetHoldSecs: 30,
   },
 ]
 
@@ -555,6 +571,8 @@ export interface ActiveProgram {
   name: string
   exercises: string[]
   currentIndex: number
+  targetReps: number
+  targetHoldSecs: number
 }
 
 export const PROGRAM_KEY = 'formAI_activeProgram'
@@ -575,6 +593,8 @@ export function setActiveProgram(program: WorkoutProgram): void {
     name: program.name,
     exercises: program.exercises,
     currentIndex: 0,
+    targetReps: program.targetReps,
+    targetHoldSecs: program.targetHoldSecs,
   }
   localStorage.setItem(PROGRAM_KEY, JSON.stringify(active))
 }

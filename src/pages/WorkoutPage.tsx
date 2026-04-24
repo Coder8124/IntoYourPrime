@@ -821,6 +821,8 @@ export function WorkoutPage() {
 
   // ── Program mode ──────────────────────────────────────────────────────
   const [activeProgram, setActiveProgramState] = useState<ActiveProgram | null>(() => getActiveProgram())
+  const [programAdvanceMsg, setProgramAdvanceMsg] = useState<string | null>(null)
+  const programAdvanceRef = useRef(false) // guard: only fire once per exercise
 
   // ── Set counter ────────────────────────────────────────────────────────
   interface SetLogEntry { setNum: number; exercise: string; reps: number }
@@ -1000,6 +1002,37 @@ export function WorkoutPage() {
       }
     }
   }, [setExercise, resetExerciseReps, resetRepCounter, resetHoldTimer])
+
+  // ── Program auto-advance when rep/hold target is reached ─────────────
+  useEffect(() => {
+    if (!activeProgram || phase !== 'main') return
+    const target = isHoldExercise ? activeProgram.targetHoldSecs : activeProgram.targetReps
+    const current = isHoldExercise ? holdSeconds : activeRepCount
+    if (current < target || programAdvanceRef.current) return
+    programAdvanceRef.current = true
+
+    const hasMore = activeProgram.currentIndex + 1 < activeProgram.exercises.length
+    const nextName = hasMore
+      ? (EXERCISE_LABELS[activeProgram.exercises[activeProgram.currentIndex + 1] as typeof EXERCISES[number]] ?? activeProgram.exercises[activeProgram.currentIndex + 1])
+      : null
+    setProgramAdvanceMsg(hasMore ? `Next up: ${nextName}` : 'Program complete!')
+
+    const t = window.setTimeout(() => {
+      setProgramAdvanceMsg(null)
+      programAdvanceRef.current = false
+      if (hasMore) {
+        handleNextProgramExercise()
+      } else {
+        clearActiveProgram()
+        setActiveProgramState(null)
+        void handleEndWorkout()
+      }
+    }, 2000)
+    return () => window.clearTimeout(t)
+  }, [activeRepCount, holdSeconds, activeProgram, phase, isHoldExercise, handleNextProgramExercise, handleEndWorkout])
+
+  // Reset the advance guard whenever the exercise changes
+  useEffect(() => { programAdvanceRef.current = false }, [currentExercise])
 
   // ── Keep mutable refs in sync with latest values ───────────────────────
   useEffect(() => { repCountRef.current      = activeRepCount  }, [activeRepCount])
@@ -1726,18 +1759,37 @@ export function WorkoutPage() {
                   <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2">
                     Hold Time
                   </span>
-                  <div
-                    className="font-black leading-none select-none"
-                    style={{
-                      fontSize: 72,
-                      letterSpacing: -3,
-                      display: 'inline-block',
-                      color: isInPosition ? '#22c55e' : '#374151',
-                      transition: 'color 0.3s ease',
-                    }}
-                  >
-                    {fmt(holdSeconds)}
+                  <div className="flex items-end gap-1 leading-none">
+                    <div
+                      className="font-black select-none"
+                      style={{
+                        fontSize: 72,
+                        letterSpacing: -3,
+                        display: 'inline-block',
+                        lineHeight: 1,
+                        color: isInPosition ? '#22c55e' : '#374151',
+                        transition: 'color 0.3s ease',
+                      }}
+                    >
+                      {fmt(holdSeconds)}
+                    </div>
+                    {activeProgram && phase === 'main' && (
+                      <span className="text-[16px] font-black text-gray-600 mb-1.5">
+                        /{fmt(activeProgram.targetHoldSecs)}
+                      </span>
+                    )}
                   </div>
+                  {activeProgram && phase === 'main' && (
+                    <div className="w-full mt-2 h-1.5 rounded-full bg-white/8 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-1000"
+                        style={{
+                          width: `${Math.min(100, (holdSeconds / activeProgram.targetHoldSecs) * 100)}%`,
+                          background: holdSeconds >= activeProgram.targetHoldSecs ? '#22c55e' : '#3b82f6',
+                        }}
+                      />
+                    </div>
+                  )}
                   <span className="text-[11px] text-gray-600 mt-1">
                     {EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}
                   </span>
@@ -1760,15 +1812,33 @@ export function WorkoutPage() {
               ) : (
                 <>
                   <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2">
-                    Current Reps
+                    {activeProgram && phase === 'main' ? 'Reps' : 'Current Reps'}
                   </span>
-                  <div
-                    key={activeLastRepTs ?? 0}
-                    className="font-black leading-none select-none text-white rep-pulse"
-                    style={{ fontSize: 84, letterSpacing: -4, display: 'inline-block' }}
-                  >
-                    {String(repCounts[currentExercise] ?? 0).padStart(2, '0')}
+                  <div className="flex items-end gap-1 leading-none">
+                    <div
+                      key={activeLastRepTs ?? 0}
+                      className="font-black select-none text-white rep-pulse"
+                      style={{ fontSize: 84, letterSpacing: -4, display: 'inline-block', lineHeight: 1 }}
+                    >
+                      {String(repCounts[currentExercise] ?? 0).padStart(2, '0')}
+                    </div>
+                    {activeProgram && phase === 'main' && !isHoldExercise && (
+                      <span className="text-[22px] font-black text-gray-600 mb-2">
+                        /{activeProgram.targetReps}
+                      </span>
+                    )}
                   </div>
+                  {activeProgram && phase === 'main' && !isHoldExercise && (
+                    <div className="w-full mt-2 h-1.5 rounded-full bg-white/8 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, ((repCounts[currentExercise] ?? 0) / activeProgram.targetReps) * 100)}%`,
+                          background: (repCounts[currentExercise] ?? 0) >= activeProgram.targetReps ? '#22c55e' : '#3b82f6',
+                        }}
+                      />
+                    </div>
+                  )}
                   <span className="text-[11px] text-gray-600 mt-1">{EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}</span>
 
                   {/* Per-arm counts for bicep / hammer curl */}
@@ -2136,6 +2206,19 @@ export function WorkoutPage() {
                 {safetyConcerns.map((concern, i) => (
                   <p key={i} className="text-[12px] text-red-300 leading-relaxed">{concern}</p>
                 ))}
+              </div>
+            )}
+
+            {/* Program auto-advance toast */}
+            {programAdvanceMsg && (
+              <div className="shrink-0 mb-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.1)' }}>
+                <div className="flex items-center gap-3 p-3">
+                  <span style={{ fontSize: 18, lineHeight: 1 }}>✓</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11.5px] font-bold text-green-400">Target reached!</p>
+                    <p className="text-[10.5px] text-green-300/70">{programAdvanceMsg}</p>
+                  </div>
+                </div>
               </div>
             )}
 
