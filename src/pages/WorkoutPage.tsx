@@ -1581,10 +1581,10 @@ export function WorkoutPage() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => { clearActiveProgram(); setActiveProgramState(null) }}
+                    onClick={() => { clearActiveProgram(); setActiveProgramState(null); void handleEndWorkout() }}
                     className="w-full py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-[11px] font-bold text-white transition-colors"
                   >
-                    ✓ Program Complete!
+                    ✓ Program Complete — Cool Down
                   </button>
                 )}
               </div>

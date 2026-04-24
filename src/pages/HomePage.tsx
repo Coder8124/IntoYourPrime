@@ -690,7 +690,7 @@ export function HomePage() {
           {/* Footer links */}
           <div className="flex justify-center gap-4 pt-2">
             <Link to="/profile" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Profile</Link>
-            <Link to="/pipeline-test" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Pipeline</Link>
+            <Link to="/settings" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Settings</Link>
           </div>
         </div>
       </div>

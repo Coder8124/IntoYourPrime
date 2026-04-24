@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useWorkoutStore, type SuggestionEntry, type WorkoutPhase } from '../stores/workoutStore'
 import { saveSession, updateStreak, postActivityItem } from '../lib/firebaseHelpers'
+import { auth } from '../lib/firebase'
 import { getOrSignInUserId } from '../lib/firestoreUser'
 import { getOrCreateLocalUserId } from '../lib/localUserId'
 import type { CooldownExercise } from '../types/index'
@@ -363,7 +364,9 @@ export function SessionSummaryPage() {
               <span className="text-[11px] text-green-500">✓ Saved</span>
             )}
             {saveStatus === 'error' && (
-              <span className="text-[11px] text-red-400">Could not save</span>
+              auth.currentUser
+                ? <span className="text-[11px] text-red-400">Could not save — check connection</span>
+                : <Link to="/auth" className="text-[11px] text-amber-400 hover:text-amber-300 underline underline-offset-2">Sign in to save sessions →</Link>
             )}
             <button
               type="button"
