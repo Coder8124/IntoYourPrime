@@ -427,38 +427,38 @@ const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
 
 const CATEGORY_TABS = ['All', 'Lower Body', 'Upper Body', 'Core', 'Cardio'] as const
 
-// Wikimedia Commons GIFs — CC BY-SA licensed, publicly embeddable
+// Exercise GIFs from fitnessprogramer.com and gymvisual.com
 const EXERCISE_GIFS: Record<typeof EXERCISES[number], string> = {
-  squat:            'https://upload.wikimedia.org/wikipedia/commons/4/4f/Squats_wbs.gif',
-  pushup:           'https://upload.wikimedia.org/wikipedia/commons/d/d4/Pushups_wbs.gif',
-  benchpress:       'https://upload.wikimedia.org/wikipedia/commons/3/3c/SmithMachineBenchPress.gif',
-  chestpress:       'https://upload.wikimedia.org/wikipedia/commons/8/88/Chest_press-CDC_strength_training_for_older_adults.gif',
-  lunge:            'https://upload.wikimedia.org/wikipedia/commons/a/af/Lunge-CDC_strength_training_for_older_adults.gif',
-  sidelunge:        'https://upload.wikimedia.org/wikipedia/commons/a/af/Lunge-CDC_strength_training_for_older_adults.gif',
-  deadlift:         'https://upload.wikimedia.org/wikipedia/commons/c/cb/Man_Lifting_Barbell_Deadlift_GIF_Animation_Loop.gif',
-  shoulderpress:    'https://upload.wikimedia.org/wikipedia/commons/b/b2/Overhead_press-CDC_strength_training_for_older_adults.gif',
-  curlup:           'https://upload.wikimedia.org/wikipedia/commons/d/db/Stability-ball-abdominal-crunch-1.gif',
-  situp:            'https://upload.wikimedia.org/wikipedia/commons/3/34/Situps_wbs.gif',
-  bicepcurl:        'https://upload.wikimedia.org/wikipedia/commons/6/66/Biceps_curl-CDC_strength_training_for_older_adults.gif',
-  jumpingjack:      'https://upload.wikimedia.org/wikipedia/commons/a/a4/Jumpingjacks_wbs.gif',
-  highnees:         'https://upload.wikimedia.org/wikipedia/commons/6/6b/Highknees_wbs.gif',
-  mountainclimber:  'https://upload.wikimedia.org/wikipedia/commons/6/6b/Highknees_wbs.gif',
-  buttskick:        'https://upload.wikimedia.org/wikipedia/commons/9/9c/Knee_curl-CDC_strength_training_for_older_adults.gif',
-  calfraise:        'https://upload.wikimedia.org/wikipedia/commons/1/10/Toe_stand-CDC_strength_training_for_older_adults.gif',
-  hipcircle:        'https://upload.wikimedia.org/wikipedia/commons/d/db/Hip_abduction-CDC_strength_training_for_older_adults.gif',
-  plank:            'https://upload.wikimedia.org/wikipedia/commons/d/d4/Pushups_wbs.gif',
-  wallsit:          'https://upload.wikimedia.org/wikipedia/commons/4/4f/Squats_wbs.gif',
-  tricepextension:  'https://upload.wikimedia.org/wikipedia/commons/3/32/One-arm-tricep-extension-1.gif',
-  lateralraise:     'https://upload.wikimedia.org/wikipedia/commons/b/b2/Overhead_press-CDC_strength_training_for_older_adults.gif',
-  hammercurl:       'https://upload.wikimedia.org/wikipedia/commons/0/0e/Hammer-curls-with-rope-1.gif',
-  pullup:           'https://upload.wikimedia.org/wikipedia/commons/4/40/Pullup.gif',
-  armcircle:        'https://upload.wikimedia.org/wikipedia/commons/b/b2/Overhead_press-CDC_strength_training_for_older_adults.gif',
-  scapulasqueeze:   'https://upload.wikimedia.org/wikipedia/commons/8/88/Chest_press-CDC_strength_training_for_older_adults.gif',
-  crossbodystretch: 'https://upload.wikimedia.org/wikipedia/commons/4/41/Chest_stretch-CDC_strength_training_for_older_adults.gif',
-  tricepstretch:    'https://upload.wikimedia.org/wikipedia/commons/3/32/One-arm-tricep-extension-1.gif',
-  chestfly:         'https://upload.wikimedia.org/wikipedia/commons/a/a5/DumbbellFlye.gif',
-  jumpsquat:        'https://upload.wikimedia.org/wikipedia/commons/4/4f/Squats_wbs.gif',
-  burpee:           'https://upload.wikimedia.org/wikipedia/commons/d/df/Burpee.gif',
+  squat:            'https://fitnessprogramer.com/wp-content/uploads/2021/02/BARBELL-SQUAT.gif',
+  pushup:           'https://fitnessprogramer.com/wp-content/uploads/2021/02/Push-Up.gif',
+  benchpress:       'https://gymvisual.com/img/p/1/7/5/5/2/17552.gif',
+  chestpress:       'https://fitnessprogramer.com/wp-content/uploads/2021/12/One-Arm-Cable-Chest-Press.gif',
+  lunge:            'https://fitnessprogramer.com/wp-content/uploads/2023/07/bodyweight-lunges.gif',
+  sidelunge:        'https://fitnessprogramer.com/wp-content/uploads/2021/05/Side-Lunge-Stretch.gif',
+  deadlift:         'https://fitnessprogramer.com/wp-content/uploads/2021/02/Barbell-Deadlift.gif',
+  shoulderpress:    'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Shoulder-Press.gif',
+  curlup:           'https://fitnessprogramer.com/wp-content/uploads/2015/11/Crunch.gif',
+  situp:            'https://gymvisual.com/img/p/5/4/5/9/5459.gif',
+  bicepcurl:        'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Curl.gif',
+  jumpingjack:      'https://fitnessprogramer.com/wp-content/uploads/2021/05/Jumping-jack.gif',
+  highnees:         'https://fitnessprogramer.com/wp-content/uploads/2021/08/High-Knee-Run.gif',
+  mountainclimber:  'https://fitnessprogramer.com/wp-content/uploads/2021/02/Mountain-climber.gif',
+  buttskick:        'https://fitnessprogramer.com/wp-content/uploads/2021/10/Butt-Kicks.gif',
+  calfraise:        'https://fitnessprogramer.com/wp-content/uploads/2021/06/Standing-Calf-Raise.gif',
+  hipcircle:        'https://fitnessprogramer.com/wp-content/uploads/2021/01/hip-circles.gif',
+  plank:            'https://fitnessprogramer.com/wp-content/uploads/2021/02/plank.gif',
+  wallsit:          'https://gymvisual.com/img/p/9/0/5/3/9053.gif',
+  tricepextension:  'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Triceps-Extension.gif',
+  lateralraise:     'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Lateral-Raise.gif',
+  hammercurl:       'https://fitnessprogramer.com/wp-content/uploads/2021/02/Hammer-Curl.gif',
+  pullup:           'https://fitnessprogramer.com/wp-content/uploads/2021/02/Pull-up.gif',
+  armcircle:        'https://fitnessprogramer.com/wp-content/uploads/2021/07/Arm-Circles_Shoulders.gif',
+  scapulasqueeze:   'https://fitnessprogramer.com/wp-content/uploads/2021/06/Band-pull-apart.gif',
+  crossbodystretch: 'https://fitnessprogramer.com/wp-content/uploads/2021/04/Across-Chest-Shoulder-Stretch.gif',
+  tricepstretch:    'https://gymvisual.com/img/p/5/5/4/0/5540.gif',
+  chestfly:         'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Fly.gif',
+  jumpsquat:        'https://fitnessprogramer.com/wp-content/uploads/2021/02/Jump-Squat.gif',
+  burpee:           'https://fitnessprogramer.com/wp-content/uploads/2021/02/burpees.gif',
 }
 
 // Exercises appropriate for warm-up — no heavy compounds or isolation equipment work
@@ -2336,15 +2336,9 @@ export function WorkoutPage() {
               </div>
               <p className="text-[9px] text-gray-700 mt-1 text-right leading-tight">
                 GIF via{' '}
-                <a
-                  href="https://commons.wikimedia.org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:text-gray-500"
-                >
-                  Wikimedia Commons
-                </a>
-                {' '}· CDC Public Domain / CC BY-SA
+                <a href="https://fitnessprogramer.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-500">fitnessprogramer.com</a>
+                {' '}·{' '}
+                <a href="https://gymvisual.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-500">gymvisual.com</a>
               </p>
             </div>
           </aside>
