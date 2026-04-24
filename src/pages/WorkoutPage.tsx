@@ -268,10 +268,11 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
   }
 
   if (ex === 'armcircle') {
-    // Check arm symmetry — both wrists should be at similar heights throughout.
+    // Arm circles are a low-risk mobility exercise. Wrists are intentionally at
+    // different heights mid-circle, so instantaneous asymmetry is meaningless.
+    // Only flag if one arm is completely stationary (not circling at all).
     if (!vis(lWr, 0.3) || !vis(rWr, 0.3)) return 0
-    const asymmetry = Math.abs(lWr.y - rWr.y)
-    return Math.min(100, BASE + Math.round(asymmetry * 500))
+    return BASE  // always low-risk
   }
 
   if (ex === 'hipcircle') {

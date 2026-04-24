@@ -12,6 +12,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
     "@mediapipe/pose": "^0.5.1675469404",
+    "@tensorflow-models/coco-ssd": "^2.2.3",
+    "@tensorflow/tfjs": "^4.22.0",
     "@vercel/node": "^5.7.4",
     "clsx": "^2.1.1",
     "firebase": "^12.12.0",

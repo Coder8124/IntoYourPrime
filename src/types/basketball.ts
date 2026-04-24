@@ -23,7 +23,8 @@ export interface BeefScore {
   eyes: number           // 0–100 (head-stability proxy)
   elbow: number          // 0–100
   followThrough: number  // 0–100
-  overall: number        // 0–100, mean of the above
+  arc?: number           // 0–100, ball trajectory arc quality (present when ball tracked)
+  overall: number        // 0–100, mean of pose components (arc shown separately)
   notes: string[]        // human-readable cues, ordered by severity
 }
 
