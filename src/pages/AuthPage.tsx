@@ -7,8 +7,27 @@ import {
 } from 'firebase/auth'
 import { auth } from '../lib/firebase'
 import { getUserProfile, upsertUserDisplayName, firestoreProfileToLocal } from '../lib/firebaseHelpers'
+import { TactileBackground } from '../components/TactileBackground'
 
 type Mode = 'signin' | 'signup'
+
+function BrandMark() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <svg width={22} height={22} viewBox="0 0 24 24" aria-hidden>
+        <path
+          d="M12 21s-7-4.35-9.5-9.15C.8 8.5 2.6 4.5 6.4 4.5c2 0 3.4 1 4.6 2.6C12.2 5.5 13.6 4.5 15.6 4.5c3.8 0 5.6 4 3.9 7.35C19 16.65 12 21 12 21z"
+          fill="var(--accent)"
+          opacity={0.9}
+        />
+        <circle cx={12} cy={10} r={2} fill="var(--bg)" />
+      </svg>
+      <span className="display" style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.005em' }}>
+        IntoYour<span style={{ color: 'var(--accent)' }}>Prime</span>
+      </span>
+    </div>
+  )
+}
 
 export function AuthPage() {
   const navigate = useNavigate()
@@ -19,8 +38,14 @@ export function AuthPage() {
   const [error,    setError]    = useState<string | null>(null)
   const [loading,  setLoading]  = useState(false)
 
+  const canSubmit =
+    email.includes('@') &&
+    password.length >= 6 &&
+    (mode === 'signin' || name.trim().length > 0)
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (!canSubmit) return
     setError(null)
     setLoading(true)
     try {
@@ -29,19 +54,14 @@ export function AuthPage() {
         const cred = await createUserWithEmailAndPassword(auth, email, password)
         if (name.trim()) await updateProfile(cred.user, { displayName: name.trim() })
         if (name.trim()) {
-          // Only store a stub in generic key — NOT in uid-keyed cache.
-          // The uid-keyed cache is reserved for the full profile saved after onboarding
-          // so sign-in on any device only loads a complete profile, never a stub.
           localStorage.setItem('formAI_profile', JSON.stringify({ name: name.trim() }))
         }
-        // Fire-and-forget — don't block signup on Firestore write
         upsertUserDisplayName(cred.user.uid, name.trim() || email, email).catch(() => {})
         navigate('/onboarding', { replace: true })
       } else {
         const cred = await signInWithEmailAndPassword(auth, email, password)
         const uid = cred.user.uid
 
-        // 1. Check uid-keyed localStorage cache first (works offline, instant)
         const cached = localStorage.getItem(`formAI_profile_${uid}`)
         if (cached) {
           localStorage.setItem('formAI_profile', cached)
@@ -49,13 +69,11 @@ export function AuthPage() {
           return
         }
 
-        // 2. Try Firestore with a 4s timeout (covers signing in on a new device)
         try {
           const fp = await Promise.race([
             getUserProfile(uid),
             new Promise<null>(resolve => setTimeout(() => resolve(null), 4000)),
           ])
-          // Trust Firestore profile if it has a name + sex (minimum needed for hasProfile check)
           if (fp?.displayName && fp.biologicalSex) {
             const local = JSON.stringify(firestoreProfileToLocal(fp))
             localStorage.setItem('formAI_profile', local)
@@ -65,12 +83,10 @@ export function AuthPage() {
           }
         } catch { /* offline */ }
 
-        // 3. New user — go to onboarding
         navigate('/onboarding', { replace: true })
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Authentication failed'
-      // Clean up Firebase error messages
       if (msg.includes('email-already-in-use')) setError('An account with this email already exists.')
       else if (msg.includes('wrong-password') || msg.includes('invalid-credential')) setError('Incorrect email or password.')
       else if (msg.includes('user-not-found')) setError('No account found with this email.')
@@ -82,100 +98,263 @@ export function AuthPage() {
     }
   }
 
+  const continueAsGuest = () => {
+    localStorage.setItem('formAI_guest', '1')
+    navigate('/onboarding', { replace: true })
+  }
+
   return (
-    <div className="min-h-screen bg-[#07070e] flex flex-col items-center justify-center px-5 text-white">
-      {/* Logo */}
-      <div className="mb-10 text-center">
-        <p className="text-[11px] font-black uppercase tracking-[0.3em] text-blue-400">IntoYourPrime</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight">
-          {mode === 'signin' ? 'Welcome back' : 'Create account'}
-        </h1>
-        <p className="mt-2 text-[13px] text-gray-500">
-          {mode === 'signin' ? 'Sign in to your account' : 'Start your fitness journey'}
-        </p>
+    <div
+      style={{
+        position: 'relative',
+        minHeight: '100vh',
+        background: 'var(--bg)',
+        color: 'var(--text)',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Ambient background */}
+      <TactileBackground />
+
+      {/* Brand (top-left) */}
+      <div style={{ position: 'absolute', top: 28, left: 28, zIndex: 10 }}>
+        <BrandMark />
       </div>
 
-      {/* Card */}
-      <div className="w-full max-w-sm">
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {mode === 'signup' && (
-            <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
-                Name
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Your name"
-                className="input-dark w-full"
-                autoComplete="name"
-              />
-            </div>
-          )}
+      {/* Footnote (bottom-right) */}
+      <div
+        style={{
+          position: 'absolute',
+          right: 28,
+          bottom: 28,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          letterSpacing: '0.2em',
+          color: 'var(--text-4)',
+          textTransform: 'uppercase',
+          zIndex: 10,
+          pointerEvents: 'none',
+        }}
+      >
+        v2.6 · AI coach online · 33 landmarks · 30 fps
+      </div>
 
-          <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="input-dark w-full"
-              autoComplete="email"
-              required
-            />
+      {/* Form column — right-aligned on wide screens, centered on narrow */}
+      <div
+        style={{
+          position: 'relative',
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          padding: '0 clamp(20px, 5vw, 64px)',
+          zIndex: 5,
+        }}
+      >
+        <form
+          onSubmit={handleSubmit}
+          className="animate-fade-up"
+          style={{
+            width: 'min(420px, 92vw)',
+            position: 'relative',
+            background: 'color-mix(in oklab, var(--surface) 85%, transparent)',
+            border: '1px solid var(--border-2)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 30,
+            backdropFilter: 'blur(14px)',
+            WebkitBackdropFilter: 'blur(14px)',
+            boxShadow: '0 24px 60px -20px rgba(0,0,0,0.6)',
+          }}
+        >
+          {/* Soft top-glow overlay */}
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: 'inherit',
+              pointerEvents: 'none',
+              background:
+                'radial-gradient(ellipse 80% 40% at 50% 0%, rgba(var(--accent-rgb), 0.14), transparent 70%)',
+            }}
+          />
+
+          {/* Header row */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="badge">AI coach online</span>
+            <span className="mono" style={{ fontSize: 10.5, color: 'var(--text-3)', letterSpacing: '0.18em' }}>
+              v2.6
+            </span>
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="input-dark w-full"
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-              required
-              minLength={6}
-            />
+          {/* Headline */}
+          <h1
+            className="display"
+            style={{
+              position: 'relative',
+              marginTop: 22,
+              fontSize: 30,
+              fontWeight: 500,
+              lineHeight: 1.1,
+              color: 'var(--text)',
+            }}
+          >
+            {mode === 'signin' ? 'Step onto the platform.' : 'Claim your prime.'}
+          </h1>
+          <p
+            style={{
+              position: 'relative',
+              marginTop: 8,
+              fontSize: 13.5,
+              lineHeight: 1.55,
+              color: 'var(--text-2)',
+            }}
+          >
+            {mode === 'signin'
+              ? 'Sign in to sync your sessions, streaks, and shot scores across devices.'
+              : 'Create an account — pose coach, shot tracker, recovery log. All in.'}
+          </p>
+
+          {/* Fields */}
+          <div style={{ position: 'relative', marginTop: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {mode === 'signup' && (
+              <Field label="Display name">
+                <input
+                  className="field"
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="Your name"
+                  autoComplete="name"
+                />
+              </Field>
+            )}
+
+            <Field label="Email">
+              <input
+                className="field"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+                required
+              />
+            </Field>
+
+            <Field label="Password">
+              <input
+                className="field"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                required
+                minLength={6}
+              />
+            </Field>
           </div>
 
           {error && (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-[13px] text-red-300">
+            <div
+              role="alert"
+              style={{
+                marginTop: 14,
+                padding: '10px 12px',
+                borderRadius: 10,
+                background: 'rgba(248, 113, 113, 0.08)',
+                border: '1px solid rgba(248, 113, 113, 0.3)',
+                fontSize: 12.5,
+                color: '#fca5a5',
+              }}
+            >
               {error}
             </div>
           )}
 
+          {/* Primary CTA */}
           <button
             type="submit"
-            disabled={loading || !email || !password}
-            className="mt-2 w-full rounded-2xl py-4 text-[15px] font-black text-white transition-all disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
-            style={{
-              background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
-              boxShadow: '0 0 32px rgba(99,102,241,0.3)',
-            }}
+            disabled={!canSubmit || loading}
+            className="btn btn-primary pulse-glow"
+            style={{ marginTop: 18, width: '100%', padding: '14px 18px', fontSize: 14 }}
           >
-            {loading ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
+            {loading
+              ? 'Please wait…'
+              : mode === 'signin'
+                ? 'Sign in →'
+                : 'Create account →'}
           </button>
-        </form>
 
-        {/* Toggle mode */}
-        <p className="mt-6 text-center text-[13px] text-gray-600">
-          {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+          {/* Divider */}
+          <div style={{ margin: '18px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span className="mono" style={{ fontSize: 10, letterSpacing: '0.2em', color: 'var(--text-4)', textTransform: 'uppercase' }}>
+              or
+            </span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          {/* Ghost button */}
           <button
             type="button"
-            onClick={() => { setMode(m => m === 'signin' ? 'signup' : 'signin'); setError(null) }}
-            className="font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+            onClick={continueAsGuest}
+            disabled={loading}
+            className="btn btn-ghost"
+            style={{ width: '100%', padding: '12px 18px' }}
           >
-            {mode === 'signin' ? 'Create one' : 'Sign in'}
+            Continue as guest
           </button>
-        </p>
+
+          {/* Mode toggle */}
+          <p
+            style={{
+              marginTop: 18,
+              textAlign: 'center',
+              fontSize: 12.5,
+              color: 'var(--text-3)',
+            }}
+          >
+            {mode === 'signin' ? "No account yet? " : 'Have an account? '}
+            <button
+              type="button"
+              onClick={() => { setMode(m => m === 'signin' ? 'signup' : 'signin'); setError(null) }}
+              style={{
+                background: 'transparent',
+                border: 0,
+                padding: 0,
+                color: 'var(--accent)',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {mode === 'signin' ? 'Create one' : 'Sign in'}
+            </button>
+          </p>
+        </form>
       </div>
     </div>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: 'block' }}>
+      <span
+        className="mono"
+        style={{
+          display: 'block',
+          marginBottom: 6,
+          fontSize: 10,
+          letterSpacing: '0.18em',
+          textTransform: 'uppercase',
+          color: 'var(--text-3)',
+        }}
+      >
+        {label}
+      </span>
+      {children}
+    </label>
   )
 }
