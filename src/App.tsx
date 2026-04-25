@@ -6,6 +6,7 @@ import { auth } from './lib/firebase'
 import { upsertUserDisplayName } from './lib/firebaseHelpers'
 import { RootRedirect } from './components/RootRedirect'
 import { RouteFade } from './components/RouteFade'
+import { NavigationProgress } from './components/NavigationProgress'
 
 const LandingPage        = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })))
 const AuthPage           = lazy(() => import('./pages/AuthPage').then(m => ({ default: m.AuthPage })))
@@ -25,8 +26,13 @@ const AIWorkoutPage      = lazy(() => import('./pages/AIWorkoutPage').then(m => 
 
 function PageLoader() {
   return (
-    <div className="min-h-screen bg-page flex items-center justify-center">
+    <div className="min-h-screen bg-page flex flex-col items-center justify-center gap-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[22px]">💪</span>
+        <span className="text-[15px] font-black tracking-tight text-white">IntoYourPrime</span>
+      </div>
       <div className="w-8 h-8 border-2 border-blue-600/30 border-t-blue-500 rounded-full animate-spin" />
+      <p className="text-[12px] text-gray-500">Loading…</p>
     </div>
   )
 }
@@ -48,6 +54,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
+      <NavigationProgress />
       <Suspense fallback={<PageLoader />}>
         <RouteFade>
           <Routes>
