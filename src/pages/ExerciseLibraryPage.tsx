@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav'
 import { EXERCISE_INFO, type ExerciseInfo } from '../lib/programs'
+import { EXERCISE_GIFS } from '../lib/exerciseGifs'
 
 const DIFFICULTY_COLOR = {
   Beginner:     { bg: 'rgba(34,197,94,0.12)',  border: 'rgba(34,197,94,0.3)',  text: '#86efac' },
@@ -27,6 +28,11 @@ function ExerciseCard({ ex, onSelect }: { ex: ExerciseInfo; onSelect: (id: strin
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <h3 className="font-black text-[15px] text-white">{ex.name}</h3>
+            {ex.isNew && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-emerald-400 border border-emerald-500/30 bg-emerald-500/10">
+                NEW
+              </span>
+            )}
             {ex.isHold && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-blue-400 border border-blue-500/30 bg-blue-500/10">
                 Isometric
@@ -51,7 +57,17 @@ function ExerciseCard({ ex, onSelect }: { ex: ExerciseInfo; onSelect: (id: strin
       {/* Expanded detail */}
       {open && (
         <div className="px-5 pb-5 space-y-4 border-t border-subtle">
-          <p className="text-[13px] text-gray-400 leading-relaxed pt-4">{ex.description}</p>
+          {EXERCISE_GIFS[ex.id] && (
+            <div className="flex justify-center pt-4">
+              <img
+                src={EXERCISE_GIFS[ex.id]}
+                alt={ex.name}
+                className="rounded-xl w-48 h-36 object-cover bg-black/30"
+                loading="lazy"
+              />
+            </div>
+          )}
+          <p className="text-[13px] text-gray-400 leading-relaxed">{ex.description}</p>
 
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-400 mb-2">Form Cues</p>

@@ -28,6 +28,7 @@ interface WorkoutState {
   cooldownCompleted:  boolean
 
   exerciseRiskLog:    Record<string, number[]>
+  exerciseWeights:    Record<string, number>
 
   // ── Actions ───────────────────────────────────────────────────────────
   setPhase:             (phase: WorkoutPhase) => void
@@ -39,6 +40,7 @@ interface WorkoutState {
   setWarmupScore:       (score: number) => void
   setCooldownExercises: (exercises: CooldownExercise[]) => void
   setCooldownCompleted: (completed: boolean) => void
+  setExerciseWeight:    (exercise: string, weight: number) => void
   endSession:           () => void
   resetSession:         () => void
 }
@@ -47,13 +49,14 @@ interface WorkoutState {
 
 const INITIAL: Omit<WorkoutState,
   | 'setPhase' | 'setExercise' | 'addRep' | 'resetExerciseReps' | 'updateAnalysis' | 'logExerciseRisk'
-  | 'setWarmupScore' | 'setCooldownExercises' | 'setCooldownCompleted' | 'endSession' | 'resetSession'
+  | 'setWarmupScore' | 'setCooldownExercises' | 'setCooldownCompleted' | 'setExerciseWeight' | 'endSession' | 'resetSession'
 > = {
   phase:             'warmup',
   currentExercise:   'squat',
   repCounts:         {},
   riskScores:        [],
   exerciseRiskLog:   {},
+  exerciseWeights:   {},
   suggestions:       [],
   safetyConcerns:    [],
   warmupScore:       null,
@@ -117,6 +120,10 @@ export const useWorkoutStore = create<WorkoutState>()((set) => ({
   setCooldownExercises: (exercises) => set({ cooldownExercises: exercises }),
 
   setCooldownCompleted: (completed) => set({ cooldownCompleted: completed }),
+
+  setExerciseWeight: (exercise, weight) => set((state) => ({
+    exerciseWeights: { ...state.exerciseWeights, [exercise]: weight },
+  })),
 
   endSession: () => set({ sessionEndedAt: Date.now() }),
 

@@ -5,6 +5,8 @@ import { getUserSessions } from '../lib/firebaseHelpers'
 import { getOrSignInUserId } from '../lib/firestoreUser'
 import { getOrCreateLocalUserId } from '../lib/localUserId'
 import { scoreGrade } from '../lib/workoutScore'
+import { analyzeInjuryTrends, trendSeverityColor, trendSeverityLabel } from '../lib/injuryTrends'
+import type { BodyPartTrend } from '../lib/injuryTrends'
 import type { Session } from '../types/index'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -326,7 +328,21 @@ export function ProgressPage() {
     return Object.entries(map).sort((a, b) => b[1] - a[1])
   }, [sessions])
 
+  // Weight PRs: heaviest weight logged per exercise
+  const weightPRs = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const s of sessions) {
+      for (const [ex, kg] of Object.entries(s.exerciseWeights ?? {})) {
+        if (kg > (map[ex] ?? 0)) map[ex] = kg
+      }
+    }
+    return Object.entries(map).filter(([, kg]) => kg > 0).sort((a, b) => b[1] - a[1])
+  }, [sessions])
+
   const maxVolume = exerciseVolume[0]?.[1] ?? 1
+
+  const injuryTrends = useMemo(() => analyzeInjuryTrends(sessions), [sessions])
+  const [expandedTrend, setExpandedTrend] = useState<string | null>(null)
 
   const improving = trendScores.length >= 2
     ? trendScores[trendScores.length - 1] < trendScores[0]
@@ -426,6 +442,95 @@ export function ProgressPage() {
               </div>
             </section>
 
+            {/* ── Injury trend analysis ── */}
+            {injuryTrends.length > 0 && (
+              <section className="mt-8">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-[13px] font-bold uppercase tracking-[0.18em] text-gray-500">Body Part Trends</h2>
+                  <span className="text-[10px] text-gray-600 uppercase tracking-wider">AI Analysis</span>
+                </div>
+                <p className="text-[11px] text-gray-600 mb-4">
+                  Based on your exercise risk data across {sessions.length} sessions. Tap a card to see what's causing it and how to fix it.
+                </p>
+                <div className="space-y-3">
+                  {injuryTrends.map((trend: BodyPartTrend) => {
+                    const color = trendSeverityColor(trend.severity)
+                    const label = trendSeverityLabel(trend.severity)
+                    const isExpanded = expandedTrend === trend.bodyPart
+                    return (
+                      <div
+                        key={trend.bodyPart}
+                        className="rounded-2xl overflow-hidden cursor-pointer transition-all"
+                        style={{ border: `1px solid ${color}30`, background: `${color}06` }}
+                        onClick={() => setExpandedTrend(isExpanded ? null : trend.bodyPart)}
+                      >
+                        {/* Card header */}
+                        <div className="flex items-center justify-between px-4 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+                            <div>
+                              <p className="text-[14px] font-bold text-white">{trend.displayName}</p>
+                              <p className="text-[11px] mt-0.5" style={{ color }}>{label}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className="text-[13px] font-mono font-black" style={{ color }}>
+                                {trend.recentAvg}
+                              </p>
+                              <p className="text-[9px] text-gray-600 uppercase tracking-wider">avg risk</p>
+                            </div>
+                            <span className="text-[12px] text-gray-600">{isExpanded ? '▲' : '▼'}</span>
+                          </div>
+                        </div>
+
+                        {/* Sparkline for body part */}
+                        {trend.scores.length >= 2 && (
+                          <div className="px-4 pb-2">
+                            <Sparkline values={trend.scores} w={340} h={40} />
+                          </div>
+                        )}
+
+                        {/* Expanded details */}
+                        {isExpanded && (
+                          <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: `${color}20` }}>
+                            <div className="pt-3">
+                              <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color }}>
+                                What's happening
+                              </p>
+                              <p className="text-[12px] font-semibold text-white">{trend.cause}</p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1">Why</p>
+                              <p className="text-[12px] text-gray-400 leading-relaxed">{trend.explanation}</p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">How to fix it</p>
+                              <div className="space-y-1.5">
+                                {trend.fixes.map((fix, i) => (
+                                  <div key={i} className="flex gap-2 items-start">
+                                    <span className="text-[11px] font-bold shrink-0 mt-0.5" style={{ color }}>
+                                      {i + 1}.
+                                    </span>
+                                    <p className="text-[12px] text-gray-300 leading-snug">{fix}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 pt-1">
+                              <span className="text-[10px] text-gray-600">
+                                Based on {trend.sessionCount} sessions · slope {trend.slope > 0 ? '+' : ''}{trend.slope}/session
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* ── Exercise volume ── */}
             {exerciseVolume.length > 0 && (
               <section className="mt-8">
@@ -500,6 +605,30 @@ export function ProgressPage() {
               </section>
             )}
 
+            {/* ── Weight PRs ── */}
+            {weightPRs.length > 0 && (
+              <section className="mt-8">
+                <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.18em] text-gray-500">Weight Records</h2>
+                <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                  {weightPRs.map(([ex, kg], i) => (
+                    <div key={ex}
+                      className="flex items-center justify-between px-5 py-3.5"
+                      style={{
+                        background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-2)',
+                        borderBottom: i < weightPRs.length - 1 ? '1px solid var(--border)' : 'none',
+                      }}>
+                      <span className="text-[14px] text-gray-300">{EXERCISE_LABELS[ex] ?? ex}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-amber-500 font-semibold">PR</span>
+                        <span className="font-mono font-black text-white text-[16px]">{kg}</span>
+                        <span className="text-[11px] text-gray-600">kg</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* ── Session history ── */}
             <section className="mt-8">
               <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.18em] text-gray-500">
@@ -560,6 +689,22 @@ export function ProgressPage() {
             </section>
           </>
         )}
+
+        {/* ── Measurements shortcut ── */}
+        <div className="mt-8">
+          <Link to="/measurements"
+            className="flex items-center justify-between px-5 py-4 rounded-2xl transition-colors"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-3">
+              <span className="text-[22px]">📏</span>
+              <div>
+                <p className="text-[14px] font-bold text-white">Body Measurements</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">Track weight, body fat, and circumferences</p>
+              </div>
+            </div>
+            <span className="text-gray-600">›</span>
+          </Link>
+        </div>
 
         {/* ── Footer ── */}
         <div className="mt-10 text-center">

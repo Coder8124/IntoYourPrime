@@ -9,6 +9,7 @@ import type { BurpeePhase } from '../hooks/useBurpeeCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
 import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI, cancelTTS } from '../lib/formAnalysis'
 import { getActiveProgram, advanceProgramExercise, clearActiveProgram, EXERCISE_INFO, type ActiveProgram } from '../lib/programs'
+import { EXERCISE_GIFS } from '../lib/exerciseGifs'
 import type { CooldownExercise, UserProfile } from '../types/index'
 
 // ── Alignment-based risk (landmark geometry, runs every frame) ────────────
@@ -376,90 +377,56 @@ function computeAlignmentRisk(lms: Lm[], exercise: string): number {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const EXERCISES = ['squat', 'pushup', 'benchpress', 'chestpress', 'lunge', 'sidelunge', 'deadlift', 'shoulderpress', 'curlup', 'situp', 'bicepcurl', 'jumpingjack', 'highnees', 'mountainclimber', 'buttskick', 'calfraise', 'hipcircle', 'plank', 'wallsit', 'tricepextension', 'lateralraise', 'hammercurl', 'pullup', 'armcircle', 'scapulasqueeze', 'crossbodystretch', 'tricepstretch', 'chestfly', 'jumpsquat', 'burpee'] as const
+// All exercise IDs — derived from EXERCISE_INFO so new exercises are auto-included
+const EXERCISES: string[] = EXERCISE_INFO.map(e => e.id)
 
-const EXERCISE_LABELS: Record<typeof EXERCISES[number], string> = {
-  squat:           'Squat',
-  pushup:          'Push-Up',
-  benchpress:      'Bench Press',
-  mountainclimber: 'Mountain Climbers',
-  lunge:           'Lunge',
-  deadlift:        'Deadlift',
-  shoulderpress:   'Shoulder Press',
-  curlup:          'Curl-Up',
-  bicepcurl:       'Bicep Curl',
-  jumpingjack:     'Jumping Jack',
-  highnees:        'High Knees',
-  plank:           'Plank',
-  wallsit:         'Wall Sit',
-  tricepextension: 'Tricep Extension',
-  lateralraise:    'Lateral Raise',
-  hammercurl:      'Hammer Curl',
-  pullup:          'Pull-Up',
-  buttskick:       'Butt Kicks',
-  calfraise:       'Calf Raises',
-  situp:           'Sit-Up',
-  armcircle:       'Arm Circles',
-  scapulasqueeze:   'Scapula Squeeze',
-  crossbodystretch: 'Cross-Body Shoulder Stretch',
-  tricepstretch:    'Tricep Stretch',
-  hipcircle:        'Hip Circles',
-  chestpress:       'Chest Press',
-  sidelunge:        'Side Lunge',
-  chestfly:         'Chest Fly',
-  jumpsquat:        'Jump Squat',
-  burpee:           'Burpee',
-}
+// Labels derived from EXERCISE_INFO names
+const EXERCISE_LABELS: Record<string, string> = Object.fromEntries(
+  EXERCISE_INFO.map(e => [e.id, e.name])
+)
 
-const EXERCISE_CATEGORY_MAP: Record<typeof EXERCISES[number], string> = {
+const EXERCISE_CATEGORY_MAP: Record<string, string> = {
+  // ── Lower Body ──
   squat: 'Lower Body', lunge: 'Lower Body', deadlift: 'Lower Body',
-  calfraise: 'Lower Body', wallsit: 'Lower Body',
+  calfraise: 'Lower Body', wallsit: 'Lower Body', sidelunge: 'Lower Body',
+  hipcircle: 'Lower Body', jumpsquat: 'Lower Body',
+  bulgariansplitsquat: 'Lower Body', glutebridge: 'Lower Body', hipthrust: 'Lower Body',
+  donkeykick: 'Lower Body', firehydrant: 'Lower Body', reverseLunge: 'Lower Body',
+  curtsylunge: 'Lower Body', sumoSquat: 'Lower Body', stepup: 'Lower Body',
+  nordicCurl: 'Lower Body', romaniandeadlift: 'Lower Body', gobletSquat: 'Lower Body',
+  goodmorning: 'Lower Body', hyperextension: 'Lower Body',
+  // ── Upper Body ──
   pushup: 'Upper Body', benchpress: 'Upper Body', shoulderpress: 'Upper Body',
   pullup: 'Upper Body', tricepextension: 'Upper Body', bicepcurl: 'Upper Body',
   hammercurl: 'Upper Body', lateralraise: 'Upper Body', scapulasqueeze: 'Upper Body',
-  curlup: 'Core', situp: 'Core', plank: 'Core', mountainclimber: 'Core',
-  jumpingjack: 'Cardio', highnees: 'Cardio', buttskick: 'Cardio', armcircle: 'Cardio',
   crossbodystretch: 'Upper Body', tricepstretch: 'Upper Body',
-  hipcircle: 'Lower Body', chestpress: 'Upper Body',
-  sidelunge: 'Lower Body', chestfly: 'Upper Body',
-  jumpsquat: 'Cardio', burpee: 'Cardio',
+  chestpress: 'Upper Body', chestfly: 'Upper Body',
+  diamondpushup: 'Upper Body', widegripushup: 'Upper Body', declinepushup: 'Upper Body',
+  inclinepushup: 'Upper Body', pikeupshup: 'Upper Body', chinup: 'Upper Body',
+  invertedrow: 'Upper Body', superman: 'Upper Body',
+  arnoldpress: 'Upper Body', frontraise: 'Upper Body', reverseFly: 'Upper Body',
+  skullcrusher: 'Upper Body', concentrationcurl: 'Upper Body', zottmancurl: 'Upper Body',
+  wristcurl: 'Upper Body', dumbbellrow: 'Upper Body',
+  // ── Core ──
+  curlup: 'Core', situp: 'Core', plank: 'Core', mountainclimber: 'Core',
+  sideplank: 'Core', deadbug: 'Core', birddog: 'Core', russiantwist: 'Core',
+  bicycleCrunch: 'Core', legRaise: 'Core', flutterKick: 'Core',
+  hollowbody: 'Core', vSit: 'Core', abWheel: 'Core',
+  // ── Cardio ──
+  jumpingjack: 'Cardio', highnees: 'Cardio', buttskick: 'Cardio', armcircle: 'Cardio',
+  burpee: 'Cardio', boxjump: 'Cardio', skaterjump: 'Cardio', tuckjump: 'Cardio',
+  starjump: 'Cardio', broadjump: 'Cardio', shadowboxing: 'Cardio',
+  // ── Mobility ──
+  catcow: 'Mobility', childpose: 'Mobility', worldsgreateststretch: 'Mobility',
+  hipflexorstretch: 'Mobility', hamstringstretch: 'Mobility', quadstretch: 'Mobility',
+  pigeonpose: 'Mobility', downdogstretch: 'Mobility', cobrapose: 'Mobility',
+  seatedspinaltwist: 'Mobility', anklecircle: 'Mobility', neckroll: 'Mobility',
+  shoulderroll: 'Mobility', wristcircle: 'Mobility',
 }
 
-const CATEGORY_TABS = ['All', 'Lower Body', 'Upper Body', 'Core', 'Cardio'] as const
+const CATEGORY_TABS = ['All', 'Lower Body', 'Upper Body', 'Core', 'Cardio', 'Mobility'] as const
 
-// Exercise GIFs from fitnessprogramer.com and gymvisual.com
-const EXERCISE_GIFS: Record<typeof EXERCISES[number], string> = {
-  squat:            'https://fitnessprogramer.com/wp-content/uploads/2021/02/BARBELL-SQUAT.gif',
-  pushup:           'https://fitnessprogramer.com/wp-content/uploads/2021/02/Push-Up.gif',
-  benchpress:       'https://gymvisual.com/img/p/1/7/5/5/2/17552.gif',
-  chestpress:       'https://fitnessprogramer.com/wp-content/uploads/2021/12/One-Arm-Cable-Chest-Press.gif',
-  lunge:            'https://fitnessprogramer.com/wp-content/uploads/2023/07/bodyweight-lunges.gif',
-  sidelunge:        'https://fitnessprogramer.com/wp-content/uploads/2021/05/Side-Lunge-Stretch.gif',
-  deadlift:         'https://fitnessprogramer.com/wp-content/uploads/2021/02/Barbell-Deadlift.gif',
-  shoulderpress:    'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Shoulder-Press.gif',
-  curlup:           'https://fitnessprogramer.com/wp-content/uploads/2015/11/Crunch.gif',
-  situp:            'https://gymvisual.com/img/p/5/4/5/9/5459.gif',
-  bicepcurl:        'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Curl.gif',
-  jumpingjack:      'https://fitnessprogramer.com/wp-content/uploads/2021/05/Jumping-jack.gif',
-  highnees:         'https://fitnessprogramer.com/wp-content/uploads/2021/08/High-Knee-Run.gif',
-  mountainclimber:  'https://fitnessprogramer.com/wp-content/uploads/2021/02/Mountain-climber.gif',
-  buttskick:        'https://fitnessprogramer.com/wp-content/uploads/2021/10/Butt-Kicks.gif',
-  calfraise:        'https://fitnessprogramer.com/wp-content/uploads/2021/06/Standing-Calf-Raise.gif',
-  hipcircle:        'https://fitnessprogramer.com/wp-content/uploads/2021/01/hip-circles.gif',
-  plank:            'https://fitnessprogramer.com/wp-content/uploads/2021/02/plank.gif',
-  wallsit:          'https://gymvisual.com/img/p/9/0/5/3/9053.gif',
-  tricepextension:  'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Triceps-Extension.gif',
-  lateralraise:     'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Lateral-Raise.gif',
-  hammercurl:       'https://fitnessprogramer.com/wp-content/uploads/2021/02/Hammer-Curl.gif',
-  pullup:           'https://fitnessprogramer.com/wp-content/uploads/2021/02/Pull-up.gif',
-  armcircle:        'https://fitnessprogramer.com/wp-content/uploads/2021/07/Arm-Circles_Shoulders.gif',
-  scapulasqueeze:   'https://fitnessprogramer.com/wp-content/uploads/2021/06/Band-pull-apart.gif',
-  crossbodystretch: 'https://fitnessprogramer.com/wp-content/uploads/2021/04/Across-Chest-Shoulder-Stretch.gif',
-  tricepstretch:    'https://gymvisual.com/img/p/5/5/4/0/5540.gif',
-  chestfly:         'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Fly.gif',
-  jumpsquat:        'https://fitnessprogramer.com/wp-content/uploads/2021/02/Jump-Squat.gif',
-  burpee:           'https://fitnessprogramer.com/wp-content/uploads/2021/02/burpees.gif',
-}
+// EXERCISE_GIFS imported from ../lib/exerciseGifs
 
 // Exercises appropriate for warm-up — no heavy compounds or isolation equipment work
 const WARMUP_EXERCISES = new Set([
@@ -468,6 +435,12 @@ const WARMUP_EXERCISES = new Set([
   'buttskick', 'calfraise', 'armcircle', 'scapulasqueeze',
   'crossbodystretch', 'tricepstretch', 'hipcircle',
   'sidelunge', 'jumpsquat',
+  // mobility & light warmup exercises
+  'catcow', 'childpose', 'worldsgreateststretch', 'hipflexorstretch',
+  'hamstringstretch', 'quadstretch', 'downdogstretch', 'cobrapose',
+  'seatedspinaltwist', 'anklecircle', 'neckroll', 'shoulderroll', 'wristcircle',
+  'glutebridge', 'donkeykick', 'firehydrant', 'birddog', 'deadbug',
+  'shadowboxing', 'starjump', 'inclinepushup',
 ])
 
 const DEMO_SUGGESTIONS = [
@@ -793,11 +766,11 @@ export function WorkoutPage() {
 
   // ── Store ──────────────────────────────────────────────────────────────
   const {
-    phase, currentExercise, repCounts,
+    phase, currentExercise, repCounts, exerciseWeights,
     riskScores, suggestions, safetyConcerns, warmupScore, sessionStartTime,
     cooldownExercises,
     setPhase, setExercise, addRep, resetExerciseReps, updateAnalysis, logExerciseRisk, setWarmupScore,
-    setCooldownExercises, setCooldownCompleted, endSession, resetSession,
+    setCooldownExercises, setCooldownCompleted, setExerciseWeight, endSession, resetSession,
   } = useWorkoutStore()
 
   // ── Local UI state ─────────────────────────────────────────────────────
@@ -820,7 +793,9 @@ export function WorkoutPage() {
   const [previewAnchor,  setPreviewAnchor]  = useState<{ top: number; left: number } | null>(null)
 
   // ── Program mode ──────────────────────────────────────────────────────
-  const [activeProgram, setActiveProgramState] = useState<ActiveProgram | null>(() => getActiveProgram())
+  const [activeProgram, setActiveProgramState] = useState<ActiveProgram | null>(() =>
+    localStorage.getItem('formAI_launchProgram') ? getActiveProgram() : null
+  )
   const [programRestCountdown, setProgramRestCountdown] = useState<number | null>(null) // seconds remaining in rest
   const programAdvanceFiredRef = useRef(false) // guard: only start timer once per exercise
   const programAdvanceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -889,7 +864,7 @@ export function WorkoutPage() {
 
   const filteredExercises = useMemo(() => {
     const q = exSearch.toLowerCase().trim()
-    const pool = ([...EXERCISES] as (typeof EXERCISES[number])[])
+    const pool = [...EXERCISES]
       .filter(ex => phase !== 'warmup' || WARMUP_EXERCISES.has(ex))
     return pool
       .filter(ex => exCategory === 'All' || EXERCISE_CATEGORY_MAP[ex] === exCategory)
@@ -899,19 +874,30 @@ export function WorkoutPage() {
 
   // ── Program / start-exercise init ────────────────────────────────────
   useEffect(() => {
-    // Honour a specific exercise requested from the library page
-    const startEx = localStorage.getItem('formAI_startExercise')
-    if (startEx && EXERCISES.includes(startEx as typeof EXERCISES[number])) {
-      setExercise(startEx)
-      localStorage.removeItem('formAI_startExercise')
-      return
-    }
-    // Honour the active program's current exercise
-    const prog = getActiveProgram()
-    if (prog) {
-      const ex = prog.exercises[prog.currentIndex]
-      if (ex && EXERCISES.includes(ex as typeof EXERCISES[number])) {
-        setExercise(ex)
+    const launchFlag = localStorage.getItem('formAI_launchProgram')
+    if (launchFlag) {
+      // Intentionally launched from Programs page — consume the flag
+      localStorage.removeItem('formAI_launchProgram')
+      const startEx = localStorage.getItem('formAI_startExercise')
+      if (startEx && EXERCISES.includes(startEx)) {
+        setExercise(startEx)
+        localStorage.removeItem('formAI_startExercise')
+        return
+      }
+      const prog = getActiveProgram()
+      if (prog) {
+        const ex = prog.exercises[prog.currentIndex]
+        if (ex && EXERCISES.includes(ex)) setExercise(ex)
+      }
+    } else {
+      // Direct navigation (Home, nav bar, etc.) — clear any stale program
+      clearActiveProgram()
+      setActiveProgramState(null)
+      // Still honour a specific exercise from the library page
+      const startEx = localStorage.getItem('formAI_startExercise')
+      if (startEx && EXERCISES.includes(startEx)) {
+        setExercise(startEx)
+        localStorage.removeItem('formAI_startExercise')
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1026,7 +1012,7 @@ export function WorkoutPage() {
     setActiveProgramState(next)
     if (next) {
       const ex = next.exercises[next.currentIndex]
-      if (ex && EXERCISES.includes(ex as typeof EXERCISES[number])) {
+      if (ex && EXERCISES.includes(ex)) {
         setExercise(ex)
         resetExerciseReps(ex)
         resetRepCounter()
@@ -1339,7 +1325,7 @@ export function WorkoutPage() {
     const prog = getActiveProgram()
     if (prog) {
       const ex = prog.exercises[prog.currentIndex]
-      if (ex && EXERCISES.includes(ex as typeof EXERCISES[number])) {
+      if (ex && EXERCISES.includes(ex)) {
         setExercise(ex)
         resetExerciseReps(ex)
       }
@@ -1767,7 +1753,7 @@ export function WorkoutPage() {
                 style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}
               >
                 <span className="text-[14px] font-bold text-white">
-                  {EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}
+                  {EXERCISE_LABELS[currentExercise] ?? currentExercise}
                 </span>
                 <span className="text-gray-500 text-[11px]">{showExPicker ? '▲ close' : '▼ change'}</span>
               </button>
@@ -1823,13 +1809,16 @@ export function WorkoutPage() {
                         {/* Select button */}
                         <button
                           onClick={() => { setExercise(ex); setShowExPicker(false); setExSearch(''); setExCategory('All'); setPreviewEx(null); }}
-                          className="flex-1 px-2.5 py-2 text-left text-[12px] font-semibold transition-colors truncate"
+                          className="flex-1 px-2.5 py-2 text-left text-[12px] font-semibold transition-colors"
                           style={currentExercise === ex
                             ? { background: '#1d4ed8', color: '#fff' }
                             : { background: 'var(--surface)', color: 'var(--text-2)' }
                           }
                         >
-                          {EXERCISE_LABELS[ex]}
+                          <span className="block truncate">{EXERCISE_LABELS[ex]}</span>
+                          {EXERCISE_INFO.find(e => e.id === ex)?.isNew && (
+                            <span className="text-[9px] font-black text-emerald-400 leading-none">NEW</span>
+                          )}
                         </button>
                         {/* Info icon */}
                         <button
@@ -1858,6 +1847,44 @@ export function WorkoutPage() {
                 </div>
               )}
             </div>
+
+            {/* Weight input */}
+            {phase === 'main' && (
+              <div className="card-surface px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500">Weight Used</p>
+                  <p className="text-[11px] text-gray-600 mt-0.5">kg · optional</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const cur = exerciseWeights[currentExercise] ?? 0
+                      if (cur > 0) setExerciseWeight(currentExercise, Math.max(0, cur - 2.5))
+                    }}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-[16px] font-bold text-gray-400 hover:text-white transition-colors"
+                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}
+                  >−</button>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={exerciseWeights[currentExercise] !== undefined ? exerciseWeights[currentExercise] : ''}
+                    placeholder="0"
+                    onChange={e => {
+                      const v = parseFloat(e.target.value)
+                      setExerciseWeight(currentExercise, Number.isNaN(v) ? 0 : v)
+                    }}
+                    className="w-16 text-center rounded-lg py-1.5 text-[15px] font-bold text-white outline-none"
+                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}
+                  />
+                  <button
+                    onClick={() => setExerciseWeight(currentExercise, (exerciseWeights[currentExercise] ?? 0) + 2.5)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-[16px] font-bold text-gray-400 hover:text-white transition-colors"
+                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}
+                  >+</button>
+                  <span className="text-[11px] text-gray-600">kg</span>
+                </div>
+              </div>
+            )}
 
             {/* Rep counter / Hold timer */}
             <div className="card-surface p-5 flex flex-col items-center">
@@ -1898,7 +1925,7 @@ export function WorkoutPage() {
                     </div>
                   )}
                   <span className="text-[11px] text-gray-600 mt-1">
-                    {EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}
+                    {EXERCISE_LABELS[currentExercise] ?? currentExercise}
                   </span>
                   <div className="mt-3 flex items-center gap-2">
                     <div
@@ -1946,7 +1973,7 @@ export function WorkoutPage() {
                       />
                     </div>
                   )}
-                  <span className="text-[11px] text-gray-600 mt-1">{EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}</span>
+                  <span className="text-[11px] text-gray-600 mt-1">{EXERCISE_LABELS[currentExercise] ?? currentExercise}</span>
 
                   {/* Per-arm counts for bicep / hammer curl */}
                   {(currentExercise === 'bicepcurl' || currentExercise === 'hammercurl') && (
@@ -2103,7 +2130,7 @@ export function WorkoutPage() {
                       key={ex}
                       className="flex items-center justify-between p-2.5 rounded-lg bg-panel border border-subtle"
                     >
-                      <span className="text-[12px] font-semibold text-white">{EXERCISE_LABELS[ex as typeof EXERCISES[number]] ?? ex}</span>
+                      <span className="text-[12px] font-semibold text-white">{EXERCISE_LABELS[ex] ?? ex}</span>
                       <span className="text-blue-400 font-black text-[15px]">{count}</span>
                     </div>
                   ))
@@ -2458,8 +2485,8 @@ export function WorkoutPage() {
               <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface)' }}>
                 <img
                   key={currentExercise}
-                  src={EXERCISE_GIFS[currentExercise as typeof EXERCISES[number]]}
-                  alt={EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}
+                  src={EXERCISE_GIFS[currentExercise]}
+                  alt={EXERCISE_LABELS[currentExercise] ?? currentExercise}
                   style={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'contain' }}
                 />
               </div>
@@ -2529,8 +2556,8 @@ export function WorkoutPage() {
 
       {/* ── Exercise preview tooltip ── */}
       {previewEx && previewAnchor && (() => {
-        const label  = EXERCISE_LABELS[previewEx as typeof EXERCISES[number]] ?? previewEx
-        const gif    = EXERCISE_GIFS[previewEx as typeof EXERCISES[number]]
+        const label  = EXERCISE_LABELS[previewEx] ?? previewEx
+        const gif    = EXERCISE_GIFS[previewEx]
         const info   = EXERCISE_INFO.find(e => e.id === previewEx)
         const tipW   = 220
         const left   = previewAnchor.left + tipW > window.innerWidth - 8

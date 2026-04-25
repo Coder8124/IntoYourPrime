@@ -111,6 +111,7 @@ export function ProgramsPage() {
 
   const handleStart = (program: WorkoutProgram) => {
     setActiveProgram(program)
+    localStorage.setItem('formAI_launchProgram', '1')
     navigate('/workout')
   }
 
@@ -156,7 +157,7 @@ export function ProgramsPage() {
             <div className="flex flex-col gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => navigate('/workout')}
+                onClick={() => { localStorage.setItem('formAI_launchProgram', '1'); navigate('/workout') }}
                 className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-[12px] font-bold text-white transition-colors"
               >
                 Resume →

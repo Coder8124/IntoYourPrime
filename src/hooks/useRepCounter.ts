@@ -53,6 +53,10 @@ export type SupportedExercise =
   | 'chestfly'
   | 'jumpsquat'
   | 'burpee'
+  | 'legRaise'
+  | 'firehydrant'
+  | 'glutebridge'
+  | 'hipthrust'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -147,6 +151,15 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Burpee (3-phase): average body height via shoulder+hip Y. Standing = low Y = "up". Crouching/plank = high Y = "down".
   // Rep counted when returning to standing. Long debounce — full burpee cycle takes 2-3 s.
   burpee:           { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'down_to_up', debounceMs: 2500 },
+  // Leg raise: average ankle Y. Legs flat = ankles on floor = high Y = "down". Legs raised = low Y = "up".
+  // Rep counted on down→up (legs reach the raised position).
+  legRaise:         { joints: [LM.LEFT_ANKLE,        LM.RIGHT_ANKLE],    repOn: 'down_to_up', debounceMs: 1500 },
+  // Fire hydrant: min knee Y. Lifting knee rises (lower Y) = "up". Neutral = higher Y = "down".
+  // Rep counted on down→up (knee fully lifted).
+  firehydrant:      { joints: [LM.LEFT_KNEE,         LM.RIGHT_KNEE],     repOn: 'down_to_up', debounceMs: 1200 },
+  // Glute bridge / hip thrust: hip Y rises as hips extend from floor. Uses hip Y signal same as squat fallback.
+  glutebridge:      { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'down_to_up', debounceMs: 1500 },
+  hipthrust:        { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'down_to_up', debounceMs: 1500 },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -308,15 +321,92 @@ function getCurlupSignal(
 
 // ── Hook ───────────────────────────────────────────────────────────────────
 
+/**
+ * Maps new exercises to the existing signal that best approximates their movement.
+ * Mobility / isometric exercises map to 'plank' so no reps are counted
+ * (useHoldTimer handles them).
+ */
+const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
+  // ── Lower body — knee angle like lunge/squat ──────────────────────────
+  bulgariansplitsquat: 'lunge',
+  reverseLunge:        'lunge',
+  curtsylunge:         'lunge',
+  stepup:              'lunge',
+  sumoSquat:           'squat',
+  gobletSquat:         'squat',
+  // ── Posterior chain — hip hinge like deadlift ─────────────────────────
+  romaniandeadlift:    'deadlift',
+  goodmorning:         'deadlift',
+  hyperextension:      'deadlift',
+  nordicCurl:          'deadlift',
+  superman:            'deadlift',
+  // ── Glute / hip — dedicated signals ─────────────────────────────────
+  // glutebridge, hipthrust, firehydrant are now proper SupportedExercises
+  donkeykick:          'buttskick',
+  // ── Push — elbow angle like pushup ───────────────────────────────────
+  diamondpushup:       'pushup',
+  widegripushup:       'pushup',
+  declinepushup:       'pushup',
+  inclinepushup:       'pushup',
+  pikeupshup:          'pushup',
+  // ── Pull — elbow angle like pullup ───────────────────────────────────
+  chinup:              'pullup',
+  invertedrow:         'pullup',
+  dumbbellrow:         'pullup',
+  // ── Shoulder — wrist Y like shoulderpress / lateralraise ─────────────
+  arnoldpress:         'shoulderpress',
+  frontraise:          'lateralraise',
+  reverseFly:          'lateralraise',
+  // ── Arms — elbow angle like bicepcurl / tricepextension ───────────────
+  concentrationcurl:   'bicepcurl',
+  zottmancurl:         'bicepcurl',
+  skullcrusher:        'tricepextension',
+  wristcurl:           'bicepcurl',
+  // ── Core — torso signal ───────────────────────────────────────────────
+  russiantwist:        'hipcircle',
+  bicycleCrunch:       'mountainclimber',
+  // legRaise is now a proper SupportedExercise (dedicated ankle-Y signal)
+  flutterKick:         'highnees',
+  abWheel:             'curlup',
+  // ── Cardio / plyometric — jump signal ────────────────────────────────
+  boxjump:             'jumpsquat',
+  skaterjump:          'jumpsquat',
+  tuckjump:            'jumpsquat',
+  starjump:            'jumpsquat',
+  broadjump:           'jumpsquat',
+  shadowboxing:        'jumpingjack',
+  // ── Isometric / mobility — map to plank (hold timer handles them) ─────
+  sideplank:           'plank',
+  deadbug:             'plank',
+  birddog:             'plank',
+  hollowbody:          'plank',
+  vSit:                'plank',
+  catcow:              'plank',
+  childpose:           'plank',
+  worldsgreateststretch: 'plank',
+  hipflexorstretch:    'plank',
+  hamstringstretch:    'plank',
+  quadstretch:         'plank',
+  downdogstretch:      'plank',
+  cobrapose:           'plank',
+  seatedspinaltwist:   'plank',
+  // ── Circles / rotations ───────────────────────────────────────────────
+  anklecircle:         'armcircle',
+  neckroll:            'armcircle',
+  shoulderroll:        'armcircle',
+  wristcircle:         'armcircle',
+}
+
 export function useRepCounter(
   landmarks: NormalizedLandmark[] | null,
   exercise:  string,
 ): UseRepCounterReturn {
 
+  const raw = exercise.toLowerCase().trim()
   const exerciseKey: SupportedExercise =
-    (exercise.toLowerCase().trim() as SupportedExercise) in EXERCISE_CONFIG
-      ? (exercise.toLowerCase().trim() as SupportedExercise)
-      : 'squat'
+    (raw as SupportedExercise) in EXERCISE_CONFIG
+      ? (raw as SupportedExercise)
+      : SIGNAL_ALIAS[raw] ?? SIGNAL_ALIAS[exercise] ?? 'squat'
 
   const config = EXERCISE_CONFIG[exerciseKey]
 
@@ -653,6 +743,40 @@ export function useRepCounter(
         if (!hipJ || hipJ.confidence < 0.5) return
         rawSignal = hipJ.y
       }
+    } else if (exerciseKey === 'legRaise') {
+      // Average ankle Y. Both legs flat (resting): ankles near floor = high Y = "down".
+      // Both legs raised 90°: ankles rise in frame = low Y = "up".
+      // Lower confidence threshold — legs may be partially out of frame when fully raised.
+      const lAn = landmarks[LM.LEFT_ANKLE], rAn = landmarks[LM.RIGHT_ANKLE]
+      const lConf = lAn?.visibility ?? 0, rConf = rAn?.visibility ?? 0
+      if (lConf < 0.25 && rConf < 0.25) return
+      const ys: number[] = []
+      if (lConf >= 0.25) ys.push(lAn.y)
+      if (rConf >= 0.25) ys.push(rAn.y)
+      rawSignal    = ys.reduce((s, v) => s + v, 0) / ys.length
+      invertSignal = false  // high Y (legs down) = "down"; low Y (legs up) = "up"
+    } else if (exerciseKey === 'firehydrant') {
+      // Hip abduction on hands and knees. One knee lifts laterally → that knee's Y drops.
+      // Min knee Y captures the lifting leg. Low Y = lifted = "up". High Y = neutral = "down".
+      const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
+      const lConf = lKn?.visibility ?? 0, rConf = rKn?.visibility ?? 0
+      if (lConf < 0.3 && rConf < 0.3) return
+      const ys: number[] = []
+      if (lConf >= 0.3) ys.push(lKn.y)
+      if (rConf >= 0.3) ys.push(rKn.y)
+      rawSignal    = Math.min(...ys)
+      invertSignal = false  // low Y (knee raised) = "up"; high Y = "down"
+    } else if (exerciseKey === 'glutebridge' || exerciseKey === 'hipthrust') {
+      // Person lying supine. Hips start near the floor (high Y) and rise during the bridge (low Y).
+      // Knee angle stays roughly constant at ~90° throughout — use hip Y directly.
+      const lHip = landmarks[LM.LEFT_HIP], rHip = landmarks[LM.RIGHT_HIP]
+      const lConf = lHip?.visibility ?? 0, rConf = rHip?.visibility ?? 0
+      if (lConf < 0.3 && rConf < 0.3) return
+      const ys: number[] = []
+      if (lConf >= 0.3) ys.push(lHip.y)
+      if (rConf >= 0.3) ys.push(rHip.y)
+      rawSignal    = ys.reduce((s, v) => s + v, 0) / ys.length
+      invertSignal = false  // high Y (hips on floor) = "down"; low Y (hips raised) = "up"
     } else if (exerciseKey === 'burpee') {
       // Body height via average of (shoulder + hip) Y.
       // Standing: all landmarks high in frame → low Y → "up".

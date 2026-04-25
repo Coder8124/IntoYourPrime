@@ -169,7 +169,13 @@ function detectTricepStretch(landmarks: NormalizedLandmark[]): boolean {
 
 export type HoldExercise = 'plank' | 'wallsit' | 'crossbodystretch' | 'tricepstretch'
 
-export const HOLD_EXERCISES: readonly string[] = ['plank', 'wallsit', 'crossbodystretch', 'tricepstretch']
+export const HOLD_EXERCISES: readonly string[] = [
+  'plank', 'wallsit', 'crossbodystretch', 'tricepstretch',
+  'sideplank', 'deadbug', 'birddog', 'hollowbody', 'vSit',
+  'childpose', 'hipflexorstretch', 'hamstringstretch', 'quadstretch',
+  'pigeonpose', 'downdogstretch', 'cobrapose', 'seatedspinaltwist',
+  'worldsgreateststretch',
+]
 
 export interface UseHoldTimerReturn {
   holdSeconds:  number

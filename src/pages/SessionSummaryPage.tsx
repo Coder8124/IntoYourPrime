@@ -23,6 +23,7 @@ interface SessionSnapshot {
   repCounts: Record<string, number>
   riskScores: number[]
   exerciseRiskLog: Record<string, number[]>
+  exerciseWeights: Record<string, number>
   suggestions: SuggestionEntry[]
   safetyConcerns: string[]
   lastExercise: string
@@ -70,6 +71,7 @@ function buildSnapshot(): SessionSnapshot | null {
     repCounts: { ...s.repCounts },
     riskScores: [...s.riskScores],
     exerciseRiskLog: Object.fromEntries(Object.entries(s.exerciseRiskLog).map(([k, v]) => [k, [...v]])),
+    exerciseWeights: { ...s.exerciseWeights },
     suggestions: s.suggestions.map((e) => ({ ...e })),
     safetyConcerns: [...s.safetyConcerns],
     lastExercise: s.currentExercise,
@@ -94,6 +96,7 @@ function loadStoredSnapshot(): SessionSnapshot | null {
     if (p.cooldownCompleted === undefined) p.cooldownCompleted = false
     if (p.warmupEndedAt === undefined) p.warmupEndedAt = null
     if (!p.exerciseRiskLog) p.exerciseRiskLog = {}
+    if (!p.exerciseWeights) p.exerciseWeights = {}
     return p
   } catch {
     return null
@@ -295,6 +298,7 @@ export function SessionSummaryPage() {
           feelRating: null,
           totalRiskEvents: stats.highRiskEvents,
           workoutScore: stats.workoutScore,
+          exerciseWeights: Object.keys(snapshot.exerciseWeights).length > 0 ? snapshot.exerciseWeights : undefined,
         })
 
         // Cache streak locally so FriendsPage can read it without Firebase
@@ -629,15 +633,23 @@ export function SessionSummaryPage() {
             <p className="mt-4 text-[13px] text-gray-600">No counted reps this session.</p>
           ) : (
             <ul className="mt-4 space-y-2">
-              {exercisesWithReps.map(([name, count]) => (
-                <li
-                  key={name}
-                  className="flex items-center justify-between rounded-lg border border-subtle bg-panel px-3 py-2.5"
-                >
-                  <span className="text-[13px] font-semibold capitalize text-white">{name}</span>
-                  <span className="font-mono text-lg font-black text-blue-400">{count}</span>
-                </li>
-              ))}
+              {exercisesWithReps.map(([name, count]) => {
+                const weight = snapshot?.exerciseWeights?.[name]
+                return (
+                  <li
+                    key={name}
+                    className="flex items-center justify-between rounded-lg border border-subtle bg-panel px-3 py-2.5"
+                  >
+                    <span className="text-[13px] font-semibold capitalize text-white">{name}</span>
+                    <div className="flex items-center gap-3">
+                      {weight != null && weight > 0 && (
+                        <span className="text-[12px] font-mono text-amber-400 font-bold">{weight}kg</span>
+                      )}
+                      <span className="font-mono text-lg font-black text-blue-400">{count}</span>
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </section>

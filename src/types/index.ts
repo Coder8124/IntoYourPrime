@@ -65,6 +65,7 @@ export interface Session {
   feelRating: number | null
   totalRiskEvents: number
   workoutScore?: number
+  exerciseWeights?: Record<string, number>
 }
 
 export interface DailyLog {
@@ -292,6 +293,9 @@ export function fromFirestoreSession(
     totalRiskEvents: readNumber(doc.totalRiskEvents, 'totalRiskEvents'),
     workoutScore: (typeof doc.workoutScore === 'number' && Number.isFinite(doc.workoutScore))
       ? doc.workoutScore
+      : undefined,
+    exerciseWeights: (doc.exerciseWeights != null && typeof doc.exerciseWeights === 'object' && !Array.isArray(doc.exerciseWeights))
+      ? readRecordStringNumber(doc.exerciseWeights, 'exerciseWeights')
       : undefined,
   }
 }
