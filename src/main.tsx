@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import './index.css'
 import App from './App.tsx'
+import { registerServiceWorker, checkStreakOnLoad } from './lib/notifications'
+
+registerServiceWorker()
+checkStreakOnLoad()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

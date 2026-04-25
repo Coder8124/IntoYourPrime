@@ -1,8 +1,11 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useWorkoutStore, type SuggestionEntry, type WorkoutPhase } from '../stores/workoutStore'
-import { saveSession, updateStreak, postActivityItem, updateWorkoutStats } from '../lib/firebaseHelpers'
+import { saveSession, updateStreak, postActivityItem, updateWorkoutStats, awardBadges, getUserProfile, saveWeeklyProgress, getFriends } from '../lib/firebaseHelpers'
 import { computeWorkoutScore, scoreGrade } from '../lib/workoutScore'
+import { checkNewBadges, BADGE_MAP } from '../lib/badges'
+import { getCurrentChallenge, getWeekKey, computeChallengeProgress } from '../lib/challenges'
+import { requestNotificationPermission, showNotification, scheduleStreakReminder, registerServiceWorker } from '../lib/notifications'
 import { auth } from '../lib/firebase'
 import { getOrSignInUserId } from '../lib/firestoreUser'
 import { getOrCreateLocalUserId } from '../lib/localUserId'
@@ -209,8 +212,9 @@ export function SessionSummaryPage() {
   }, [snapshot])
 
   // ── Auto-save session to Firestore ─────────────────────────────────────
-  const [saveStatus,  setSaveStatus]  = useState<'pending' | 'saving' | 'saved' | 'error'>('pending')
-  const [shareStatus, setShareStatus] = useState<'idle' | 'copied'>('idle')
+  const [saveStatus,   setSaveStatus]   = useState<'pending' | 'saving' | 'saved' | 'error'>('pending')
+  const [shareStatus,  setShareStatus]  = useState<'idle' | 'copied'>('idle')
+  const [newBadges,    setNewBadges]    = useState<string[]>([])
   const saveAttempted = useRef(false)
 
   const handleShare = () => {
@@ -322,6 +326,71 @@ export function SessionSummaryPage() {
         ])
 
         localStorage.setItem(storedSavedKey, sessionId)
+
+        // ── Post-save: badges, challenge progress, notifications ──────────
+        try {
+          registerServiceWorker()
+          const [profile, allSessions, friends] = await Promise.all([
+            getUserProfile(userId).catch(() => null),
+            import('../lib/firebaseHelpers').then(m => m.getUserSessions(userId, 50)).catch(() => [] as import('../types/index').Session[]),
+            userId !== getOrCreateLocalUserId() ? getFriends(userId).catch(() => []) : Promise.resolve([]),
+          ])
+
+          const cooldownCount = allSessions.filter(s => s.cooldownCompleted).length
+          const awarded = checkNewBadges({
+            workoutScore: stats.workoutScore,
+            totalReps: stats.totalReps,
+            avgRiskScore: Math.round(stats.avgRisk),
+            cooldownCompleted: snapshot.cooldownCompleted,
+            durationMinutes: stats.durationSec / 60,
+            highRiskEvents: stats.highRiskEvents,
+            totalSessions: (profile?.totalSessions ?? 0) + 1,
+            streakCount: profile?.streakCount ?? 0,
+            cooldownCompletedCount: cooldownCount,
+            friendCount: friends.length,
+            weeklyChallengeDone: false,
+          }, profile?.badges ?? [])
+
+          // Compute weekly challenge progress
+          const challenge = getCurrentChallenge()
+          const weekKey = getWeekKey()
+          const sessionForChallenge = {
+            date: new Date().toISOString().slice(0, 10),
+            workoutScore: stats.workoutScore,
+            repCounts: snapshot.repCounts,
+            avgRiskScore: Math.round(stats.avgRisk),
+            cooldownCompleted: snapshot.cooldownCompleted,
+          }
+          const challengeProgress = computeChallengeProgress(challenge, [sessionForChallenge, ...allSessions])
+          const challengeDone = challengeProgress >= challenge.target
+
+          if (challengeDone) {
+            const extraBadges = checkNewBadges({ ...{ workoutScore: stats.workoutScore, totalReps: stats.totalReps, avgRiskScore: Math.round(stats.avgRisk), cooldownCompleted: snapshot.cooldownCompleted, durationMinutes: stats.durationSec / 60, highRiskEvents: stats.highRiskEvents, totalSessions: (profile?.totalSessions ?? 0) + 1, streakCount: profile?.streakCount ?? 0, cooldownCompletedCount: cooldownCount, friendCount: friends.length, weeklyChallengeDone: true } }, [...(profile?.badges ?? []), ...awarded])
+            awarded.push(...extraBadges)
+          }
+
+          await Promise.allSettled([
+            awarded.length > 0 ? awardBadges(userId, awarded) : Promise.resolve(),
+            saveWeeklyProgress(userId, { week: weekKey, challengeId: challenge.id, value: challengeProgress, completed: challengeDone }),
+          ])
+
+          if (awarded.length > 0) {
+            setNewBadges(awarded)
+            const permGranted = await requestNotificationPermission()
+            if (permGranted) {
+              const badge = BADGE_MAP[awarded[0]]
+              if (badge) showNotification(`${badge.icon} Badge Earned!`, `You earned "${badge.name}" — ${badge.description}`)
+            }
+          } else {
+            requestNotificationPermission().then(granted => {
+              if (granted) {
+                const streak = profile?.streakCount ?? 0
+                if (streak > 0) scheduleStreakReminder(streak)
+              }
+            })
+          }
+        } catch { /* non-fatal */ }
+
         setSaveStatus('saved')
       } catch {
         setSaveStatus('error')
@@ -440,6 +509,32 @@ export function SessionSummaryPage() {
             <span className="font-black" style={{ fontSize: 40, color: grade.color }}>{grade.grade}</span>
           </div>
         </section>
+
+        {/* New badges earned */}
+        {newBadges.length > 0 && (
+          <section className="rounded-2xl p-5 space-y-3"
+            style={{ background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.3)' }}>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-400">
+              🎖️ Badge{newBadges.length > 1 ? 's' : ''} Earned!
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {newBadges.map(id => {
+                const b = BADGE_MAP[id]
+                if (!b) return null
+                return (
+                  <div key={id} className="flex items-center gap-2 px-3 py-2 rounded-xl"
+                    style={{ background: `${b.color}15`, border: `1px solid ${b.color}40` }}>
+                    <span className="text-[18px]">{b.icon}</span>
+                    <div>
+                      <p className="text-[12px] font-bold text-white">{b.name}</p>
+                      <p className="text-[10px] text-gray-500">{b.description}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Hero metrics */}
         <section className="grid gap-3 sm:grid-cols-3">

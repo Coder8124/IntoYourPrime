@@ -984,7 +984,7 @@ export function WorkoutPage() {
   const {
     landmarks, isTracking,
     isLoading: cameraLoading, error: cameraError,
-    getBestFrames, startCamera, stopCamera,
+    getBestFrames, startCamera, stopCamera, switchCamera, facingMode,
   } = usePoseDetection(videoRef, canvasRef)
 
   // ── Rep counter hook ───────────────────────────────────────────────────
@@ -1530,18 +1530,47 @@ export function WorkoutPage() {
 
   // ── Camera error screen ────────────────────────────────────────────────
   if (cameraError && !cameraStarted) {
+    const isPermissionError = cameraError.toLowerCase().includes('denied') || cameraError.toLowerCase().includes('allowed') || cameraError.toLowerCase().includes('permission')
+    const isInUseError = cameraError.toLowerCase().includes('use') || cameraError.toLowerCase().includes('readable')
     return (
       <div className="min-h-screen bg-page flex items-center justify-center p-6">
-        <div className="card-surface p-10 max-w-[380px] text-center">
-          <div className="text-5xl mb-5">📷</div>
-          <h2 className="text-xl font-bold text-white mb-2">Camera Required</h2>
-          <p className="text-gray-400 text-sm leading-relaxed mb-7">{cameraError}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full py-3 bg-blue-600 rounded-xl font-semibold text-white hover:bg-blue-500 transition-colors btn-glow-blue"
-          >
-            Try Again
-          </button>
+        <div className="card-surface p-8 max-w-[400px] text-center space-y-5">
+          <div className="text-5xl">📷</div>
+          <div>
+            <h2 className="text-[18px] font-bold text-white mb-2">Camera Required</h2>
+            <p className="text-gray-400 text-[13px] leading-relaxed">{cameraError}</p>
+          </div>
+          {isPermissionError && (
+            <div className="text-left rounded-xl p-4 space-y-2"
+              style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-blue-400">How to fix</p>
+              <ul className="text-[12px] text-gray-400 space-y-1.5 list-disc list-inside">
+                <li>iOS Safari: Settings → Safari → Camera → Allow</li>
+                <li>Chrome: tap the 🔒 icon in address bar → Camera → Allow</li>
+                <li>Then tap "Try Again" below</li>
+              </ul>
+            </div>
+          )}
+          {isInUseError && (
+            <p className="text-[12px] text-amber-400">
+              Close FaceTime, Snapchat, or any other app using your camera, then try again.
+            </p>
+          )}
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => startCamera('user')}
+              className="w-full py-3 bg-blue-600 rounded-xl font-semibold text-white hover:bg-blue-500 transition-colors"
+            >
+              Try Front Camera
+            </button>
+            <button
+              onClick={() => startCamera('environment')}
+              className="w-full py-3 rounded-xl font-semibold text-gray-400 hover:text-white transition-colors"
+              style={{ border: '1px solid var(--border)' }}
+            >
+              Try Back Camera
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -2163,7 +2192,7 @@ export function WorkoutPage() {
                   <video
                     ref={videoRef}
                     className="absolute inset-0 h-full w-full object-cover"
-                    style={{ transform: 'scaleX(-1)' }}
+                    style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
                     playsInline
                     muted
                     autoPlay
@@ -2176,6 +2205,16 @@ export function WorkoutPage() {
               {!cameraLoading && cameraStarted && (
                 <>
                   <div className="absolute right-2 top-2 z-20 flex flex-col gap-1.5">
+                    {/* Camera switch (front/back) */}
+                    <button
+                      type="button"
+                      onClick={() => switchCamera()}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-gray-200 backdrop-blur-md transition hover:bg-white/10"
+                      title={facingMode === 'user' ? 'Switch to back camera' : 'Switch to front camera'}
+                      aria-label="Switch camera"
+                    >
+                      <span className="text-[15px]">🔄</span>
+                    </button>
                     <button
                       type="button"
                       onClick={toggleCameraFullscreen}

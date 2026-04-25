@@ -121,6 +121,10 @@ function userProfileFromDoc(snap: DocumentSnapshot): UserProfile | null {
         : String(d.lastWorkoutDate),
     avgWorkoutScore: typeof d.avgWorkoutScore === 'number' ? d.avgWorkoutScore : undefined,
     totalSessions:   typeof d.totalSessions   === 'number' ? d.totalSessions   : undefined,
+    badges: Array.isArray(d.badges) ? (d.badges as string[]) : undefined,
+    weeklyProgress: (d.weeklyProgress && typeof d.weeklyProgress === 'object')
+      ? d.weeklyProgress as UserProfile['weeklyProgress']
+      : undefined,
   }
 }
 
@@ -376,6 +380,72 @@ export async function upsertUserDisplayName(
     )
   } catch (e) {
     wrapError('upsertUserDisplayName', e)
+  }
+}
+
+export async function getLeaderboard(limitCount = 50): Promise<UserProfile[]> {
+  try {
+    const q = query(
+      collection(db, 'users'),
+      where('avgWorkoutScore', '>', 0),
+      orderBy('avgWorkoutScore', 'desc'),
+      limit(limitCount),
+    )
+    const snap = await getDocs(q)
+    return snap.docs.map(d => userProfileFromDoc(d)).filter((p): p is UserProfile => p !== null)
+  } catch (e) {
+    wrapError('getLeaderboard', e)
+  }
+}
+
+export async function awardBadges(uid: string, newBadgeIds: string[]): Promise<void> {
+  if (!newBadgeIds.length) return
+  try {
+    const id = await effectiveUserId(uid)
+    assertSignedUid(id, 'awardBadges')
+    const ref = doc(db, 'users', id)
+    const snap = await getDoc(ref)
+    const existing = snap.exists()
+      ? (Array.isArray((snap.data() as Record<string, unknown>).badges)
+          ? (snap.data() as Record<string, unknown>).badges as string[]
+          : [])
+      : []
+    const merged = [...new Set([...existing, ...newBadgeIds])]
+    await updateDoc(ref, { badges: merged })
+  } catch (e) {
+    wrapError('awardBadges', e)
+  }
+}
+
+export async function saveWeeklyProgress(
+  uid: string,
+  progress: NonNullable<UserProfile['weeklyProgress']>,
+): Promise<void> {
+  try {
+    const id = await effectiveUserId(uid)
+    assertSignedUid(id, 'saveWeeklyProgress')
+    await updateDoc(doc(db, 'users', id), {
+      weeklyProgress: progress,
+      weeklyProgressValue: progress.value,
+      weeklyProgressWeek: progress.week,
+    })
+  } catch (e) {
+    wrapError('saveWeeklyProgress', e)
+  }
+}
+
+export async function getWeeklyChallengeLeaderboard(week: string, limitCount = 50): Promise<UserProfile[]> {
+  try {
+    const q = query(
+      collection(db, 'users'),
+      where('weeklyProgressWeek', '==', week),
+      orderBy('weeklyProgressValue', 'desc'),
+      limit(limitCount),
+    )
+    const snap = await getDocs(q)
+    return snap.docs.map(d => userProfileFromDoc(d)).filter((p): p is UserProfile => p !== null)
+  } catch (e) {
+    wrapError('getWeeklyChallengeLeaderboard', e)
   }
 }
 

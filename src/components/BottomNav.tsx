@@ -1,11 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
 
 const TABS = [
-  { to: '/home',     label: 'Home',     icon: '🏠' },
-  { to: '/workout',  label: 'Workout',  icon: '💪' },
-  { to: '/programs', label: 'Programs', icon: '📋' },
-  { to: '/progress', label: 'Progress', icon: '📈' },
-  { to: '/profile',  label: 'Profile',  icon: '👤' },
+  { to: '/home',        label: 'Home',      icon: '🏠' },
+  { to: '/workout',     label: 'Workout',   icon: '💪' },
+  { to: '/leaderboard', label: 'Ranked',    icon: '🏆' },
+  { to: '/progress',    label: 'Progress',  icon: '📈' },
+  { to: '/profile',     label: 'Profile',   icon: '👤' },
 ]
 
 export function BottomNav() {

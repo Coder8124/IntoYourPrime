@@ -36,6 +36,8 @@ export interface UserProfile {
   lastWorkoutDate: string | null
   avgWorkoutScore?: number
   totalSessions?: number
+  badges?: string[]
+  weeklyProgress?: { week: string; challengeId: string; value: number; completed: boolean }
 }
 
 export interface CooldownExercise {

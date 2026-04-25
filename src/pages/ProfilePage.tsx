@@ -6,6 +6,7 @@ import { hasApiKey } from '../lib/formAnalysis'
 import { signOutUser } from '../lib/firestoreUser'
 import { upsertFullUserProfile, getUserProfile } from '../lib/firebaseHelpers'
 import { auth } from '../lib/firebase'
+import { ALL_BADGES } from '../lib/badges'
 
 const FT_OPTIONS  = [4, 5, 6, 7]
 const IN_OPTIONS  = [0,1,2,3,4,5,6,7,8,9,10,11]
@@ -42,6 +43,7 @@ export function ProfilePage() {
   const { theme, toggleTheme } = useTheme()
   const [form,    setForm]    = useState<ProfileForm>(loadProfile)
   const [saved,   setSaved]   = useState(false)
+  const [myBadges, setMyBadges] = useState<string[]>([])
 
   // Sync profile from Firestore on mount so data is restored across devices
   useEffect(() => {
@@ -49,6 +51,7 @@ export function ProfilePage() {
     if (!uid) return
     getUserProfile(uid).then(profile => {
       if (!profile) return
+      if (profile.badges) setMyBadges(profile.badges)
       const totalIn = Math.round((profile.heightCm ?? 168) / 2.54)
       const ft = Math.floor(totalIn / 12)
       const inches = totalIn % 12
@@ -311,6 +314,33 @@ export function ProfilePage() {
             Your key is stored only in this browser (localStorage) and sent directly to OpenAI.
             It is never stored on any server.
           </p>
+        </div>
+
+        {/* ── Badges ──────────────────────────────────────────────────────── */}
+        <div className="card-surface p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold tracking-[0.12em] text-gray-500 uppercase">
+              Badges ({myBadges.length}/{ALL_BADGES.length})
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {ALL_BADGES.map(b => {
+              const earned = myBadges.includes(b.id)
+              return (
+                <div key={b.id}
+                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl text-center"
+                  style={{
+                    background: earned ? `${b.color}15` : 'var(--surface)',
+                    border: `1px solid ${earned ? b.color + '40' : 'var(--border)'}`,
+                    opacity: earned ? 1 : 0.4,
+                  }}>
+                  <span className="text-[22px]">{earned ? b.icon : '🔒'}</span>
+                  <p className="text-[10px] font-bold text-white leading-tight">{b.name}</p>
+                  {earned && <p className="text-[9px] text-gray-500 leading-tight">{b.description}</p>}
+                </div>
+              )
+            })}
+          </div>
         </div>
 
         {/* Theme toggle */}

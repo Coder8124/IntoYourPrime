@@ -77,10 +77,29 @@ export interface UsePoseDetectionReturn {
   isTracking:   boolean
   confidence:   number
   getBestFrames: (n: number, exercise?: string) => string[]
-  startCamera:  () => Promise<void>
+  startCamera:  (facing?: 'user' | 'environment') => Promise<void>
   stopCamera:   () => void
+  switchCamera: () => Promise<void>
+  facingMode:   'user' | 'environment'
   isLoading:    boolean
   error:        string | null
+}
+
+function cameraErrorMessage(err: unknown): string {
+  if (err instanceof DOMException) {
+    if (err.name === 'NotAllowedError')
+      return 'Camera access denied. Tap the camera icon in your browser address bar (or go to Settings → Safari/Chrome → Camera) and allow access, then reload.'
+    if (err.name === 'NotFoundError')
+      return 'No camera found on this device.'
+    if (err.name === 'NotReadableError')
+      return 'Camera is in use by another app. Close other apps using the camera and try again.'
+    if (err.name === 'OverconstrainedError')
+      return 'Camera resolution not supported. Try a different browser or device.'
+    if (err.name === 'SecurityError')
+      return 'Camera blocked by browser security policy. Make sure the page is served over HTTPS.'
+  }
+  if (err instanceof Error) return err.message
+  return 'Camera access denied. Please allow camera permissions and reload.'
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -126,11 +145,12 @@ export function usePoseDetection(
   const runningRef      = useRef(false)
 
   // ── State ────────────────────────────────────────────────────────────────
-  const [landmarks,  setLandmarks]  = useState<NormalizedLandmark[] | null>(null)
-  const [isTracking, setIsTracking] = useState(false)
-  const [confidence, setConfidence] = useState(0)
-  const [isLoading,  setIsLoading]  = useState(false)
-  const [error,      setError]      = useState<string | null>(null)
+  const [landmarks,   setLandmarks]  = useState<NormalizedLandmark[] | null>(null)
+  const [isTracking,  setIsTracking] = useState(false)
+  const [confidence,  setConfidence] = useState(0)
+  const [isLoading,   setIsLoading]  = useState(false)
+  const [error,       setError]      = useState<string | null>(null)
+  const [facingMode,  setFacingMode] = useState<'user' | 'environment'>('user')
 
   // ── Offscreen canvas (frame capture) ────────────────────────────────────
   const getOffscreen = useCallback((): HTMLCanvasElement => {
@@ -271,23 +291,38 @@ export function usePoseDetection(
   }, [])
 
   // ── Public: startCamera ──────────────────────────────────────────────────
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (facing: 'user' | 'environment' = 'user') => {
     // Stop any existing session before re-starting
     stopCamera()
 
     setIsLoading(true)
     setError(null)
+    setFacingMode(facing)
 
     try {
+      // Try ideal constraints first; fall back to minimal on failure
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720, facingMode: 'user' },
-      })
+        video: {
+          facingMode: { ideal: facing },
+          width: { ideal: 1280, min: 320 },
+          height: { ideal: 720, min: 240 },
+        },
+        audio: false,
+      }).catch(() =>
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing },
+          audio: false,
+        })
+      )
       streamRef.current = stream
 
       const video = videoRef.current
       if (!video) throw new Error('Video element is not mounted')
 
       video.srcObject = stream
+      video.setAttribute('playsinline', 'true')
+      video.setAttribute('muted', 'true')
+      video.muted = true
       await video.play()
 
       await ensureMediaPipePoseScript()
@@ -303,8 +338,8 @@ export function usePoseDetection(
         modelComplexity:       1,
         smoothLandmarks:       true,
         enableSegmentation:    false,
-        minDetectionConfidence: 0.6,
-        minTrackingConfidence:  0.5,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence:  0.4,
       })
 
       pose.onResults(onResults)
@@ -337,12 +372,14 @@ export function usePoseDetection(
 
     } catch (err) {
       setIsLoading(false)
-      const msg = err instanceof Error
-        ? err.message
-        : 'Camera access denied. Please allow camera permissions and reload.'
-      setError(msg)
+      setError(cameraErrorMessage(err))
     }
   }, [videoRef, onResults, stopCamera])
+
+  const switchCamera = useCallback(async () => {
+    const next: 'user' | 'environment' = facingMode === 'user' ? 'environment' : 'user'
+    await startCamera(next)
+  }, [facingMode, startCamera])
 
   // ── Cleanup on unmount ───────────────────────────────────────────────────
   useEffect(() => () => {
@@ -356,6 +393,8 @@ export function usePoseDetection(
     getBestFrames,
     startCamera,
     stopCamera,
+    switchCamera,
+    facingMode,
     isLoading,
     error,
   }

@@ -4,6 +4,7 @@ import { BottomNav } from '../components/BottomNav'
 import { getUserProfile, addFriend, getFriends, getOutgoingFriendRequests } from '../lib/firebaseHelpers'
 import { auth } from '../lib/firebase'
 import { scoreGrade } from '../lib/workoutScore'
+import { ALL_BADGES } from '../lib/badges'
 import type { UserProfile } from '../types/index'
 
 export function PublicProfilePage() {
@@ -162,6 +163,24 @@ export function PublicProfilePage() {
             className="block w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-[14px] font-bold text-white text-center transition-colors">
             Sign in to add to squad
           </Link>
+        )}
+
+        {/* Badges */}
+        {profile.badges && profile.badges.length > 0 && (
+          <div className="card-surface p-5 space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              Badges ({profile.badges.length})
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {ALL_BADGES.filter(b => profile.badges!.includes(b.id)).map(b => (
+                <div key={b.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl"
+                  style={{ background: `${b.color}15`, border: `1px solid ${b.color}35` }}>
+                  <span className="text-[14px]">{b.icon}</span>
+                  <span className="text-[11px] font-bold text-white">{b.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
