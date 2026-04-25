@@ -638,7 +638,7 @@ function WarmupScoreModal({ score, onContinueWarmup, onStartWorkout }: WarmupSco
             </button>
             <button
               onClick={onContinueWarmup}
-              className="w-full py-3 border border-[#2e2e3e] text-gray-400 rounded-xl font-semibold text-[13px] hover:border-gray-500 hover:text-gray-200 transition-all"
+              className="w-full py-3 border border-strong text-gray-400 rounded-xl font-semibold text-[13px] hover:border-gray-500 hover:text-gray-200 transition-all"
             >
               Continue Warming Up
             </button>
@@ -653,7 +653,7 @@ function WarmupScoreModal({ score, onContinueWarmup, onStartWorkout }: WarmupSco
             </button>
             <button
               onClick={onContinueWarmup}
-              className="w-full py-3 border border-[#2e2e3e] text-gray-400 rounded-xl font-semibold text-[13px] hover:border-gray-500 hover:text-gray-200 transition-all"
+              className="w-full py-3 border border-strong text-gray-400 rounded-xl font-semibold text-[13px] hover:border-gray-500 hover:text-gray-200 transition-all"
             >
               Continue Warming Up
             </button>
@@ -1425,7 +1425,7 @@ export function WorkoutPage() {
     const currentEx = cooldownExercises[cooldownIdx] ?? null
 
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center p-6 text-white">
+      <div className="min-h-screen bg-page flex flex-col items-center justify-center p-6 text-white">
         <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-green-400 mb-2">Cooldown</p>
         <h1 className="text-2xl font-black tracking-tight mb-1">Nice work — cool down now</h1>
         <p className="text-gray-500 text-sm mb-10">Follow each stretch at a gentle pace</p>
@@ -1506,7 +1506,7 @@ export function WorkoutPage() {
                     setCooldownTimeLeft(cooldownExercises[next].durationSeconds)
                   }
                 }}
-                className="flex-1 py-3 rounded-xl border border-[#2e2e3e] text-gray-400 font-semibold text-sm hover:border-gray-500 hover:text-gray-200 transition-all"
+                className="flex-1 py-3 rounded-xl border border-strong text-gray-400 font-semibold text-sm hover:border-gray-500 hover:text-gray-200 transition-all"
               >
                 Skip →
               </button>
@@ -1531,7 +1531,7 @@ export function WorkoutPage() {
   // ── Camera error screen ────────────────────────────────────────────────
   if (cameraError && !cameraStarted) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center p-6">
+      <div className="min-h-screen bg-page flex items-center justify-center p-6">
         <div className="card-surface p-10 max-w-[380px] text-center">
           <div className="text-5xl mb-5">📷</div>
           <h2 className="text-xl font-bold text-white mb-2">Camera Required</h2>
@@ -1610,10 +1610,10 @@ export function WorkoutPage() {
         </div>
       )}
 
-      <div className="h-screen bg-[#0a0a0f] flex flex-col overflow-hidden" style={localStorage.getItem('formAI_guest') === 'true' ? { paddingTop: '2rem' } : undefined}>
+      <div className="h-screen bg-page flex flex-col overflow-hidden" style={localStorage.getItem('formAI_guest') === 'true' ? { paddingTop: '2rem' } : undefined}>
 
         {/* ── HEADER ──────────────────────────────────────────────────── */}
-        <header className="h-14 flex items-center justify-between px-6 bg-[#0d0d18] border-b border-[#1e1e2e] shrink-0">
+        <header className="h-14 flex items-center justify-between px-6 bg-panel border-b border-subtle shrink-0">
           <div className="flex items-center gap-3">
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
@@ -1665,7 +1665,7 @@ export function WorkoutPage() {
           {/* ── LEFT PANEL ───────────────────────────────────────────── */}
           <aside
             className={[
-              'shrink-0 flex flex-col gap-3 border-r border-[#1e1e2e] overflow-y-auto',
+              'shrink-0 flex flex-col gap-3 border-r border-subtle overflow-y-auto',
               wideCameraLayout ? 'p-3' : 'p-4',
               wideCameraLayout ? 'w-[min(13.5rem,22vw)]' : 'w-[30%]',
             ].join(' ')}
@@ -1760,7 +1760,7 @@ export function WorkoutPage() {
                     value={exSearch}
                     onChange={e => setExSearch(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg text-[13px] text-white placeholder-gray-600 outline-none"
-                    style={{ background: '#111119', border: '1px solid #2a2a42' }}
+                    style={{ background: 'var(--surface)', border: '1px solid #2a2a42' }}
                   />
 
                   {/* Category tabs */}
@@ -1788,7 +1788,7 @@ export function WorkoutPage() {
                       <div key={ex} className="flex rounded-lg overflow-hidden"
                         style={currentExercise === ex
                           ? { border: '1px solid #3b82f6' }
-                          : { border: '1px solid #1e1e2e' }
+                          : { border: '1px solid var(--border)' }
                         }
                       >
                         {/* Select button */}
@@ -1923,7 +1923,7 @@ export function WorkoutPage() {
                   {(currentExercise === 'bicepcurl' || currentExercise === 'hammercurl') && (
                     <div className="mt-3 flex items-center gap-4">
                       {(['left', 'right'] as const).map(side => (
-                        <div key={side} className="flex flex-col items-center" style={{ background: '#13131f', borderRadius: 8, padding: '6px 14px', border: '1px solid #1e1e2e' }}>
+                        <div key={side} className="flex flex-col items-center" style={{ background: '#13131f', borderRadius: 8, padding: '6px 14px', border: '1px solid var(--border)' }}>
                           <span className="text-[9px] font-bold tracking-widest uppercase text-gray-600 mb-0.5">{side}</span>
                           <span className="text-[22px] font-black leading-none text-white">{String(armReps[side]).padStart(2, '0')}</span>
                         </div>
@@ -2072,7 +2072,7 @@ export function WorkoutPage() {
                   Object.entries(repCounts).map(([ex, count]) => (
                     <div
                       key={ex}
-                      className="flex items-center justify-between p-2.5 rounded-lg bg-[#0f0f1a] border border-[#1e1e2e]"
+                      className="flex items-center justify-between p-2.5 rounded-lg bg-panel border border-subtle"
                     >
                       <span className="text-[12px] font-semibold text-white">{EXERCISE_LABELS[ex as typeof EXERCISES[number]] ?? ex}</span>
                       <span className="text-blue-400 font-black text-[15px]">{count}</span>
@@ -2246,7 +2246,7 @@ export function WorkoutPage() {
           {/* ── RIGHT PANEL ─────────────────────────────────────────────── */}
           <aside
             className={[
-              'shrink-0 flex flex-col gap-3 border-l border-[#1e1e2e] overflow-hidden',
+              'shrink-0 flex flex-col gap-3 border-l border-subtle overflow-hidden',
               wideCameraLayout ? 'p-3' : 'p-4',
               wideCameraLayout ? 'w-[min(13.5rem,22vw)]' : 'w-[30%]',
             ].join(' ')}
@@ -2278,7 +2278,7 @@ export function WorkoutPage() {
 
             {/* Bilateral asymmetry indicator */}
             {asymmetry && Math.abs(asymmetry.left - asymmetry.right) >= 10 && phase === 'main' && (
-              <div className="rounded-xl p-4 shrink-0" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <div className="rounded-xl p-4 shrink-0" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                 <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 block mb-2.5">
                   L / R Balance
                 </span>
@@ -2416,7 +2416,7 @@ export function WorkoutPage() {
               <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2 block">
                 Exercise Demo
               </span>
-              <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #1e1e2e', background: '#0d0d18' }}>
+              <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface)' }}>
                 <img
                   key={currentExercise}
                   src={EXERCISE_GIFS[currentExercise as typeof EXERCISES[number]]}
@@ -2435,7 +2435,7 @@ export function WorkoutPage() {
         </div>
 
         {/* ── BOTTOM BAR ──────────────────────────────────────────────── */}
-        <div className="h-16 flex items-center justify-between px-6 bg-[#0d0d18] border-t border-[#1e1e2e] shrink-0">
+        <div className="h-16 flex items-center justify-between px-6 bg-panel border-t border-subtle shrink-0">
 
           {/* Mute toggle */}
           <button
@@ -2508,7 +2508,7 @@ export function WorkoutPage() {
               left,
               width:     tipW,
               zIndex:    300,
-              background: '#111119',
+              background: 'var(--surface)',
               border:    '1px solid #2a2a42',
               borderRadius: 12,
               overflow:  'hidden',
