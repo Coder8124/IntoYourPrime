@@ -427,7 +427,7 @@ export function FriendsPage() {
       <header className="sticky top-0 z-10 bg-[color:rgba(var(--bg-rgb),0.9)] backdrop-blur border-b border-subtle px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link to="/home" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Home</Link>
-          <div className="w-px h-4 bg-[#1e1e2e]" />
+          <div className="w-px h-4 bg-panel-2" />
           <h1 className="font-black text-white tracking-tight">
             Prime Intelligence
             <span className="ml-2 text-[10px] font-bold tracking-[0.15em] uppercase text-blue-400">PI</span>
@@ -516,7 +516,7 @@ export function FriendsPage() {
                         </div>
                         {/* Progress stats */}
                         <div className="grid grid-cols-2 gap-2">
-                          <div className="p-2.5 rounded-lg bg-page border border-[#1a1a2a]">
+                          <div className="p-2.5 rounded-lg bg-page border border-subtle">
                             <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Last Workout</p>
                             <p className="text-[12px] font-bold text-white">
                               {lastWorkout
@@ -528,7 +528,7 @@ export function FriendsPage() {
                                 : 'No data'}
                             </p>
                           </div>
-                          <div className="p-2.5 rounded-lg bg-page border border-[#1a1a2a]">
+                          <div className="p-2.5 rounded-lg bg-page border border-subtle">
                             <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">Shared Streak</p>
                             <p className="text-[12px] font-bold text-amber-400">
                               {f.sharedStreak > 0 ? `${f.sharedStreak} days` : 'Start together!'}

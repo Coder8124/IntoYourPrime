@@ -65,7 +65,7 @@ function ProgramCard({ program, onStart }: { program: WorkoutProgram; onStart: (
             {program.exercises.map((ex, i) => {
               const info = EXERCISE_INFO.find(e => e.id === ex)
               return (
-                <div key={ex} className="flex items-center gap-3 p-2.5 rounded-xl bg-page border border-[#1a1a2a]">
+                <div key={ex} className="flex items-center gap-3 p-2.5 rounded-xl bg-page border border-subtle">
                   <span className="text-[12px] font-black text-blue-600/50 w-5 shrink-0">{i + 1}</span>
                   <div className="flex-1">
                     <p className="text-[13px] font-semibold text-white">{exerciseName(ex)}</p>
@@ -120,7 +120,7 @@ export function ProgramsPage() {
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/home" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Home</Link>
-            <div className="w-px h-4 bg-[#1e1e2e]" />
+            <div className="w-px h-4 bg-panel-2" />
             <h1 className="font-black text-white tracking-tight">Programs</h1>
           </div>
           <div className="flex items-center gap-2">

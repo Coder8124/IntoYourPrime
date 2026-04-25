@@ -106,7 +106,7 @@ export function AIWorkoutPage() {
       <header className="sticky top-0 z-10 bg-panel/90 backdrop-blur border-b border-subtle px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <Link to="/programs" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Programs</Link>
-          <div className="w-px h-4 bg-[#1e1e2e]" />
+          <div className="w-px h-4 bg-panel-2" />
           <h1 className="font-black text-white tracking-tight">AI Workout Generator</h1>
         </div>
       </header>
@@ -184,7 +184,7 @@ export function AIWorkoutPage() {
               {preview.exercises.map((id, i) => {
                 const info = EXERCISE_INFO.find(e => e.id === id)
                 return (
-                  <div key={id} className="flex items-center gap-3 p-2.5 rounded-xl bg-page border border-[#1a1a2a]">
+                  <div key={id} className="flex items-center gap-3 p-2.5 rounded-xl bg-page border border-subtle">
                     <span className="text-[12px] font-black text-blue-600/50 w-5 shrink-0">{i + 1}</span>
                     <div className="flex-1">
                       <p className="text-[13px] font-semibold text-white">{info?.name ?? id}</p>

@@ -287,7 +287,7 @@ export function RecoveryLogPage() {
                     'flex flex-1 flex-col items-center rounded-xl border py-3 text-2xl transition',
                     energyLevel === n
                       ? 'border-blue-500/60 bg-blue-500/10'
-                      : 'border-[#2e2e3e] bg-[#0f0f1a] hover:border-gray-600',
+                      : 'border-strong bg-panel hover:border-gray-600',
                   ].join(' ')}
                 >
                   <span>{ENERGY_EMOJI[n - 1]}</span>
@@ -310,7 +310,7 @@ export function RecoveryLogPage() {
                     'flex flex-1 flex-col items-center rounded-xl border py-3 text-2xl transition',
                     mood === n
                       ? 'border-violet-500/60 bg-violet-500/10'
-                      : 'border-[#2e2e3e] bg-[#0f0f1a] hover:border-gray-600',
+                      : 'border-strong bg-panel hover:border-gray-600',
                   ].join(' ')}
                 >
                   <span>{MOOD_EMOJI[n - 1]}</span>

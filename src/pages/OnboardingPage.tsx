@@ -92,7 +92,7 @@ export function OnboardingPage() {
 
   if (step === 'apikey') {
     return (
-      <div className="relative min-h-screen bg-[#0a0a0f] flex items-center justify-center overflow-hidden">
+      <div className="relative min-h-screen bg-page flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="grid-bg absolute inset-0" />
           <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 45%, transparent 20%, #0a0a0f 80%)' }} />
@@ -151,7 +151,7 @@ export function OnboardingPage() {
             <button
               type="button"
               onClick={handleSkipKey}
-              className="w-full py-3 rounded-xl border border-[#2e2e3e] text-[14px] font-semibold text-gray-500 hover:text-gray-300 hover:border-gray-500 transition-colors"
+              className="w-full py-3 rounded-xl border border-strong text-[14px] font-semibold text-gray-500 hover:text-gray-300 hover:border-gray-500 transition-colors"
             >
               Skip — use basic mode
             </button>
@@ -162,7 +162,7 @@ export function OnboardingPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#0a0a0f] flex items-center justify-center overflow-hidden">
+    <div className="relative min-h-screen bg-page flex items-center justify-center overflow-hidden">
 
       {/* ── Animated grid background ───────────────────────────────────── */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
