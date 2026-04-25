@@ -4,6 +4,7 @@ import { BottomNav } from '../components/BottomNav'
 import { getUserSessions } from '../lib/firebaseHelpers'
 import { getOrSignInUserId } from '../lib/firestoreUser'
 import { getOrCreateLocalUserId } from '../lib/localUserId'
+import { scoreGrade } from '../lib/workoutScore'
 import type { Session } from '../types/index'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -273,9 +274,14 @@ export function ProgressPage() {
     sessions.reduce((sum, s) => sum + Object.values(s.repCounts ?? {}).reduce((a, b) => a + b, 0), 0),
   [sessions])
 
-  const avgFormScore = useMemo(() => {
-    const scores = sessions.map(s => s.avgRiskScore).filter(n => n > 0)
-    return scores.length ? Math.round(avg(scores)) : 0
+  const avgScore = useMemo(() => {
+    const scored = sessions.filter(s => s.workoutScore != null).map(s => s.workoutScore as number)
+    return scored.length ? Math.round(avg(scored)) : null
+  }, [sessions])
+
+  const bestScore = useMemo(() => {
+    const scored = sessions.filter(s => s.workoutScore != null).map(s => s.workoutScore as number)
+    return scored.length ? Math.max(...scored) : null
   }, [sessions])
 
   // Last 10 sessions for trend chart (oldest first)
@@ -359,18 +365,42 @@ export function ProgressPage() {
         ) : (
           <>
             {/* ── Hero stats ── */}
-            <div className="mt-8 grid grid-cols-3 gap-3">
+            <div className="mt-8 grid grid-cols-2 gap-3">
               {[
-                { label: 'Sessions', value: sessions.length, unit: '' },
-                { label: 'Total Reps', value: totalReps.toLocaleString(), unit: '' },
-                { label: 'Avg Form Risk', value: avgFormScore, unit: '' },
-              ].map(({ label, value, unit }) => (
+                { label: 'Sessions', value: sessions.length.toString() },
+                { label: 'Total Reps', value: totalReps.toLocaleString() },
+              ].map(({ label, value }) => (
                 <div key={label} className="rounded-2xl p-4 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                  <div className="text-[28px] font-black leading-none text-white">{value}{unit}</div>
+                  <div className="text-[28px] font-black leading-none text-white">{value}</div>
                   <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gray-500">{label}</div>
                 </div>
               ))}
             </div>
+            {(avgScore !== null || bestScore !== null) && (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {avgScore !== null && (() => {
+                  const g = scoreGrade(avgScore)
+                  return (
+                    <div className="rounded-2xl p-4 text-center" style={{ background: `${g.color}10`, border: `1px solid ${g.color}30` }}>
+                      <div className="text-[28px] font-black leading-none" style={{ color: g.color }}>{avgScore}</div>
+                      <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gray-500">Avg Score</div>
+                    </div>
+                  )
+                })()}
+                {bestScore !== null && (() => {
+                  const g = scoreGrade(bestScore)
+                  return (
+                    <div className="rounded-2xl p-4 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="text-[28px] font-black leading-none" style={{ color: g.color }}>{bestScore}</span>
+                        <span className="text-[11px] font-bold text-amber-500 mb-1">PB</span>
+                      </div>
+                      <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gray-500">Best Score</div>
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
 
             {/* ── Form score trend ── */}
             <section className="mt-8">
@@ -481,6 +511,7 @@ export function ProgressPage() {
                   const shots = s.repCounts?.basketball ?? 0
                   const reps = basketball ? 0 : Object.values(s.repCounts ?? {}).reduce((a, b) => a + b, 0)
                   const c = riskColor(s.avgRiskScore)
+                  const g = s.workoutScore != null ? scoreGrade(s.workoutScore) : null
                   return (
                     <li key={s.id}
                       className="rounded-xl px-4 py-3.5 cursor-pointer hover:border-blue-500/40 transition-colors"
@@ -493,6 +524,15 @@ export function ProgressPage() {
                           <span className="text-[15px] font-bold text-white">{formatDate(s.date)}</span>
                         </div>
                         <div className="flex items-center gap-3">
+                          {g && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[11px] font-black px-1.5 py-0.5 rounded"
+                                style={{ background: `${g.color}20`, color: g.color, border: `1px solid ${g.color}40` }}>
+                                {g.grade}
+                              </span>
+                              <span className="font-mono font-bold text-[12px]" style={{ color: g.color }}>{s.workoutScore}</span>
+                            </div>
+                          )}
                           {basketball ? (
                             <span className="text-[12px] font-mono font-bold text-amber-400">{shots} shots</span>
                           ) : (
@@ -500,7 +540,7 @@ export function ProgressPage() {
                               risk {Math.round(s.avgRiskScore)}
                             </span>
                           )}
-                          {!basketball && <span className="text-[12px] text-gray-500 font-mono">{reps} reps</span>}
+                          {!basketball && <span className="text-[12px] text-gray-500 font-mono">{reps}r</span>}
                           <span className="text-[12px] text-gray-600">{s.durationMinutes}m</span>
                           <span className="text-[11px] text-gray-700">›</span>
                         </div>

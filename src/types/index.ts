@@ -34,6 +34,8 @@ export interface UserProfile {
   createdAt: Date
   streakCount: number
   lastWorkoutDate: string | null
+  avgWorkoutScore?: number
+  totalSessions?: number
 }
 
 export interface CooldownExercise {
@@ -60,6 +62,7 @@ export interface Session {
   cooldownExercises: CooldownExercise[]
   feelRating: number | null
   totalRiskEvents: number
+  workoutScore?: number
 }
 
 export interface DailyLog {
@@ -285,6 +288,9 @@ export function fromFirestoreSession(
     cooldownExercises: readCooldownExercises(doc.cooldownExercises),
     feelRating: readFeelRating(doc.feelRating),
     totalRiskEvents: readNumber(doc.totalRiskEvents, 'totalRiskEvents'),
+    workoutScore: (typeof doc.workoutScore === 'number' && Number.isFinite(doc.workoutScore))
+      ? doc.workoutScore
+      : undefined,
   }
 }
 

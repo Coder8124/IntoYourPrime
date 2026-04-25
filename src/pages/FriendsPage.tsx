@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav'
 import { getPIBriefing, getDemoBriefing } from '../lib/primeIntelligence'
 import { hasApiKey } from '../lib/formAnalysis'
@@ -15,8 +15,10 @@ import {
   acceptFriendRequest,
   declineFriendRequest,
   getUserProfile,
+  getActivityFeed,
 } from '../lib/firebaseHelpers'
-import type { FriendConnection, UserProfile } from '../types/index'
+import { scoreGrade } from '../lib/workoutScore'
+import type { ActivityFeedItem, FriendConnection, UserProfile } from '../types/index'
 
 const ADMIN_EMAILS = ['vishweshck3@gmail.com', 'pragun.hebbar@gmail.com']
 
@@ -232,6 +234,7 @@ const DEFAULT_GROUP_STREAK = 5
 // ── FriendsPage ────────────────────────────────────────────────────────────
 
 export function FriendsPage() {
+  const navigate = useNavigate()
   const isAdmin = ADMIN_EMAILS.includes(auth.currentUser?.email ?? '')
   const myUid   = auth.currentUser?.uid ?? null
   const myName  = (JSON.parse(localStorage.getItem('formAI_profile') ?? '{}') as Record<string, unknown>).name as string | undefined
@@ -259,6 +262,7 @@ export function FriendsPage() {
   const [sentTo,           setSentTo]           = useState<Set<string>>(new Set())
   const [allUsers,         setAllUsers]         = useState<UserProfile[]>([])
   const [squadTab,         setSquadTab]         = useState<'friends' | 'requests' | 'find'>('friends')
+  const [activityFeed,     setActivityFeed]     = useState<ActivityFeedItem[]>([])
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load friends, pending, outgoing, and all users on mount
@@ -304,6 +308,8 @@ export function FriendsPage() {
       })
       .catch(() => {})
       .finally(() => setSquadLoading(false))
+    // Load activity feed in background
+    getActivityFeed(myUid).then(items => setActivityFeed(items)).catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUid])
 
@@ -499,14 +505,26 @@ export function FriendsPage() {
                     const level = profile?.fitnessLevel
                     return (
                       <div key={f.id} className="p-4 rounded-xl bg-panel border border-subtle space-y-3">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate(`/profile/${f.friendId}`)}>
                           <div className="w-10 h-10 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center text-[15px] font-black text-blue-400 shrink-0">
                             {initial}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[14px] font-semibold text-white truncate">{f.friendDisplayName}</p>
+                            <p className="text-[14px] font-semibold text-white truncate hover:text-blue-300 transition-colors">{f.friendDisplayName}</p>
                             {level && <p className="text-[11px] text-gray-500 capitalize">{level}</p>}
                           </div>
+                          {profile?.avgWorkoutScore != null && (() => {
+                            const g = scoreGrade(profile.avgWorkoutScore)
+                            return (
+                              <div className="text-right shrink-0">
+                                <span className="text-[11px] font-black px-1.5 py-0.5 rounded"
+                                  style={{ background: `${g.color}20`, color: g.color, border: `1px solid ${g.color}40` }}>
+                                  {g.grade}
+                                </span>
+                                <p className="text-[10px] text-gray-600 mt-0.5">avg score</p>
+                              </div>
+                            )
+                          })()}
                           {streak > 0 && (
                             <div className="text-right shrink-0">
                               <p className="text-[18px] font-black text-amber-400 leading-none">{streak}</p>
@@ -633,10 +651,10 @@ export function FriendsPage() {
                     const sent = sentTo.has(u.uid)
                     return (
                       <div key={u.uid} className="flex items-center justify-between p-3 rounded-xl bg-panel border border-subtle">
-                        <div>
-                          <p className="text-[13px] font-semibold text-white">{u.displayName}</p>
+                        <button type="button" onClick={() => navigate(`/profile/${u.uid}`)} className="text-left">
+                          <p className="text-[13px] font-semibold text-white hover:text-blue-300 transition-colors">{u.displayName}</p>
                           <p className="text-[11px] text-gray-600">{u.fitnessLevel ?? u.email}</p>
-                        </div>
+                        </button>
                         {alreadyFriend ? (
                           <span className="text-[11px] font-bold text-green-400">In squad</span>
                         ) : sent ? (
@@ -828,16 +846,30 @@ export function FriendsPage() {
                 .map((m, i) => {
                   const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`
                   const isMe = m.name === (members[0]?.name)
+                  // Look up avg score for real friends
+                  const friendConn = myFriends.find(f => f.friendDisplayName === m.name)
+                  const friendProfile = friendConn ? friendProfiles[friendConn.friendId] : null
+                  const avgScore = friendProfile?.avgWorkoutScore
                   return (
                     <div key={m.name}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer"
                       style={isMe
                         ? { background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }
-                        : { background: 'rgba(255,255,255,0.02)', border: '1px solid #1a1a28' }
+                        : { background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }
                       }
+                      onClick={() => friendConn && navigate(`/profile/${friendConn.friendId}`)}
                     >
                       <span className="text-[16px] w-7 text-center shrink-0">{medal}</span>
                       <span className="flex-1 text-[13px] font-semibold text-white truncate">{m.name}{isMe && ' (you)'}</span>
+                      {avgScore != null && (() => {
+                        const g = scoreGrade(avgScore)
+                        return (
+                          <span className="text-[11px] font-black px-1.5 py-0.5 rounded shrink-0"
+                            style={{ background: `${g.color}20`, color: g.color, border: `1px solid ${g.color}40` }}>
+                            {avgScore} {g.grade}
+                          </span>
+                        )
+                      })()}
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-orange-400 text-[14px]">🔥</span>
                         <span className="font-black text-white text-[14px]">{m.streakDays}</span>
@@ -846,6 +878,52 @@ export function FriendsPage() {
                     </div>
                   )
                 })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Activity Feed ──────────────────────────────────────────── */}
+        {activityFeed.length > 0 && (
+          <div className="card-surface p-5 space-y-3">
+            <p className="text-[11px] font-bold tracking-[0.15em] uppercase text-gray-500">Recent Activity</p>
+            <div className="space-y-2">
+              {activityFeed.slice(0, 8).map(item => {
+                const isMe = item.userId === myUid
+                const ago = (() => {
+                  const diff = Date.now() - item.timestamp.getTime()
+                  const h = Math.floor(diff / 3600000)
+                  if (h < 1) return 'just now'
+                  if (h < 24) return `${h}h ago`
+                  return `${Math.floor(h / 24)}d ago`
+                })()
+                let text = ''
+                if (item.type === 'workout_completed') {
+                  const score = item.avgRiskScore != null ? ` · form risk ${item.avgRiskScore}` : ''
+                  text = `completed a workout${score}`
+                } else if (item.type === 'streak_milestone') {
+                  text = `hit a ${item.streak}-day streak`
+                } else {
+                  text = 'joined IntoYourPrime'
+                }
+                return (
+                  <div key={item.id}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                    style={isMe
+                      ? { background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)' }
+                      : { background: 'var(--panel)', border: '1px solid var(--border)' }
+                    }
+                  >
+                    <div className="w-8 h-8 rounded-full bg-blue-600/15 border border-blue-600/25 flex items-center justify-center text-[12px] font-black text-blue-400 shrink-0">
+                      {(item.displayName || '?')[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[13px] font-semibold text-white">{isMe ? 'You' : item.displayName}</span>
+                      <span className="text-[12px] text-gray-400"> {text}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-600 shrink-0">{ago}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

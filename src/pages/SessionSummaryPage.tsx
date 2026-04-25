@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useWorkoutStore, type SuggestionEntry, type WorkoutPhase } from '../stores/workoutStore'
-import { saveSession, updateStreak, postActivityItem } from '../lib/firebaseHelpers'
+import { saveSession, updateStreak, postActivityItem, updateWorkoutStats } from '../lib/firebaseHelpers'
+import { computeWorkoutScore, scoreGrade } from '../lib/workoutScore'
 import { auth } from '../lib/firebase'
 import { getOrSignInUserId } from '../lib/firestoreUser'
 import { getOrCreateLocalUserId } from '../lib/localUserId'
@@ -187,6 +188,13 @@ export function SessionSummaryPage() {
     const exercisesWithReps = Object.entries(snapshot.repCounts)
       .filter(([, n]) => n > 0)
       .sort((a, b) => b[1] - a[1])
+    const workoutScore = computeWorkoutScore({
+      avgRisk,
+      totalReps,
+      cooldownCompleted: snapshot.cooldownCompleted,
+      warmupScore: snapshot.warmupScore ?? 0,
+      durationMinutes: durationSec / 60,
+    })
     return {
       durationSec,
       totalReps,
@@ -196,6 +204,7 @@ export function SessionSummaryPage() {
       highRiskEvents,
       analysisSamples: rs.length,
       exercisesWithReps,
+      workoutScore,
     }
   }, [snapshot])
 
@@ -281,6 +290,7 @@ export function SessionSummaryPage() {
           cooldownExercises: snapshot.cooldownExercises,
           feelRating: null,
           totalRiskEvents: stats.highRiskEvents,
+          workoutScore: stats.workoutScore,
         })
 
         // Cache streak locally so FriendsPage can read it without Firebase
@@ -294,6 +304,7 @@ export function SessionSummaryPage() {
 
         await Promise.allSettled([
           updateStreak(userId),
+          updateWorkoutStats(userId, stats.workoutScore),
           postActivityItem({
             userId,
             displayName: (() => {
@@ -348,8 +359,9 @@ export function SessionSummaryPage() {
     )
   }
 
-  const { durationSec, totalReps, avgRisk, peakRisk, minRisk, highRiskEvents, analysisSamples, exercisesWithReps } =
+  const { durationSec, totalReps, avgRisk, peakRisk, minRisk, highRiskEvents, analysisSamples, exercisesWithReps, workoutScore } =
     stats
+  const grade = scoreGrade(workoutScore)
 
   return (
     <div className="min-h-screen bg-page text-white">
@@ -405,6 +417,30 @@ export function SessionSummaryPage() {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-5 px-6 py-8">
+        {/* Workout Score hero */}
+        <section
+          className="rounded-2xl p-6 flex items-center justify-between gap-6"
+          style={{
+            background: `linear-gradient(135deg, rgba(${grade.color === '#a78bfa' ? '167,139,250' : grade.color === '#22c55e' ? '34,197,94' : grade.color === '#3b82f6' ? '59,130,246' : grade.color === '#f59e0b' ? '245,158,11' : grade.color === '#f97316' ? '249,115,22' : '239,68,68'},0.12), transparent)`,
+            border: `1px solid ${grade.color}40`,
+          }}
+        >
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500 mb-1">Workout Score</p>
+            <div className="flex items-end gap-3">
+              <span className="font-black leading-none" style={{ fontSize: 56, color: grade.color }}>{workoutScore}</span>
+              <span className="text-gray-500 text-[14px] mb-2">/100</span>
+            </div>
+            <p className="text-[12px] font-semibold mt-1" style={{ color: grade.color }}>{grade.label}</p>
+          </div>
+          <div
+            className="w-20 h-20 rounded-2xl flex items-center justify-center shrink-0"
+            style={{ background: `${grade.color}18`, border: `2px solid ${grade.color}50` }}
+          >
+            <span className="font-black" style={{ fontSize: 40, color: grade.color }}>{grade.grade}</span>
+          </div>
+        </section>
+
         {/* Hero metrics */}
         <section className="grid gap-3 sm:grid-cols-3">
           <div className="card-surface p-5">

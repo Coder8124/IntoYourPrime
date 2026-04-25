@@ -119,6 +119,8 @@ function userProfileFromDoc(snap: DocumentSnapshot): UserProfile | null {
       d.lastWorkoutDate === null || d.lastWorkoutDate === undefined
         ? null
         : String(d.lastWorkoutDate),
+    avgWorkoutScore: typeof d.avgWorkoutScore === 'number' ? d.avgWorkoutScore : undefined,
+    totalSessions:   typeof d.totalSessions   === 'number' ? d.totalSessions   : undefined,
   }
 }
 
@@ -374,6 +376,26 @@ export async function upsertUserDisplayName(
     )
   } catch (e) {
     wrapError('upsertUserDisplayName', e)
+  }
+}
+
+export async function updateWorkoutStats(uid: string, newScore: number): Promise<void> {
+  try {
+    const id = await effectiveUserId(uid)
+    assertSignedUid(id, 'updateWorkoutStats')
+    const userRef = doc(db, 'users', id)
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(userRef)
+      if (!snap.exists()) return
+      const d = snap.data() as Record<string, unknown>
+      const total    = Number(d.totalSessions   ?? 0)
+      const avgScore = Number(d.avgWorkoutScore ?? 0)
+      const newTotal = total + 1
+      const newAvg   = Math.round(((avgScore * total) + newScore) / newTotal)
+      tx.update(userRef, { totalSessions: newTotal, avgWorkoutScore: newAvg })
+    })
+  } catch (e) {
+    wrapError('updateWorkoutStats', e)
   }
 }
 

@@ -23,6 +23,7 @@ const ExerciseLibraryPage = lazy(() => import('./pages/ExerciseLibraryPage').the
 const ProgramsPage       = lazy(() => import('./pages/ProgramsPage').then(m => ({ default: m.ProgramsPage })))
 const CustomProgramPage  = lazy(() => import('./pages/CustomProgramPage').then(m => ({ default: m.CustomProgramPage })))
 const AIWorkoutPage      = lazy(() => import('./pages/AIWorkoutPage').then(m => ({ default: m.AIWorkoutPage })))
+const PublicProfilePage  = lazy(() => import('./pages/PublicProfilePage').then(m => ({ default: m.PublicProfilePage })))
 
 function PageLoader() {
   return (
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="/programs"          element={<ProgramsPage />} />
             <Route path="/programs/builder"  element={<CustomProgramPage />} />
             <Route path="/programs/generate" element={<AIWorkoutPage />} />
+            <Route path="/profile/:uid"      element={<PublicProfilePage />} />
           </Routes>
         </RouteFade>
       </Suspense>
