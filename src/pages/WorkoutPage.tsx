@@ -1622,7 +1622,7 @@ export function WorkoutPage() {
               <span className="text-white font-black text-[11px]" style={{ letterSpacing: -0.5 }}>IYP</span>
             </div>
             <span className="font-black text-white text-[14px] tracking-tight">IntoYourPrime</span>
-            <div className="w-px h-4 bg-[#1e1e2e]" />
+            <div className="w-px h-4 bg-panel-2" />
             <span
               className="text-[11px] font-bold tracking-[0.13em] uppercase"
               style={{ color: '#3b82f6' }}
@@ -1735,7 +1735,7 @@ export function WorkoutPage() {
               <button
                 onClick={() => { setShowExPicker(v => !v); setExSearch(''); }}
                 className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-left transition-colors"
-                style={{ background: '#1a1a2e', border: '1px solid #2a2a42' }}
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}
               >
                 <span className="text-[14px] font-bold text-white">
                   {EXERCISE_LABELS[currentExercise as typeof EXERCISES[number]] ?? currentExercise}
@@ -1760,7 +1760,7 @@ export function WorkoutPage() {
                     value={exSearch}
                     onChange={e => setExSearch(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg text-[13px] text-white placeholder-gray-600 outline-none"
-                    style={{ background: 'var(--surface)', border: '1px solid #2a2a42' }}
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border-2)' }}
                   />
 
                   {/* Category tabs */}
@@ -1923,7 +1923,7 @@ export function WorkoutPage() {
                   {(currentExercise === 'bicepcurl' || currentExercise === 'hammercurl') && (
                     <div className="mt-3 flex items-center gap-4">
                       {(['left', 'right'] as const).map(side => (
-                        <div key={side} className="flex flex-col items-center" style={{ background: '#13131f', borderRadius: 8, padding: '6px 14px', border: '1px solid var(--border)' }}>
+                        <div key={side} className="flex flex-col items-center" style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '6px 14px', border: '1px solid var(--border)' }}>
                           <span className="text-[9px] font-bold tracking-widest uppercase text-gray-600 mb-0.5">{side}</span>
                           <span className="text-[22px] font-black leading-none text-white">{String(armReps[side]).padStart(2, '0')}</span>
                         </div>

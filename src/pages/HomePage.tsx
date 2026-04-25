@@ -493,7 +493,7 @@ export function HomePage() {
               const trendColor = trendGood === true ? '#22c55e' : trendGood === false ? '#ef4444' : '#6b7280'
               return (
                 <div key={label} className="rounded-2xl p-4"
-                  style={{ background: '#0e0e18', border: '1px solid var(--border)' }}>
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 mb-1">{label}</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-[30px] font-black text-white leading-none">
@@ -514,8 +514,8 @@ export function HomePage() {
           </div>
 
           {/* Today's plan */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: '#0e0e18', border: '1px solid var(--border)' }}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a1a2a]">
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-subtle">
               <div>
                 <h2 className="text-[13px] font-black text-white">
                   {activeProgram ? "Today's Plan" : "Quick Start"}
@@ -539,7 +539,7 @@ export function HomePage() {
                   const isNext = i === 0
                   return (
                     <li key={ex + i}
-                      className="flex items-center gap-4 px-5 py-3.5 border-b border-[#161625] last:border-0">
+                      className="flex items-center gap-4 px-5 py-3.5 border-b border-subtle last:border-0">
                       <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-black"
                         style={{
                           background: done ? '#22c55e' : isNext ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)',
@@ -598,7 +598,7 @@ export function HomePage() {
         <div className="space-y-4">
 
           {/* Readiness */}
-          <div className="rounded-2xl p-5" style={{ background: '#0e0e18', border: '1px solid var(--border)' }}>
+          <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-4">Readiness</p>
             <div className="flex justify-center mb-3">
               {readiness != null
@@ -629,7 +629,7 @@ export function HomePage() {
           </div>
 
           {/* Streak */}
-          <div className="rounded-2xl p-5" style={{ background: '#0e0e18', border: '1px solid var(--border)' }}>
+          <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between mb-4">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Streak</p>
               <Flame className="w-4 h-4 text-amber-400" />
@@ -642,8 +642,8 @@ export function HomePage() {
           </div>
 
           {/* Squad */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: '#0e0e18', border: '1px solid var(--border)' }}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a1a2a]">
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-subtle">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Squad This Week</p>
               <Link to="/friends" className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold transition-colors">
                 {squadBoard.length} active →
@@ -658,7 +658,7 @@ export function HomePage() {
               <ul>
                 {squadBoard.map((member, i) => (
                   <li key={i}
-                    className="flex items-center gap-3 px-5 py-3 border-b border-[#161625] last:border-0"
+                    className="flex items-center gap-3 px-5 py-3 border-b border-subtle last:border-0"
                     style={member.isMe ? { background: 'rgba(59,130,246,0.06)' } : {}}>
                     <span className="text-[12px] font-black text-gray-600 w-4 shrink-0">
                       {String(i + 1).padStart(2, '0')}
