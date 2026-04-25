@@ -174,17 +174,21 @@ export function AuthPage() {
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg)', overflow: 'hidden' }}>
-      <Suspense fallback={<SceneLoading />}>
-        <GymScene
-          cameraTarget={cameraTarget}
-          onVendingDispensed={(drink) => {
-            setPickedDrink(drink)
-            setVending('dispensed')
-          }}
-          onBenchClicked={() => setBench({ reps: 0, hits: 0, done: false })}
-          onDoorClicked={() => setDoorOpening(true)}
-        />
-      </Suspense>
+      {/* Unmount the heavy 3D scene while the basketball room is open so the
+          minigame has the GPU to itself — kills the lag from running both at once. */}
+      {!courtOpen && (
+        <Suspense fallback={<SceneLoading />}>
+          <GymScene
+            cameraTarget={cameraTarget}
+            onVendingDispensed={(drink) => {
+              setPickedDrink(drink)
+              setVending('dispensed')
+            }}
+            onBenchClicked={() => setBench({ reps: 0, hits: 0, done: false })}
+            onDoorClicked={() => setDoorOpening(true)}
+          />
+        </Suspense>
+      )}
 
       {/* Brand (top-left) */}
       <div
