@@ -708,9 +708,10 @@ export function HomePage() {
 
           {/* Footer links */}
           <div className="flex justify-center gap-4 pt-2">
-            <Link to="/profile" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Profile</Link>
+            <Link to="/profile"  className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Profile</Link>
             <Link to="/progress" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Progress</Link>
-            <Link to="/friends" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Squad</Link>
+            <Link to="/friends"  className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Squad</Link>
+            <Link to="/recovery-log" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Recovery</Link>
           </div>
         </div>
       </div>

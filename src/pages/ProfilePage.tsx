@@ -1,7 +1,6 @@
 import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav'
-import { useTheme } from '../contexts/ThemeContext'
 import { hasApiKey } from '../lib/formAnalysis'
 import { signOutUser } from '../lib/firestoreUser'
 import { upsertFullUserProfile, getUserProfile } from '../lib/firebaseHelpers'
@@ -39,7 +38,6 @@ function loadProfile(): ProfileForm {
 
 export function ProfilePage() {
   const navigate = useNavigate()
-  const { theme, toggleTheme } = useTheme()
   const [form,    setForm]    = useState<ProfileForm>(loadProfile)
   const [saved,   setSaved]   = useState(false)
 
@@ -311,25 +309,6 @@ export function ProfilePage() {
             Your key is stored only in this browser (localStorage) and sent directly to OpenAI.
             It is never stored on any server.
           </p>
-        </div>
-
-        {/* Theme toggle */}
-        <div className="card-surface p-5 flex items-center justify-between">
-          <div>
-            <p className="text-[13px] font-semibold text-white">Appearance</p>
-            <p className="text-[11px] text-gray-500 mt-0.5">{theme === 'dark' ? 'Dark mode' : 'Light mode'}</p>
-          </div>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="relative w-12 h-6 rounded-full transition-colors"
-            style={{ background: theme === 'light' ? '#4b6ef5' : '#374151' }}
-          >
-            <span
-              className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform shadow-sm"
-              style={{ transform: theme === 'light' ? 'translateX(26px)' : 'translateX(2px)' }}
-            />
-          </button>
         </div>
 
         {/* Sign out */}

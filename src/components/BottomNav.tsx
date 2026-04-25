@@ -28,9 +28,9 @@ export function BottomNav() {
           <Link
             key={tab.to}
             to={tab.to}
-            className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all"
             style={active
-              ? { color: '#60a5fa' }
+              ? { color: '#60a5fa', background: 'rgba(96,165,250,0.1)' }
               : { color: '#4b5563' }
             }
           >
