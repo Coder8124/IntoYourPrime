@@ -314,18 +314,39 @@ export function ProfilePage() {
         </div>
 
         {/* Theme toggle */}
-        <div className="card-surface p-5 flex items-center justify-between">
-          <div>
-            <p className="text-[13px] font-semibold text-base">Appearance</p>
-            <p className="text-[11px] text-dim mt-0.5">{theme === 'dark' ? 'Dark mode' : 'Light mode'}</p>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="card-surface p-5 flex items-center justify-between w-full text-left hover:opacity-90 transition-opacity"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-[22px]">{theme === 'dark' ? '🌙' : '☀️'}</span>
+            <div>
+              <p className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>Appearance</p>
+              <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-3)' }}>
+                {theme === 'dark' ? 'Dark mode — tap to switch to light' : 'Light mode — tap to switch to dark'}
+              </p>
+            </div>
           </div>
-          <button type="button" onClick={toggleTheme}
-            className="relative w-12 h-6 rounded-full transition-colors"
-            style={{ background: theme === 'light' ? '#4b6ef5' : '#374151' }}>
-            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform shadow-sm"
-              style={{ transform: theme === 'light' ? 'translateX(26px)' : 'translateX(2px)' }} />
-          </button>
-        </div>
+          {/* Toggle pill */}
+          <div
+            className="relative shrink-0 w-12 h-6 rounded-full transition-colors duration-200"
+            style={{
+              background: theme === 'light' ? 'var(--accent)' : 'var(--border-2)',
+              border: '2px solid',
+              borderColor: theme === 'light' ? 'var(--accent)' : 'var(--border-2)',
+            }}
+          >
+            <span
+              className="absolute top-0.5 w-4 h-4 rounded-full transition-transform duration-200"
+              style={{
+                background: '#ffffff',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
+                transform: theme === 'light' ? 'translateX(24px)' : 'translateX(2px)',
+              }}
+            />
+          </div>
+        </button>
 
         {/* Sign out */}
         <div className="mt-8 border-t border-subtle pt-6">
