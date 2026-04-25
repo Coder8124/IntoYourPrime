@@ -499,25 +499,25 @@ function BenchMinigameHUD({
   return (
     <div
       style={{
-        position: 'absolute',
+        position: 'fixed',
         left: '50%',
-        bottom: 32,
+        bottom: 22,
         transform: 'translateX(-50%)',
         zIndex: 20,
-        width: 'min(560px, 92vw)',
-        padding: 22,
-        background: 'color-mix(in oklab, var(--surface) 92%, transparent)',
+        width: 'min(380px, 90vw)',
+        padding: 14,
+        background: 'color-mix(in oklab, var(--surface) 94%, transparent)',
         border: '1px solid var(--border-2)',
-        borderRadius: 'var(--radius-lg)',
+        borderRadius: 14,
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        boxShadow: '0 32px 80px -20px rgba(0,0,0,0.8), 0 0 0 1px rgba(34,211,238,0.12)',
+        boxShadow: '0 24px 60px -20px rgba(0,0,0,0.8), 0 0 0 1px rgba(34,211,238,0.10)',
       }}
       className="animate-fade-up"
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <span className="badge" style={{ color: '#22d3ee' }}>Press a set</span>
-        <span className="mono" style={{ fontSize: 11, letterSpacing: '0.22em', color: 'var(--text-3)', textTransform: 'uppercase' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+        <span className="badge" style={{ color: '#22d3ee', fontSize: 9, padding: '3px 8px' }}>Press</span>
+        <span className="mono" style={{ fontSize: 10, letterSpacing: '0.22em', color: 'var(--text-3)', textTransform: 'uppercase' }}>
           rep <span className="tnum" style={{ color: 'var(--text)' }}>{state.reps}</span> / {BENCH_TARGET_REPS}
         </span>
         <button
@@ -525,13 +525,15 @@ function BenchMinigameHUD({
           onClick={onClose}
           aria-label="Close"
           style={{
-            width: 26, height: 26,
+            width: 22, height: 22,
             borderRadius: 999,
             border: '1px solid var(--border-2)',
             background: 'transparent',
             color: 'var(--text-3)',
             cursor: 'pointer',
-            fontSize: 13,
+            fontSize: 12,
+            lineHeight: 1,
+            padding: 0,
           }}
         >
           ×
@@ -558,21 +560,22 @@ function BenchMinigameHUD({
       <div
         className="mono"
         style={{
-          marginTop: 10,
-          fontSize: 10.5,
-          letterSpacing: '0.2em',
+          marginTop: 6,
+          fontSize: 9.5,
+          letterSpacing: '0.18em',
           color: 'var(--text-3)',
           textTransform: 'uppercase',
           display: 'flex',
           justifyContent: 'space-between',
+          gap: 8,
         }}
       >
-        <span>{holding ? '· hold …' : 'hold space / click to lift'}</span>
-        <span>release in the <span style={{ color: '#22d3ee' }}>green</span></span>
+        <span>{holding ? '· hold …' : 'hold to lift'}</span>
+        <span>release <span style={{ color: '#22d3ee' }}>green</span></span>
       </div>
 
       {/* Rep dots + result */}
-      <div style={{ marginTop: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={{ marginTop: 8, display: 'flex', gap: 5, alignItems: 'center' }}>
         {Array.from({ length: BENCH_TARGET_REPS }).map((_, i) => {
           const done = i < state.reps
           const isHit = done && i < state.hits
@@ -580,13 +583,13 @@ function BenchMinigameHUD({
             <div
               key={i}
               style={{
-                width: 16, height: 16,
-                borderRadius: 4,
+                width: 10, height: 10,
+                borderRadius: 3,
                 background: done
                   ? (isHit ? '#22d3ee' : 'rgba(239,68,68,0.8)')
                   : 'rgba(255,255,255,0.06)',
                 border: '1px solid ' + (done ? 'transparent' : 'var(--border)'),
-                boxShadow: done && isHit ? '0 0 10px rgba(34,211,238,0.6)' : 'none',
+                boxShadow: done && isHit ? '0 0 8px rgba(34,211,238,0.6)' : 'none',
               }}
             />
           )
@@ -595,11 +598,11 @@ function BenchMinigameHUD({
           <span
             className="display"
             style={{
-              marginLeft: 10,
-              fontSize: 16,
+              marginLeft: 8,
+              fontSize: 13,
               letterSpacing: '-0.01em',
               color: lastRep === 'hit' ? '#22d3ee' : '#ef4444',
-              textShadow: '0 0 12px currentColor',
+              textShadow: '0 0 10px currentColor',
             }}
           >
             {lastRep === 'hit' ? 'CLEAN' : 'GRIND'}
