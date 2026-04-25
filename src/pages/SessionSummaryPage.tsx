@@ -152,6 +152,13 @@ function RiskSparkline({ scores }: { scores: number[] }) {
 }
 
 export function SessionSummaryPage() {
+  // Check if user is logged in — check localStorage as Firebase auth may be slow to init
+  const isLoggedIn = !!auth.currentUser || (() => {
+    try {
+      return Object.keys(localStorage).some(k => k.startsWith('firebase:authUser:'))
+    } catch { return false }
+  })()
+
   const [snapshot] = useState<SessionSnapshot | null>(() => {
     const live = buildSnapshot()
     if (live) {
@@ -346,7 +353,7 @@ export function SessionSummaryPage() {
 
   return (
     <div className="min-h-screen bg-page text-white">
-      <header className="border-b border-[#1e1e2e] bg-[#0d0d18] px-6 py-5">
+      <header className="border-b border-subtle bg-panel px-6 py-5">
         <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400">Session complete</p>
@@ -364,14 +371,14 @@ export function SessionSummaryPage() {
               <span className="text-[11px] text-green-500">✓ Saved</span>
             )}
             {saveStatus === 'error' && (
-              auth.currentUser
+              isLoggedIn
                 ? <span className="text-[11px] text-red-400">Could not save — check connection</span>
                 : <Link to="/auth" className="text-[11px] text-amber-400 hover:text-amber-300 underline underline-offset-2">Sign in to save sessions →</Link>
             )}
             <button
               type="button"
               onClick={handleShare}
-              className="rounded-xl border border-[#2e2e3e] px-4 py-2.5 text-[13px] font-semibold text-gray-400 transition hover:border-gray-500 hover:text-gray-200 flex items-center gap-2"
+              className="rounded-xl border border-strong px-4 py-2.5 text-[13px] font-semibold text-gray-400 transition hover:border-gray-500 hover:text-gray-200 flex items-center gap-2"
             >
               {shareStatus === 'copied' ? '✓ Copied!' : '↗ Share'}
             </button>
@@ -383,13 +390,13 @@ export function SessionSummaryPage() {
             </Link>
             <Link
               to="/home"
-              className="rounded-xl border border-[#2e2e3e] px-4 py-2.5 text-[13px] font-semibold text-gray-400 transition hover:border-gray-500 hover:text-gray-200"
+              className="rounded-xl border border-strong px-4 py-2.5 text-[13px] font-semibold text-gray-400 transition hover:border-gray-500 hover:text-gray-200"
             >
               Home
             </Link>
             <Link
               to={`/recovery-log?returnTo=${encodeURIComponent('/session-summary')}`}
-              className="rounded-xl border border-[#2e2e3e] px-4 py-2.5 text-[13px] font-semibold text-gray-400 transition hover:border-gray-500 hover:text-gray-200"
+              className="rounded-xl border border-strong px-4 py-2.5 text-[13px] font-semibold text-gray-400 transition hover:border-gray-500 hover:text-gray-200"
             >
               Recovery log
             </Link>
@@ -472,7 +479,7 @@ export function SessionSummaryPage() {
                   {analysisSamples ? Math.round(minRisk) : '—'}
                 </span>
               </div>
-              <div className="flex items-baseline justify-between gap-4 border-t border-[#1e1e2e] pt-3">
+              <div className="flex items-baseline justify-between gap-4 border-t border-subtle pt-3">
                 <span className="text-[12px] text-gray-500">Samples over 60 (elevated)</span>
                 <span className="font-mono text-lg font-black text-amber-400">{highRiskEvents}</span>
               </div>
@@ -494,7 +501,7 @@ export function SessionSummaryPage() {
               {exercisesWithReps.map(([name, count]) => (
                 <li
                   key={name}
-                  className="flex items-center justify-between rounded-lg border border-[#1e1e2e] bg-[#0f0f1a] px-3 py-2.5"
+                  className="flex items-center justify-between rounded-lg border border-subtle bg-panel px-3 py-2.5"
                 >
                   <span className="text-[13px] font-semibold capitalize text-white">{name}</span>
                   <span className="font-mono text-lg font-black text-blue-400">{count}</span>
@@ -551,7 +558,7 @@ export function SessionSummaryPage() {
                 )
               })}
             </ul>
-            <p className="mt-4 text-[11px] text-gray-600 border-t border-[#1e1e2e] pt-3">
+            <p className="mt-4 text-[11px] text-gray-600 border-t border-subtle pt-3">
               Based on your avg form risk score of {Math.round(avgRisk)} this session.
             </p>
           </section>
@@ -588,7 +595,7 @@ export function SessionSummaryPage() {
               {snapshot.suggestions.map((entry, i) => (
                 <li
                   key={`${entry.timestamp}-${i}`}
-                  className="rounded-lg border border-[#1e1e2e] bg-[#0f0f1a] px-3 py-2.5"
+                  className="rounded-lg border border-subtle bg-panel px-3 py-2.5"
                 >
                   <p className="font-mono text-[10px] text-gray-600">
                     {new Date(entry.timestamp).toLocaleTimeString([], {

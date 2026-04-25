@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useWorkoutStore } from '../stores/workoutStore'
+import { BottomNav } from '../components/BottomNav'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ export function CooldownPage() {
   // ── All done screen ────────────────────────────────────────────────────
   if (allDone) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center gap-6 text-white px-6">
+      <div className="min-h-screen bg-page flex flex-col items-center justify-center gap-6 text-white px-6">
         <div className="text-6xl">✅</div>
         <h1 className="text-3xl font-black tracking-tight">Cooldown Complete</h1>
         <p className="text-gray-400 text-[14px] text-center max-w-xs">
@@ -91,6 +92,7 @@ export function CooldownPage() {
         >
           Skip to Home
         </button>
+        <BottomNav />
       </div>
     )
   }
@@ -102,7 +104,7 @@ export function CooldownPage() {
     : 0
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center px-4 pt-10 pb-8 text-white">
+    <div className="min-h-screen bg-page flex flex-col items-center px-4 pt-10 pb-8 text-white">
 
       {/* Header */}
       <div className="w-full max-w-lg mb-8">
@@ -127,7 +129,7 @@ export function CooldownPage() {
                   ? '#22c55e'
                   : i === currentIdx
                   ? '#3b82f6'
-                  : '#1e1e2e',
+                  : 'var(--border)',
               }}
             />
           ))}
@@ -203,7 +205,7 @@ export function CooldownPage() {
             </button>
             <button
               onClick={handleSkip}
-              className="px-5 py-3 rounded-xl font-semibold text-[13px] text-gray-500 border border-[#1e1e2e] hover:text-gray-300 hover:border-[#2e2e3e] transition-all"
+              className="px-5 py-3 rounded-xl font-semibold text-[13px] text-gray-500 border border-subtle hover:text-gray-300 hover:border-strong transition-all"
             >
               Skip →
             </button>
@@ -219,7 +221,7 @@ export function CooldownPage() {
           >
             <div
               className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center text-[11px] font-black text-gray-500"
-              style={{ background: '#0f0f1a', border: '1px solid #1e1e2e' }}
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
             >
               {fmt(ex.durationSeconds)}
             </div>
@@ -238,6 +240,7 @@ export function CooldownPage() {
       >
         Finish early → Log Recovery
       </button>
+      <BottomNav />
     </div>
   )
 }

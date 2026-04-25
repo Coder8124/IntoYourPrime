@@ -424,7 +424,7 @@ export function FriendsPage() {
     <div className="min-h-screen bg-page text-white pb-24">
 
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-[color:rgba(var(--bg-rgb),0.9)] backdrop-blur border-b border-[#1e1e2e] px-5 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-10 bg-[color:rgba(var(--bg-rgb),0.9)] backdrop-blur border-b border-subtle px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link to="/home" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Home</Link>
           <div className="w-px h-4 bg-[#1e1e2e]" />
@@ -451,7 +451,7 @@ export function FriendsPage() {
 
           {/* Tab nav */}
           {myUid && (
-            <div className="flex gap-1 p-1 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+            <div className="flex gap-1 p-1 rounded-xl bg-panel border border-subtle">
               {(['friends', 'requests', 'find'] as const).map(tab => (
                 <button
                   key={tab}
@@ -498,7 +498,7 @@ export function FriendsPage() {
                     const streak = profile?.streakCount ?? f.sharedStreak
                     const level = profile?.fitnessLevel
                     return (
-                      <div key={f.id} className="p-4 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e] space-y-3">
+                      <div key={f.id} className="p-4 rounded-xl bg-panel border border-subtle space-y-3">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-blue-600/20 border border-blue-600/30 flex items-center justify-center text-[15px] font-black text-blue-400 shrink-0">
                             {initial}
@@ -551,7 +551,7 @@ export function FriendsPage() {
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-400">Incoming</p>
                   {pendingRequests.map(req => (
-                    <div key={req.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#0f0f1a] border border-amber-900/30">
+                    <div key={req.id} className="flex items-center gap-3 p-3 rounded-xl bg-panel border border-amber-900/30">
                       <div className="w-8 h-8 rounded-full bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-[13px] font-black text-amber-400 shrink-0">
                         {(req.friendDisplayName || '?')[0].toUpperCase()}
                       </div>
@@ -589,7 +589,7 @@ export function FriendsPage() {
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500">Sent</p>
                   {outgoingRequests.map(req => (
-                    <div key={req.id} className="flex items-center gap-3 p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+                    <div key={req.id} className="flex items-center gap-3 p-3 rounded-xl bg-panel border border-subtle">
                       <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[13px] font-black text-gray-500 shrink-0">
                         {(req.friendDisplayName || '?')[0].toUpperCase()}
                       </div>
@@ -632,7 +632,7 @@ export function FriendsPage() {
                     const alreadyFriend = myFriends.some(f => f.friendId === u.uid)
                     const sent = sentTo.has(u.uid)
                     return (
-                      <div key={u.uid} className="flex items-center justify-between p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+                      <div key={u.uid} className="flex items-center justify-between p-3 rounded-xl bg-panel border border-subtle">
                         <div>
                           <p className="text-[13px] font-semibold text-white">{u.displayName}</p>
                           <p className="text-[11px] text-gray-600">{u.fitnessLevel ?? u.email}</p>
@@ -670,7 +670,7 @@ export function FriendsPage() {
                   <div className="space-y-2">
                     <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-600">People you may know</p>
                     {browseable.map(u => (
-                      <div key={u.uid} className="flex items-center justify-between p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+                      <div key={u.uid} className="flex items-center justify-between p-3 rounded-xl bg-panel border border-subtle">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[13px] font-black text-gray-400">
                             {(u.displayName || u.email || '?')[0].toUpperCase()}
@@ -728,7 +728,7 @@ export function FriendsPage() {
 
           <div className="space-y-2">
             {members.map((m, i) => (
-              <div key={i} className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 items-center p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e]">
+              <div key={i} className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 items-center p-3 rounded-xl bg-panel border border-subtle">
                 <input
                   value={m.name}
                   onChange={e => updateMember(i, { name: e.target.value })}
@@ -795,7 +795,7 @@ export function FriendsPage() {
           <div className="flex gap-3">
             {isAdmin && (
               <button type="button" onClick={addMember}
-                className="px-4 py-2 rounded-xl border border-[#2e2e3e] text-gray-500 text-[12px] font-semibold hover:border-gray-600 hover:text-gray-300 transition-colors">
+                className="px-4 py-2 rounded-xl border border-strong text-gray-500 text-[12px] font-semibold hover:border-gray-600 hover:text-gray-300 transition-colors">
                 + Add Member
               </button>
             )}
@@ -955,7 +955,7 @@ export function FriendsPage() {
               <div className="card-surface p-5 space-y-3">
                 <p className="text-[11px] font-bold tracking-[0.15em] uppercase text-gray-500">Mutual Optimization Pacts</p>
                 {briefing.duoLinks.map((duo, i) => (
-                  <div key={i} className="p-3 rounded-xl bg-[#0f0f1a] border border-[#1e1e2e] space-y-1">
+                  <div key={i} className="p-3 rounded-xl bg-panel border border-subtle space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-white text-[13px]">{duo.memberA} × {duo.memberB}</span>
                       <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded"

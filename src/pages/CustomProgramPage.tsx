@@ -58,7 +58,7 @@ export function CustomProgramPage() {
 
   return (
     <div className="min-h-screen bg-page text-white pb-24">
-      <header className="sticky top-0 z-10 bg-[#0d0d18]/90 backdrop-blur border-b border-[#1e1e2e] px-5 py-4">
+      <header className="sticky top-0 z-10 bg-panel/90 backdrop-blur border-b border-subtle px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/programs" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Programs</Link>
@@ -80,7 +80,7 @@ export function CustomProgramPage() {
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-5">
 
         {/* Basic info */}
-        <div className="rounded-2xl bg-[#0d0d18] border border-[#1e1e2e] p-5 space-y-4">
+        <div className="rounded-2xl bg-panel border border-subtle p-5 space-y-4">
           <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Program Info</p>
           <div>
             <label className="block text-[11px] text-gray-500 mb-1.5 font-semibold uppercase tracking-wider">Name</label>
@@ -141,7 +141,7 @@ export function CustomProgramPage() {
 
         {/* Exercise order */}
         {selectedExercises.length > 0 && (
-          <div className="rounded-2xl bg-[#0d0d18] border border-[#1e1e2e] p-5 space-y-3">
+          <div className="rounded-2xl bg-panel border border-subtle p-5 space-y-3">
             <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Exercise Order ({selectedExercises.length})</p>
             <div className="space-y-2">
               {selectedExercises.map((id, i) => {
@@ -166,7 +166,7 @@ export function CustomProgramPage() {
         )}
 
         {/* Exercise picker */}
-        <div className="rounded-2xl bg-[#0d0d18] border border-[#1e1e2e] p-5 space-y-3">
+        <div className="rounded-2xl bg-panel border border-subtle p-5 space-y-3">
           <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Add Exercises</p>
           <input
             value={search}

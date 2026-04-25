@@ -1772,7 +1772,7 @@ export function WorkoutPage() {
                         className="px-3 py-1 rounded-full text-[11px] font-semibold transition-colors"
                         style={exCategory === cat
                           ? { background: '#3b82f6', color: '#fff' }
-                          : { background: '#1e1e2e', color: '#9ca3af' }
+                          : { background: 'var(--surface-2)', color: 'var(--text-3)' }
                         }
                       >
                         {cat}
@@ -1797,7 +1797,7 @@ export function WorkoutPage() {
                           className="flex-1 px-2.5 py-2 text-left text-[12px] font-semibold transition-colors truncate"
                           style={currentExercise === ex
                             ? { background: '#1d4ed8', color: '#fff' }
-                            : { background: '#111119', color: '#d1d5db' }
+                            : { background: 'var(--surface)', color: 'var(--text-2)' }
                           }
                         >
                           {EXERCISE_LABELS[ex]}

@@ -66,7 +66,7 @@ function startAsGuest(navigate: ReturnType<typeof useNavigate>) {
 export function LandingPage() {
   const navigate = useNavigate()
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
+    <div className="min-h-screen bg-page text-white overflow-x-hidden">
       <style>{`
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(24px); }
@@ -84,7 +84,7 @@ export function LandingPage() {
       `}</style>
 
       {/* Nav */}
-      <nav className="sticky top-0 z-20 bg-[#0a0a0f]/80 backdrop-blur border-b border-[#1e1e2e] px-6 py-4 flex items-center justify-between">
+      <nav className="sticky top-0 z-20 bg-page/80 backdrop-blur border-b border-subtle px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="font-black text-[17px] tracking-tight text-white">IntoYour<span className="text-blue-400">Prime</span></span>
         </div>
@@ -146,7 +146,7 @@ export function LandingPage() {
             <button
               type="button"
               onClick={() => startAsGuest(navigate)}
-              className="px-8 py-4 rounded-2xl border border-[#2e2e3e] text-[15px] font-semibold text-gray-400 hover:text-white hover:border-gray-500 transition-colors w-full sm:w-auto text-center"
+              className="px-8 py-4 rounded-2xl border border-strong text-[15px] font-semibold text-gray-400 hover:text-white hover:border-gray-500 transition-colors w-full sm:w-auto text-center"
             >
               Try without signing up
             </button>
@@ -156,7 +156,7 @@ export function LandingPage() {
       </section>
 
       {/* Stats bar */}
-      <div className="border-y border-[#1e1e2e] bg-[#0d0d18] py-8 px-6">
+      <div className="border-y border-subtle bg-panel py-8 px-6">
         <div className="max-w-3xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
           {STATS.map(s => (
             <div key={s.label}>
@@ -177,7 +177,7 @@ export function LandingPage() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {FEATURES.map(f => (
-              <div key={f.title} className="p-5 rounded-2xl bg-[#0d0d18] border border-[#1e1e2e] hover:border-[#2e2e3e] transition-colors space-y-3">
+              <div key={f.title} className="p-5 rounded-2xl bg-panel border border-subtle hover:border-strong transition-colors space-y-3">
                 <span className="text-[28px]">{f.icon}</span>
                 <h3 className="font-black text-[15px] text-white">{f.title}</h3>
                 <p className="text-[13px] text-gray-500 leading-relaxed">{f.desc}</p>
@@ -188,13 +188,13 @@ export function LandingPage() {
       </section>
 
       {/* How it works */}
-      <section id="how-it-works" className="px-6 py-20 bg-[#0d0d18] border-y border-[#1e1e2e]">
+      <section id="how-it-works" className="px-6 py-20 bg-panel border-y border-subtle">
         <div className="max-w-3xl mx-auto">
           <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-blue-400 text-center mb-3">How it works</p>
           <h2 className="text-[32px] font-black tracking-tight text-center mb-12">Up and running in 2 minutes.</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {STEPS.map(s => (
-              <div key={s.num} className="flex gap-4 p-5 rounded-2xl border border-[#1e1e2e]">
+              <div key={s.num} className="flex gap-4 p-5 rounded-2xl border border-subtle">
                 <span className="font-black text-[28px] text-blue-600/40 leading-none shrink-0">{s.num}</span>
                 <div>
                   <h3 className="font-black text-[14px] text-white mb-1">{s.title}</h3>
@@ -212,7 +212,7 @@ export function LandingPage() {
           <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-gray-600 mb-6">Built with</p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             {['GPT-4o Vision', 'MediaPipe Pose', 'React 19', 'TypeScript', 'Firebase', 'Tailwind CSS', 'Web Speech API'].map(t => (
-              <span key={t} className="px-3 py-1.5 rounded-full border border-[#1e1e2e] text-[12px] font-semibold text-gray-500">
+              <span key={t} className="px-3 py-1.5 rounded-full border border-subtle text-[12px] font-semibold text-gray-500">
                 {t}
               </span>
             ))}
@@ -243,7 +243,7 @@ export function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-[#1e1e2e] px-6 py-6 text-center">
+      <footer className="border-t border-subtle px-6 py-6 text-center">
         <p className="text-[12px] text-gray-700">
           IntoYourPrime · AI-powered fitness coaching
         </p>

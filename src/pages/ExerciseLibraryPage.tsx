@@ -15,7 +15,7 @@ function ExerciseCard({ ex, onSelect }: { ex: ExerciseInfo; onSelect: (id: strin
 
   return (
     <div
-      className="rounded-2xl border border-[#1e1e2e] bg-[#0d0d18] overflow-hidden transition-all"
+      className="rounded-2xl border border-subtle bg-panel overflow-hidden transition-all"
       style={{ borderColor: open ? 'rgba(59,130,246,0.35)' : undefined }}
     >
       {/* Header row */}
@@ -50,7 +50,7 @@ function ExerciseCard({ ex, onSelect }: { ex: ExerciseInfo; onSelect: (id: strin
 
       {/* Expanded detail */}
       {open && (
-        <div className="px-5 pb-5 space-y-4 border-t border-[#1e1e2e]">
+        <div className="px-5 pb-5 space-y-4 border-t border-subtle">
           <p className="text-[13px] text-gray-400 leading-relaxed pt-4">{ex.description}</p>
 
           <div>
@@ -104,16 +104,16 @@ export function ExerciseLibraryPage() {
 
   return (
     <div className="min-h-screen bg-page text-white pb-24">
-      <header className="sticky top-0 z-10 bg-[color:rgba(var(--bg-rgb),0.9)] backdrop-blur border-b border-[#1e1e2e] px-5 py-4">
+      <header className="sticky top-0 z-10 bg-[color:rgba(var(--bg-rgb),0.9)] backdrop-blur border-b border-subtle px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/home" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Home</Link>
-            <div className="w-px h-4 bg-[#1e1e2e]" />
+            <div className="w-px h-4" style={{ background: 'var(--border)' }} />
             <h1 className="font-black text-white tracking-tight">Exercise Library</h1>
           </div>
           <Link
             to="/programs"
-            className="px-3 py-1.5 rounded-xl border border-[#2e2e3e] text-[12px] font-semibold text-gray-400 hover:text-white transition-colors"
+            className="px-3 py-1.5 rounded-xl border border-strong text-[12px] font-semibold text-gray-400 hover:text-white transition-colors"
           >
             Programs →
           </Link>
@@ -140,7 +140,7 @@ export function ExerciseLibraryPage() {
               className="px-3 py-1.5 rounded-xl text-[12px] font-bold transition-colors"
               style={filter === f
                 ? { background: 'rgba(59,130,246,0.2)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.4)' }
-                : { background: 'rgba(255,255,255,0.04)', color: '#4b5563', border: '1px solid #1e1e2e' }
+                : { background: 'var(--surface-2)', color: 'var(--text-3)', border: '1px solid var(--border)' }
               }
             >
               {f}

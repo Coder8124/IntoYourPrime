@@ -214,6 +214,24 @@
   }
 }
 
+/* ── Light mode: fix Tailwind text-white on light surfaces ── */
+[data-theme="light"] .text-white {
+  color: var(--text);
+}
+/* Restore white text on colored-background buttons/badges */
+[data-theme="light"] [class*="bg-blue-"].text-white,
+[data-theme="light"] [class*="bg-green-"].text-white,
+[data-theme="light"] [class*="bg-red-"].text-white,
+[data-theme="light"] [class*="bg-amber-"].text-white,
+[data-theme="light"] [class*="bg-indigo-"].text-white,
+[data-theme="light"] [class*="bg-purple-"].text-white,
+[data-theme="light"] [class*="bg-emerald-"].text-white {
+  color: #fff !important;
+}
+/* Gray text classes — lighten in dark, readable already in light, darken slightly */
+[data-theme="light"] .text-gray-600 { color: var(--text-3); }
+[data-theme="light"] .text-gray-700 { color: var(--text-3); }
+
 @layer utilities {
   /* Theme-aware background/border utilities */
   .bg-page    { background: var(--bg); }

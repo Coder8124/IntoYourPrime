@@ -103,7 +103,7 @@ export function AIWorkoutPage() {
 
   return (
     <div className="min-h-screen bg-page text-white pb-24">
-      <header className="sticky top-0 z-10 bg-[#0d0d18]/90 backdrop-blur border-b border-[#1e1e2e] px-5 py-4">
+      <header className="sticky top-0 z-10 bg-panel/90 backdrop-blur border-b border-subtle px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <Link to="/programs" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Programs</Link>
           <div className="w-px h-4 bg-[#1e1e2e]" />
@@ -125,7 +125,7 @@ export function AIWorkoutPage() {
         )}
 
         {/* Goal input */}
-        <div className="rounded-2xl bg-[#0d0d18] border border-[#1e1e2e] p-5 space-y-4">
+        <div className="rounded-2xl bg-panel border border-subtle p-5 space-y-4">
           <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Describe your goal</p>
           <textarea
             value={goal}
@@ -143,7 +143,7 @@ export function AIWorkoutPage() {
                 type="button"
                 onClick={() => setGoal(s)}
                 disabled={!apiKey}
-                className="px-3 py-1.5 rounded-full text-[11px] text-gray-400 border border-[#2a2a42] hover:border-blue-500/50 hover:text-blue-300 transition-colors disabled:opacity-40"
+                className="px-3 py-1.5 rounded-full text-[11px] text-gray-400 border border-strong hover:border-blue-500/50 hover:text-blue-300 transition-colors disabled:opacity-40"
               >
                 {s}
               </button>
@@ -163,7 +163,7 @@ export function AIWorkoutPage() {
 
         {/* Preview */}
         {preview && (
-          <div className="rounded-2xl bg-[#0d0d18] border border-blue-500/30 p-5 space-y-4">
+          <div className="rounded-2xl bg-panel border border-blue-500/30 p-5 space-y-4">
             <div className="flex items-start gap-3">
               <span className="text-[32px] leading-none">🤖</span>
               <div className="flex-1">
@@ -175,7 +175,7 @@ export function AIWorkoutPage() {
                     {preview.level}
                   </span>
                   {preview.tags.map(t => (
-                    <span key={t} className="px-2 py-0.5 rounded-full text-[11px] text-gray-600 border border-[#1e1e2e]">{t}</span>
+                    <span key={t} className="px-2 py-0.5 rounded-full text-[11px] text-gray-600 border border-subtle">{t}</span>
                   ))}
                 </div>
               </div>
@@ -210,7 +210,7 @@ export function AIWorkoutPage() {
                 type="button"
                 onClick={() => void handleGenerate()}
                 disabled={loading}
-                className="px-4 py-3 rounded-xl border border-[#2e2e3e] text-[13px] font-semibold text-gray-400 hover:text-white transition-colors disabled:opacity-40"
+                className="px-4 py-3 rounded-xl border border-strong text-[13px] font-semibold text-gray-400 hover:text-white transition-colors disabled:opacity-40"
               >
                 Regenerate
               </button>
