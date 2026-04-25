@@ -33,7 +33,7 @@ export function ThemeSwitcher() {
       style={{
         position: 'fixed',
         left: '50%',
-        bottom: 18,
+        bottom: 72,
         transform: 'translateX(-50%)',
         zIndex: 30,
         display: 'flex',
