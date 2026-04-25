@@ -8,6 +8,7 @@ import {
 import { auth } from '../lib/firebase'
 import { getUserProfile, upsertUserDisplayName, firestoreProfileToLocal } from '../lib/firebaseHelpers'
 import type { Drink } from '../components/GymScene'
+import { AccoladeWall } from '../components/AccoladeWall'
 
 const GymScene = lazy(() =>
   import('../components/GymScene').then(m => ({ default: m.GymScene })),
@@ -173,7 +174,9 @@ export function AuthPage() {
   }
 
   return (
-    <div style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg)', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', background: 'var(--bg)' }}>
+      {/* Hero — 3D gym scene fills the first viewport */}
+      <section style={{ position: 'relative', height: '100vh', overflow: 'hidden' }}>
       {/* Unmount the heavy 3D scene while the basketball room is open so the
           minigame has the GPU to itself — kills the lag from running both at once. */}
       {!courtOpen && (
@@ -290,7 +293,43 @@ export function AuthPage() {
         v2.6 · AI coach online · 33 landmarks · 30 fps
       </div>
 
-      {/* Bench minigame HUD */}
+      {/* Scroll cue — invites the user to read the pitch below */}
+      {!loginOpen && !bench && !courtOpen && !doorOpening && vending === 'idle' && (
+        <button
+          type="button"
+          onClick={() =>
+            window.scrollTo({ top: window.innerHeight, behavior: 'smooth' })
+          }
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: 22,
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            padding: '8px 16px',
+            borderRadius: 999,
+            background: 'rgba(15, 15, 25, 0.55)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10.5,
+            letterSpacing: '0.22em',
+            color: 'rgba(255,255,255,0.7)',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            animation: 'fadeIn 0.6s ease 1s backwards',
+          }}
+        >
+          Scroll for the pitch ↓
+        </button>
+      )}
+      </section>
+
+      {/* Marketing — features, stats, how it works, tech stack, final CTA */}
+      <AccoladeWall />
+
+      {/* Bench minigame HUD — position:fixed, overlays everything */}
       {bench && (
         <BenchMinigameHUD
           state={bench}
