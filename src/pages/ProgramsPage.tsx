@@ -55,7 +55,7 @@ function ProgramCard({ program, onStart }: { program: WorkoutProgram; onStart: (
         <button
           type="button"
           onClick={() => setExpanded(v => !v)}
-          className="text-[12px] text-blue-400 hover:text-blue-300 transition-colors"
+          className="text-[12px] text-accent hover:text-accent/80 transition-colors"
         >
           {expanded ? 'Hide exercises ↑' : `See ${program.exercises.length} exercises ↓`}
         </button>
@@ -83,7 +83,7 @@ function ProgramCard({ program, onStart }: { program: WorkoutProgram; onStart: (
         <button
           type="button"
           onClick={() => onStart(program)}
-          className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-[14px] font-black text-white transition-colors"
+          className="w-full py-3 rounded-xl bg-accent hover:bg-accent/90 text-[14px] font-black text-white transition-colors"
           style={{ boxShadow: '0 0 20px rgba(59,130,246,0.3)' }}
         >
           Start Program →
@@ -120,14 +120,14 @@ export function ProgramsPage() {
       <header className="sticky top-0 z-10 bg-[color:rgba(var(--bg-rgb),0.9)] backdrop-blur border-b border-subtle px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/home" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Home</Link>
+            <Link to="/home" className="text-sm font-semibold text-accent hover:text-accent/80">← Home</Link>
             <div className="w-px h-4 bg-panel-2" />
             <h1 className="font-black text-white tracking-tight">Programs</h1>
           </div>
           <div className="flex items-center gap-2">
             <Link
               to="/programs/generate"
-              className="px-3 py-1.5 rounded-xl border border-blue-500/30 text-[12px] font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+              className="px-3 py-1.5 rounded-xl border border-blue-500/30 text-[12px] font-semibold text-accent hover:text-accent/80 transition-colors"
             >
               ✨ AI Generate
             </Link>
@@ -158,7 +158,7 @@ export function ProgramsPage() {
               <button
                 type="button"
                 onClick={() => { localStorage.setItem('formAI_launchProgram', '1'); navigate('/workout') }}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-[12px] font-bold text-white transition-colors"
+                className="px-4 py-2 rounded-xl bg-accent hover:bg-accent/90 text-[12px] font-bold text-white transition-colors"
               >
                 Resume →
               </button>

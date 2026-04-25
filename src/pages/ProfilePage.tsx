@@ -125,7 +125,7 @@ export function ProfilePage() {
 
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Link to="/home" className="text-sm font-semibold text-blue-400 hover:text-blue-300">
+          <Link to="/home" className="text-sm font-semibold text-accent hover:text-accent/80">
             ← Home
           </Link>
           <h1 className="text-xl font-black tracking-tight">Profile</h1>
@@ -234,7 +234,7 @@ export function ProfilePage() {
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-sm text-white transition-colors"
+              className="w-full py-3 rounded-xl bg-accent hover:bg-accent/90 font-bold text-sm text-white transition-colors"
             >
               {saved ? 'Saved!' : 'Save Profile'}
             </button>
@@ -274,7 +274,7 @@ export function ProfilePage() {
               <button
                 type="button"
                 onClick={() => setShowKey(v => !v)}
-                className="text-[11px] text-blue-500 hover:text-blue-400 transition-colors"
+                className="text-[11px] text-accent hover:text-accent/80 transition-colors"
               >
                 {showKey ? 'hide' : 'show'}
               </button>
@@ -295,7 +295,7 @@ export function ProfilePage() {
               type="button"
               onClick={handleSaveKey}
               disabled={!apiKey.trim()}
-              className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-sm text-white transition-colors"
+              className="flex-1 py-2.5 rounded-xl bg-accent hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-sm text-white transition-colors"
             >
               {keySaved ? 'Saved!' : 'Save Key'}
             </button>

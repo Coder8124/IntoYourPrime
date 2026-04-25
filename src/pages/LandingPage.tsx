@@ -97,7 +97,7 @@ export function LandingPage() {
           </Link>
           <Link
             to="/auth"
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-[13px] font-bold text-white transition-colors"
+            className="px-4 py-2 rounded-xl bg-accent hover:bg-accent/90 text-[13px] font-bold text-white transition-colors"
           >
             Get started free →
           </Link>
@@ -139,7 +139,7 @@ export function LandingPage() {
           <div className="fade-up-delay-3 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               to="/auth"
-              className="btn-pulse px-8 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-[15px] font-black text-white transition-colors w-full sm:w-auto text-center"
+              className="btn-pulse px-8 py-4 rounded-2xl bg-accent hover:bg-accent/90 text-[15px] font-black text-white transition-colors w-full sm:w-auto text-center"
             >
               Start training free →
             </Link>
@@ -234,7 +234,7 @@ export function LandingPage() {
           </p>
           <Link
             to="/auth"
-            className="inline-block px-10 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-[16px] font-black text-white transition-colors"
+            className="inline-block px-10 py-4 rounded-2xl bg-accent hover:bg-accent/90 text-[16px] font-black text-white transition-colors"
             style={{ boxShadow: '0 0 40px rgba(59,130,246,0.4)' }}
           >
             Create your account →

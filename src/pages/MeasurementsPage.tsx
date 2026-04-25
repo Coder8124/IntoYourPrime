@@ -163,7 +163,7 @@ export function MeasurementsPage() {
         <span className="text-[13px] font-black uppercase tracking-[0.18em] text-blue-400">Measurements</span>
         <button
           onClick={() => { setShowForm(!showForm); setForm({ date: new Date().toISOString().slice(0, 10) }) }}
-          className="text-[12px] font-bold text-blue-400 hover:text-blue-300 transition-colors"
+          className="text-[12px] font-bold text-accent hover:text-accent/80 transition-colors"
         >
           + Log
         </button>
@@ -231,7 +231,7 @@ export function MeasurementsPage() {
 
             <button
               onClick={handleSave}
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white text-[14px] transition-colors"
+              className="w-full py-3 rounded-xl bg-accent hover:bg-accent/90 font-bold text-white text-[14px] transition-colors"
             >
               Save Entry
             </button>
@@ -245,7 +245,7 @@ export function MeasurementsPage() {
             <p className="text-[13px] text-gray-500 mb-8">Track body weight, measurements, and body fat over time.</p>
             <button
               onClick={() => { setShowForm(true); setForm({ date: new Date().toISOString().slice(0, 10) }) }}
-              className="inline-block px-8 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white transition-colors"
+              className="inline-block px-8 py-3 rounded-xl bg-accent hover:bg-accent/90 font-bold text-white transition-colors"
             >
               Log First Entry →
             </button>

@@ -605,7 +605,7 @@ function WarmupScoreModal({ score, onContinueWarmup, onStartWorkout }: WarmupSco
           <div className="flex flex-col gap-3">
             <button
               onClick={onStartWorkout}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white text-[14px] btn-glow-blue transition-all"
+              className="w-full py-3.5 bg-accent hover:bg-accent/90 rounded-xl font-bold text-white text-[14px] btn-glow-blue transition-all"
             >
               Start Workout →
             </button>
@@ -620,7 +620,7 @@ function WarmupScoreModal({ score, onContinueWarmup, onStartWorkout }: WarmupSco
           <div className="flex flex-col gap-3">
             <button
               onClick={onStartWorkout}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white btn-glow-blue transition-all"
+              className="w-full py-3.5 bg-accent hover:bg-accent/90 rounded-xl font-bold text-white btn-glow-blue transition-all"
             >
               Start Workout →
             </button>
@@ -1724,7 +1724,7 @@ export function WorkoutPage() {
                   <button
                     type="button"
                     onClick={handleNextProgramExercise}
-                    className="w-full py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-[11px] font-bold text-white transition-colors"
+                    className="w-full py-1.5 rounded-lg bg-accent hover:bg-accent/90 text-[11px] font-bold text-white transition-colors"
                   >
                     Next Exercise →
                   </button>
@@ -2182,7 +2182,7 @@ export function WorkoutPage() {
                     <button
                       type="button"
                       onClick={captureReferencePhoto}
-                      className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-[15px] text-white transition-colors"
+                      className="w-full py-3.5 rounded-xl bg-accent hover:bg-accent/90 font-bold text-[15px] text-white transition-colors"
                       style={{ boxShadow: '0 0 24px rgba(59,130,246,0.4)' }}
                     >
                       That's me — capture photo
@@ -2521,7 +2521,7 @@ export function WorkoutPage() {
           {phase === 'warmup' ? (
             <button
               onClick={handleEndWarmup}
-              className="px-8 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white text-[14px] btn-glow-blue transition-all"
+              className="px-8 py-3 bg-accent hover:bg-accent/90 rounded-xl font-bold text-white text-[14px] btn-glow-blue transition-all"
             >
               End Warmup → Start Workout
             </button>

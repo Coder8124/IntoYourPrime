@@ -4,6 +4,18 @@ export default {
   theme: {
     extend: {
       colors: {
+        accent: ({ opacityValue }) =>
+          opacityValue !== undefined
+            ? `rgba(var(--accent-rgb), ${opacityValue})`
+            : 'rgb(var(--accent-rgb))',
+        'accent-2': ({ opacityValue }) =>
+          opacityValue !== undefined
+            ? `rgba(var(--accent-2-rgb), ${opacityValue})`
+            : 'rgb(var(--accent-2-rgb))',
+        'accent-3': ({ opacityValue }) =>
+          opacityValue !== undefined
+            ? `rgba(var(--accent-3-rgb), ${opacityValue})`
+            : 'rgb(var(--accent-3-rgb))',
         brand: {
           bg: '#0a0a0f',
           surface: '#0f0f1a',

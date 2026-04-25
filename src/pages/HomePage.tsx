@@ -528,7 +528,7 @@ export function HomePage() {
                 )}
               </div>
               <Link to={activeProgram ? '/workout' : '/programs'}
-                className="text-[12px] font-bold text-blue-400 hover:text-blue-300 transition-colors">
+                className="text-[12px] font-bold text-accent hover:text-accent/80 transition-colors">
                 {activeProgram ? 'Start →' : 'Browse plans →'}
               </Link>
             </div>
@@ -608,7 +608,7 @@ export function HomePage() {
                   <div className="flex flex-col items-center justify-center h-32 gap-2">
                     <span className="text-2xl">📓</span>
                     <p className="text-[11px] text-gray-600 text-center">Log recovery to<br />see readiness score</p>
-                    <Link to="/recovery-log" className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold">Log now →</Link>
+                    <Link to="/recovery-log" className="text-[11px] text-accent hover:text-accent/80 font-semibold">Log now →</Link>
                   </div>
                 )
               }
@@ -646,14 +646,14 @@ export function HomePage() {
           <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-subtle">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Squad This Week</p>
-              <Link to="/friends" className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold transition-colors">
+              <Link to="/friends" className="text-[11px] text-accent hover:text-accent/80 font-semibold transition-colors">
                 {squadBoard.length} active →
               </Link>
             </div>
             {squadBoard.length === 0 ? (
               <div className="px-5 py-6 text-center">
                 <p className="text-[12px] text-gray-600">No squad activity yet.</p>
-                <Link to="/friends" className="text-[12px] text-blue-400 hover:text-blue-300 font-semibold mt-1 block">Add friends →</Link>
+                <Link to="/friends" className="text-[12px] text-accent hover:text-accent/80 font-semibold mt-1 block">Add friends →</Link>
               </div>
             ) : (
               <ul>
@@ -696,7 +696,7 @@ export function HomePage() {
               Recovery log →
             </Link>
             <Link to="/programs/generate"
-              className="rounded-xl py-2.5 text-center text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+              className="rounded-xl py-2.5 text-center text-[11px] font-semibold text-accent hover:text-accent/80 transition-colors"
               style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)' }}>
               ✨ AI Generate →
             </Link>

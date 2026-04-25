@@ -432,7 +432,7 @@ export function FriendsPage() {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-[color:rgba(var(--bg-rgb),0.9)] backdrop-blur border-b border-subtle px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link to="/home" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Home</Link>
+          <Link to="/home" className="text-sm font-semibold text-accent hover:text-accent/80">← Home</Link>
           <div className="w-px h-4 bg-panel-2" />
           <h1 className="font-black text-white tracking-tight">
             Prime Intelligence
@@ -490,7 +490,7 @@ export function FriendsPage() {
                   <button
                     type="button"
                     onClick={() => setSquadTab('find')}
-                    className="text-[12px] text-blue-400 hover:text-blue-300 font-semibold"
+                    className="text-[12px] text-accent hover:text-accent/80 font-semibold"
                   >
                     Find friends →
                   </button>
@@ -663,7 +663,7 @@ export function FriendsPage() {
                           <button
                             type="button"
                             onClick={() => handleAddFriend(u)}
-                            className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-[12px] font-bold text-white transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent/90 text-[12px] font-bold text-white transition-colors"
                           >
                             + Add
                           </button>
@@ -703,7 +703,7 @@ export function FriendsPage() {
                         <button
                           type="button"
                           onClick={() => handleAddFriend(u)}
-                          className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-[12px] font-bold text-white transition-colors"
+                          className="px-3 py-1.5 rounded-lg bg-accent hover:bg-accent/90 text-[12px] font-bold text-white transition-colors"
                         >
                           + Add
                         </button>
@@ -821,7 +821,7 @@ export function FriendsPage() {
               type="button"
               onClick={runPI}
               disabled={loading}
-              className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 font-black text-[14px] text-white transition-colors"
+              className="flex-1 py-3 rounded-xl bg-accent hover:bg-accent/90 disabled:opacity-50 font-black text-[14px] text-white transition-colors"
               style={{ boxShadow: loading ? 'none' : '0 0 24px rgba(59,130,246,0.35)' }}
             >
               {loading ? 'Analyzing…' : 'Run Prime Intelligence'}

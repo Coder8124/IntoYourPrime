@@ -77,7 +77,7 @@ export function PublicProfilePage() {
     <div className="min-h-screen bg-page pb-24 text-white">
       <header className="sticky top-0 z-10 px-5 py-4 flex items-center gap-3"
         style={{ background: 'rgba(var(--bg-rgb),0.9)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--border)' }}>
-        <Link to="/friends" className="text-[13px] font-semibold text-blue-400 hover:text-blue-300">← Squad</Link>
+        <Link to="/friends" className="text-[13px] font-semibold text-accent hover:text-accent/80">← Squad</Link>
         <span className="text-[13px] font-black text-white tracking-tight">Profile</span>
       </header>
 
@@ -150,7 +150,7 @@ export function PublicProfilePage() {
                 type="button"
                 onClick={handleAddFriend}
                 disabled={actionLoading || actionDone}
-                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-[14px] font-bold text-white transition-colors"
+                className="w-full py-3 rounded-xl bg-accent hover:bg-accent/90 disabled:opacity-50 text-[14px] font-bold text-white transition-colors"
               >
                 {actionLoading ? 'Sending…' : '+ Add to Squad'}
               </button>
@@ -160,7 +160,7 @@ export function PublicProfilePage() {
 
         {!myUid && (
           <Link to="/auth"
-            className="block w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-[14px] font-bold text-white text-center transition-colors">
+            className="block w-full py-3 rounded-xl bg-accent hover:bg-accent/90 text-[14px] font-bold text-white text-center transition-colors">
             Sign in to add to squad
           </Link>
         )}

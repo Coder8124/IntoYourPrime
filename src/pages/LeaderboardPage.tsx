@@ -48,7 +48,7 @@ export function LeaderboardPage() {
         style={{ background: 'rgba(var(--bg-rgb),0.92)', backdropFilter: 'blur(14px)', borderBottom: '1px solid var(--border)' }}>
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/home" className="text-[13px] font-semibold text-blue-400 hover:text-blue-300">← Home</Link>
+            <Link to="/home" className="text-[13px] font-semibold text-accent hover:text-accent/80">← Home</Link>
             <span className="text-[14px] font-black tracking-tight">🏆 Leaderboard</span>
           </div>
         </div>
@@ -107,7 +107,7 @@ export function LeaderboardPage() {
             <p className="text-[15px] font-bold text-white">No scores yet</p>
             <p className="text-[13px] text-gray-500">Complete a workout to appear here!</p>
             <Link to="/workout"
-              className="inline-block mt-4 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white transition-colors">
+              className="inline-block mt-4 px-6 py-3 rounded-xl bg-accent hover:bg-accent/90 font-bold text-white transition-colors">
               Start Workout →
             </Link>
           </div>

@@ -105,7 +105,7 @@ export function AIWorkoutPage() {
     <div className="min-h-screen bg-page text-white pb-24">
       <header className="sticky top-0 z-10 bg-panel/90 backdrop-blur border-b border-subtle px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <Link to="/programs" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Programs</Link>
+          <Link to="/programs" className="text-sm font-semibold text-accent hover:text-accent/80">← Programs</Link>
           <div className="w-px h-4 bg-panel-2" />
           <h1 className="font-black text-white tracking-tight">AI Workout Generator</h1>
         </div>
@@ -201,7 +201,7 @@ export function AIWorkoutPage() {
               <button
                 type="button"
                 onClick={handleSave}
-                className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-[14px] font-black text-white transition-colors"
+                className="flex-1 py-3 rounded-xl bg-accent hover:bg-accent/90 text-[14px] font-black text-white transition-colors"
                 style={{ boxShadow: '0 0 20px rgba(59,130,246,0.3)' }}
               >
                 Save & Use Program →

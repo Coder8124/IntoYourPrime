@@ -374,7 +374,7 @@ export function ProgressPage() {
             <p className="text-[16px] font-bold text-white mb-2">No sessions yet</p>
             <p className="text-[13px] text-gray-500 mb-8">Complete your first workout to start tracking progress.</p>
             <Link to="/workout"
-              className="inline-block px-8 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-white transition-colors">
+              className="inline-block px-8 py-3 rounded-xl bg-accent hover:bg-accent/90 font-bold text-white transition-colors">
               Start Workout →
             </Link>
           </div>

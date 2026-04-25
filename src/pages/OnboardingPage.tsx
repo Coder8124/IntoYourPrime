@@ -120,7 +120,7 @@ export function OnboardingPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.1em]">OpenAI API Key</label>
-                <button type="button" onClick={() => setShowKey(v => !v)} className="text-[11px] text-blue-500 hover:text-blue-400">
+                <button type="button" onClick={() => setShowKey(v => !v)} className="text-[11px] text-accent hover:text-accent/80">
                   {showKey ? 'hide' : 'show'}
                 </button>
               </div>
@@ -143,7 +143,7 @@ export function OnboardingPage() {
               type="button"
               onClick={handleSaveKey}
               disabled={!apiKey.trim()}
-              className="w-full py-5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[17px] text-white transition-colors"
+              className="w-full py-5 rounded-xl bg-accent hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[17px] text-white transition-colors"
               style={{ boxShadow: '0 0 32px rgba(59,130,246,0.35)' }}
             >
               Save Key &amp; Start →
