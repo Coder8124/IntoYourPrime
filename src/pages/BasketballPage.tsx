@@ -234,7 +234,7 @@ export default function BasketballPage() {
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-4">
-          <Link to="/" className="text-sm transition-colors" style={{ color: 'var(--text-3)' }}>&larr; Back</Link>
+          <Link to="/home" className="text-sm transition-colors" style={{ color: 'var(--text-3)' }}>&larr; Back</Link>
           <h1 className="display text-lg font-semibold tracking-tight">🏀 Shooting Form</h1>
         </div>
         <div className="flex items-center gap-3">

@@ -12,6 +12,7 @@ import { getOrSignInUserId } from '../lib/firestoreUser'
 import { getOrCreateLocalUserId } from '../lib/localUserId'
 import { getActiveProgram, EXERCISE_INFO, type ActiveProgram } from '../lib/programs'
 import type { ActivityFeedItem, DailyLog, Session } from '../types'
+import { ThemeSwitcher } from '../components/ThemeSwitcher'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -713,8 +714,14 @@ export function HomePage() {
             <Link to="/friends"  className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Squad</Link>
             <Link to="/recovery-log" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Recovery</Link>
           </div>
+
+          {/* Spacer so the floating theme pill never overlaps the footer */}
+          <div style={{ height: 64 }} aria-hidden />
         </div>
       </div>
+
+      {/* Floating theme picker — bottom-center, fixed to viewport */}
+      <ThemeSwitcher />
     </div>
   )
 }

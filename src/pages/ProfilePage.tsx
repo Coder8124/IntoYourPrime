@@ -350,11 +350,11 @@ export function ProfilePage() {
           className="card-surface p-5 flex items-center justify-between w-full text-left hover:opacity-90 transition-opacity"
         >
           <div className="flex items-center gap-3">
-            <span className="text-[22px]">{theme === 'dark' ? '🌙' : '☀️'}</span>
+            <span className="text-[22px]">{theme !== 'light' ? '🌙' : '☀️'}</span>
             <div>
               <p className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>Appearance</p>
               <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-3)' }}>
-                {theme === 'dark' ? 'Dark mode — tap to switch to light' : 'Light mode — tap to switch to dark'}
+                {theme !== 'light' ? 'Dark mode — tap to switch to light' : 'Light mode — tap to switch to dark'}
               </p>
             </div>
           </div>

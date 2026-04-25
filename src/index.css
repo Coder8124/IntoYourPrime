@@ -82,6 +82,102 @@
   --accent-3-rgb: 52, 211, 153;
 }
 
+/* ─────────────────────────────────────────────────────────────────
+   Whole-app theme variants — applied via data-theme on <html>.
+   Each theme overrides bg/surface/border + accent stack so the
+   whole UI shifts together. (Default = electric, declared in :root)
+   ───────────────────────────────────────────────────────────────── */
+
+[data-theme="electric"] {
+  --bg:         #07070e;
+  --bg-2:       #0b0b14;
+  --surface:    #0e0e18;
+  --surface-2:  #12121e;
+  --border:     #1a1a28;
+  --border-2:   #242437;
+  --accent:       #6b8cff;
+  --accent-2:     #a78bfa;
+  --accent-3:     #f59e0b;
+  --accent-rgb:   107, 140, 255;
+  --accent-2-rgb: 167, 139, 250;
+  --accent-3-rgb: 245, 158, 11;
+}
+
+[data-theme="ember"] {
+  --bg:         #0c0805;
+  --bg-2:       #110a06;
+  --surface:    #16100a;
+  --surface-2:  #1c150d;
+  --border:     #241c12;
+  --border-2:   #33281a;
+  --accent:       #f59e0b;
+  --accent-2:     #fb7185;
+  --accent-3:     #34d399;
+  --accent-rgb:   245, 158, 11;
+  --accent-2-rgb: 251, 113, 133;
+  --accent-3-rgb: 52, 211, 153;
+}
+
+[data-theme="mint"] {
+  --bg:         #051110;
+  --bg-2:       #071815;
+  --surface:    #0a1f1c;
+  --surface-2:  #0e2925;
+  --border:     #133230;
+  --border-2:   #1c4540;
+  --accent:       #5eead4;
+  --accent-2:     #a5f3fc;
+  --accent-3:     #fbbf24;
+  --accent-rgb:   94, 234, 212;
+  --accent-2-rgb: 165, 243, 252;
+  --accent-3-rgb: 251, 191, 36;
+}
+
+[data-theme="cottoncandy"] {
+  --bg:         #100712;
+  --bg-2:       #160a1a;
+  --surface:    #1a0d1f;
+  --surface-2:  #20122a;
+  --border:     #2c1a3a;
+  --border-2:   #3d264f;
+  --accent:       #f472b6;
+  --accent-2:     #67e8f9;
+  --accent-3:     #fbbf24;
+  --accent-rgb:   244, 114, 182;
+  --accent-2-rgb: 103, 232, 249;
+  --accent-3-rgb: 251, 191, 36;
+}
+
+[data-theme="air"] {
+  --bg:         #07111a;
+  --bg-2:       #0a141d;
+  --surface:    #0e1a23;
+  --surface-2:  #142231;
+  --border:     #1b2c3d;
+  --border-2:   #233e58;
+  --accent:       #38bdf8;
+  --accent-2:     #a5f3fc;
+  --accent-3:     #fbbf24;
+  --accent-rgb:   56, 189, 248;
+  --accent-2-rgb: 165, 243, 252;
+  --accent-3-rgb: 251, 191, 36;
+}
+
+[data-theme="moltengold"] {
+  --bg:         #0c0805;
+  --bg-2:       #110906;
+  --surface:    #19100a;
+  --surface-2:  #21160d;
+  --border:     #2a1d10;
+  --border-2:   #3a2918;
+  --accent:       #fbbf24;
+  --accent-2:     #f59e0b;
+  --accent-3:     #f97316;
+  --accent-rgb:   251, 191, 36;
+  --accent-2-rgb: 245, 158, 11;
+  --accent-3-rgb: 249, 115, 22;
+}
+
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
 
