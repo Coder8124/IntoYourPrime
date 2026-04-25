@@ -207,14 +207,14 @@ export function RecoveryLogPage() {
 
   if (loading || !uid) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0a0a0f] text-gray-500">
+      <div className="flex min-h-screen items-center justify-center bg-page text-gray-500">
         Loading…
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] px-4 py-8 text-white pb-24">
+    <div className="min-h-screen bg-page px-4 py-8 text-white pb-24">
       <div className="mx-auto max-w-lg">
         <div className="mb-6 flex items-center justify-between gap-3">
           <Link

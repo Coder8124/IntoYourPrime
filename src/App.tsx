@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { onAuthStateChanged } from 'firebase/auth'
+import { ThemeProvider } from './contexts/ThemeContext'
 import { auth } from './lib/firebase'
 import { upsertUserDisplayName } from './lib/firebaseHelpers'
 import { RootRedirect } from './components/RootRedirect'
@@ -38,6 +39,7 @@ export default function App() {
   }, [])
 
   return (
+    <ThemeProvider>
     <RouteFade>
       <Routes>
           <Route path="/" element={<RootRedirect />} />
@@ -58,6 +60,7 @@ export default function App() {
           <Route path="/programs/builder" element={<CustomProgramPage />} />
           <Route path="/programs/generate" element={<AIWorkoutPage />} />
         </Routes>
-      </RouteFade>
+    </RouteFade>
+    </ThemeProvider>
   )
 }

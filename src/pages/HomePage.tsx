@@ -317,7 +317,7 @@ export function HomePage() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#07070e] text-white">
+    <div className="min-h-screen bg-page text-white">
 
       {/* ── Top Navigation ── */}
       <nav className="sticky top-0 z-30"
@@ -493,7 +493,7 @@ export function HomePage() {
               const trendColor = trendGood === true ? '#22c55e' : trendGood === false ? '#ef4444' : '#6b7280'
               return (
                 <div key={label} className="rounded-2xl p-4"
-                  style={{ background: '#0e0e18', border: '1px solid #1a1a2a' }}>
+                  style={{ background: '#0e0e18', border: '1px solid var(--border)' }}>
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 mb-1">{label}</p>
                   <div className="flex items-baseline gap-2">
                     <span className="text-[30px] font-black text-white leading-none">
@@ -514,7 +514,7 @@ export function HomePage() {
           </div>
 
           {/* Today's plan */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: '#0e0e18', border: '1px solid #1a1a2a' }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#0e0e18', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a1a2a]">
               <div>
                 <h2 className="text-[13px] font-black text-white">
@@ -572,7 +572,7 @@ export function HomePage() {
                 ].map(opt => (
                   <Link key={opt.to} to={opt.to}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all hover:brightness-110"
-                    style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                     <span className="text-[18px]">{opt.icon}</span>
                     <div>
                       <p className="text-[13px] font-bold text-white">{opt.label}</p>
@@ -598,7 +598,7 @@ export function HomePage() {
         <div className="space-y-4">
 
           {/* Readiness */}
-          <div className="rounded-2xl p-5" style={{ background: '#0e0e18', border: '1px solid #1a1a2a' }}>
+          <div className="rounded-2xl p-5" style={{ background: '#0e0e18', border: '1px solid var(--border)' }}>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 mb-4">Readiness</p>
             <div className="flex justify-center mb-3">
               {readiness != null
@@ -629,7 +629,7 @@ export function HomePage() {
           </div>
 
           {/* Streak */}
-          <div className="rounded-2xl p-5" style={{ background: '#0e0e18', border: '1px solid #1a1a2a' }}>
+          <div className="rounded-2xl p-5" style={{ background: '#0e0e18', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between mb-4">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Streak</p>
               <Flame className="w-4 h-4 text-amber-400" />
@@ -642,7 +642,7 @@ export function HomePage() {
           </div>
 
           {/* Squad */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: '#0e0e18', border: '1px solid #1a1a2a' }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#0e0e18', border: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a1a2a]">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Squad This Week</p>
               <Link to="/friends" className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold transition-colors">
@@ -686,12 +686,12 @@ export function HomePage() {
           <div className="grid grid-cols-2 gap-2">
             <Link to="/session-summary"
               className="rounded-xl py-2.5 text-center text-[11px] font-semibold text-gray-400 hover:text-white transition-colors"
-              style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
               Last session →
             </Link>
             <Link to="/recovery-log"
               className="rounded-xl py-2.5 text-center text-[11px] font-semibold text-gray-400 hover:text-white transition-colors"
-              style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
               Recovery log →
             </Link>
             <Link to="/programs/generate"
@@ -701,7 +701,7 @@ export function HomePage() {
             </Link>
             <Link to="/programs/builder"
               className="rounded-xl py-2.5 text-center text-[11px] font-semibold text-gray-400 hover:text-white transition-colors"
-              style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
               🔧 Build plan →
             </Link>
           </div>

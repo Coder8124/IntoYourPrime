@@ -103,8 +103,8 @@ export function ExerciseLibraryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white pb-24">
-      <header className="sticky top-0 z-10 bg-[#0d0d18]/90 backdrop-blur border-b border-[#1e1e2e] px-5 py-4">
+    <div className="min-h-screen bg-page text-white pb-24">
+      <header className="sticky top-0 z-10 bg-[color:rgba(var(--bg-rgb),0.9)] backdrop-blur border-b border-[#1e1e2e] px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/home" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Home</Link>

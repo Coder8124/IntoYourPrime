@@ -313,7 +313,7 @@ export function SessionSummaryPage() {
 
   if (!snapshot || !stats) {
     return (
-      <div className="min-h-screen bg-[#0a0a0f] px-6 py-12 text-white">
+      <div className="min-h-screen bg-page px-6 py-12 text-white">
         <div className="mx-auto max-w-lg">
           <Link to="/home" className="text-xs font-bold uppercase tracking-[0.2em] text-blue-400 hover:text-blue-300 cursor-pointer">IntoYourPrime</Link>
           <h1 className="mt-2 text-3xl font-black tracking-tight">Session summary</h1>
@@ -345,7 +345,7 @@ export function SessionSummaryPage() {
     stats
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
+    <div className="min-h-screen bg-page text-white">
       <header className="border-b border-[#1e1e2e] bg-[#0d0d18] px-6 py-5">
         <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>

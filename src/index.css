@@ -16,6 +16,9 @@
   --border:     #1a1a28;
   --border-2:   #242437;
 
+  --bg-rgb:      7, 7, 14;
+  --surface-rgb: 14, 14, 24;
+
   --text:       #ffffff;
   --text-2:     #b4b4c8;
   --text-3:     #6a6a88;
@@ -64,6 +67,9 @@
 
   --good: #16a34a;
   --bad:  #dc2626;
+
+  --bg-rgb:      244, 244, 248;
+  --surface-rgb: 255, 255, 255;
 }
 
 /* Basketball pages pick up amber as local identity via data-accent="ember" */
@@ -209,6 +215,17 @@
 }
 
 @layer utilities {
+  /* Theme-aware background/border utilities */
+  .bg-page    { background: var(--bg); }
+  .bg-page-2  { background: var(--bg-2); }
+  .bg-panel   { background: var(--surface); }
+  .bg-panel-2 { background: var(--surface-2); }
+  .border-subtle { border-color: var(--border); }
+  .border-strong { border-color: var(--border-2); }
+  .text-base  { color: var(--text); }
+  .text-muted { color: var(--text-2); }
+  .text-dim   { color: var(--text-3); }
+
   .display { font-family: var(--font-display); letter-spacing: -0.02em; }
   .mono    { font-family: var(--font-mono); }
   .tnum    { font-variant-numeric: tabular-nums; }

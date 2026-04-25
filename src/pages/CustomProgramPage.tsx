@@ -57,7 +57,7 @@ export function CustomProgramPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white pb-24">
+    <div className="min-h-screen bg-page text-white pb-24">
       <header className="sticky top-0 z-10 bg-[#0d0d18]/90 backdrop-blur border-b border-[#1e1e2e] px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -89,7 +89,7 @@ export function CustomProgramPage() {
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Push Day, Core Blast…"
               className="w-full px-3 py-2.5 rounded-xl text-[13px] text-white placeholder-gray-600 outline-none"
-              style={{ background: '#111119', border: '1px solid #2a2a42' }}
+              style={{ background: 'var(--surface)', border: '1px solid var(--border-2)' }}
             />
           </div>
           <div>
@@ -99,7 +99,7 @@ export function CustomProgramPage() {
               onChange={e => setDesc(e.target.value)}
               placeholder="What's the goal of this program?"
               className="w-full px-3 py-2.5 rounded-xl text-[13px] text-white placeholder-gray-600 outline-none"
-              style={{ background: '#111119', border: '1px solid #2a2a42' }}
+              style={{ background: 'var(--surface)', border: '1px solid var(--border-2)' }}
             />
           </div>
           <div className="grid grid-cols-3 gap-3">
@@ -109,7 +109,7 @@ export function CustomProgramPage() {
                 value={level}
                 onChange={e => setLevel(e.target.value as WorkoutProgram['level'])}
                 className="w-full px-3 py-2.5 rounded-xl text-[13px] text-white outline-none"
-                style={{ background: '#111119', border: '1px solid #2a2a42' }}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border-2)' }}
               >
                 {LEVELS.map(l => <option key={l}>{l}</option>)}
               </select>
@@ -122,7 +122,7 @@ export function CustomProgramPage() {
                 value={targetReps}
                 onChange={e => setTargetReps(Number(e.target.value))}
                 className="w-full px-3 py-2.5 rounded-xl text-[13px] text-white outline-none"
-                style={{ background: '#111119', border: '1px solid #2a2a42' }}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border-2)' }}
               />
             </div>
             <div>
@@ -133,7 +133,7 @@ export function CustomProgramPage() {
                 value={targetHoldSecs}
                 onChange={e => setTargetHold(Number(e.target.value))}
                 className="w-full px-3 py-2.5 rounded-xl text-[13px] text-white outline-none"
-                style={{ background: '#111119', border: '1px solid #2a2a42' }}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border-2)' }}
               />
             </div>
           </div>
@@ -147,7 +147,7 @@ export function CustomProgramPage() {
               {selectedExercises.map((id, i) => {
                 const info = EXERCISE_INFO.find(e => e.id === id)
                 return (
-                  <div key={id} className="flex items-center gap-3 p-2.5 rounded-xl bg-[#0a0a0f] border border-[#1a1a2a]">
+                  <div key={id} className="flex items-center gap-3 p-2.5 rounded-xl bg-page border border-[#1a1a2a]">
                     <span className="text-[12px] font-black text-blue-600/50 w-5 shrink-0">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold text-white">{info?.name ?? id}</p>
@@ -173,7 +173,7 @@ export function CustomProgramPage() {
             onChange={e => setSearch(e.target.value)}
             placeholder="Search exercises or muscles…"
             className="w-full px-3 py-2.5 rounded-xl text-[13px] text-white placeholder-gray-600 outline-none"
-            style={{ background: '#111119', border: '1px solid #2a2a42' }}
+            style={{ background: 'var(--surface)', border: '1px solid var(--border-2)' }}
           />
           <div className="space-y-2 max-h-72 overflow-y-auto">
             {filtered.map(ex => {
@@ -186,7 +186,7 @@ export function CustomProgramPage() {
                   className="w-full flex items-center gap-3 p-2.5 rounded-xl text-left transition-colors"
                   style={active
                     ? { background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)' }
-                    : { background: '#0a0a0f', border: '1px solid #1a1a2a' }
+                    : { background: 'var(--bg-2)', border: '1px solid var(--border)' }
                   }
                 >
                   <span className="w-4 h-4 rounded flex items-center justify-center shrink-0 text-[10px] font-black"

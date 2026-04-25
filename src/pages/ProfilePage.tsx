@@ -1,6 +1,7 @@
 import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav'
+import { useTheme } from '../contexts/ThemeContext'
 import { hasApiKey } from '../lib/formAnalysis'
 import { signOutUser } from '../lib/firestoreUser'
 import { upsertFullUserProfile, getUserProfile } from '../lib/firebaseHelpers'
@@ -38,6 +39,7 @@ function loadProfile(): ProfileForm {
 
 export function ProfilePage() {
   const navigate = useNavigate()
+  const { theme, toggleTheme } = useTheme()
   const [form,    setForm]    = useState<ProfileForm>(loadProfile)
   const [saved,   setSaved]   = useState(false)
 
@@ -115,7 +117,7 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] px-4 py-8 pb-24 text-white">
+    <div className="min-h-screen bg-page px-4 py-8 pb-24 text-white">
       <div className="mx-auto max-w-[480px] space-y-6">
 
         {/* Header */}
@@ -311,8 +313,22 @@ export function ProfilePage() {
           </p>
         </div>
 
+        {/* Theme toggle */}
+        <div className="card-surface p-5 flex items-center justify-between">
+          <div>
+            <p className="text-[13px] font-semibold text-base">Appearance</p>
+            <p className="text-[11px] text-dim mt-0.5">{theme === 'dark' ? 'Dark mode' : 'Light mode'}</p>
+          </div>
+          <button type="button" onClick={toggleTheme}
+            className="relative w-12 h-6 rounded-full transition-colors"
+            style={{ background: theme === 'light' ? '#4b6ef5' : '#374151' }}>
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform shadow-sm"
+              style={{ transform: theme === 'light' ? 'translateX(26px)' : 'translateX(2px)' }} />
+          </button>
+        </div>
+
         {/* Sign out */}
-        <div className="mt-8 border-t border-[#1e1e2e] pt-6">
+        <div className="mt-8 border-t border-subtle pt-6">
           <button
             type="button"
             onClick={async () => {

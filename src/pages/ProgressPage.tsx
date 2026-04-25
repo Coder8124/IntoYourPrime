@@ -4,7 +4,7 @@ import { BottomNav } from '../components/BottomNav'
 import { getUserSessions } from '../lib/firebaseHelpers'
 import { getOrSignInUserId } from '../lib/firestoreUser'
 import { getOrCreateLocalUserId } from '../lib/localUserId'
-import type { Session } from '../types'
+import type { Session } from '../types/index'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -116,11 +116,137 @@ function HorizontalBar({ label, value, max, color }: { label: string; value: num
   )
 }
 
+// ── Session detail modal ───────────────────────────────────────────────────
+
+function isBasketballSession(s: Session): boolean {
+  return s.exercises.length === 1 && s.exercises[0] === 'basketball'
+}
+
+function SessionDetailModal({ session, onClose }: { session: Session; onClose: () => void }) {
+  const isBasketball = isBasketballSession(session)
+  const shots = session.repCounts?.basketball ?? 0
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-2xl overflow-hidden"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border-2)', maxHeight: '85vh', overflowY: 'auto' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <p className="font-black text-white text-[15px]">
+              {isBasketball ? '🏀 Basketball Session' : '💪 Workout Session'}
+            </p>
+            <p className="text-[12px] text-gray-500 mt-0.5">
+              {new Date(session.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white text-[20px] leading-none px-2">×</button>
+        </div>
+
+        <div className="px-5 py-4 space-y-5">
+
+          {/* Stats row */}
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-xl p-3 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <p className="text-[20px] font-black text-white">{session.durationMinutes}m</p>
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Duration</p>
+            </div>
+            {isBasketball ? (
+              <div className="rounded-xl p-3 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                <p className="text-[20px] font-black text-amber-400">{shots}</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Shots</p>
+              </div>
+            ) : (
+              <div className="rounded-xl p-3 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                <p className="text-[20px] font-black" style={{ color: riskColor(session.avgRiskScore) }}>{Math.round(session.avgRiskScore)}</p>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Form Risk</p>
+              </div>
+            )}
+            <div className="rounded-xl p-3 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <p className="text-[20px] font-black text-blue-400">{Math.round(session.warmupScore)}</p>
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">Warmup</p>
+            </div>
+          </div>
+
+          {/* Exercise breakdown */}
+          {!isBasketball && Object.keys(session.repCounts ?? {}).length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Exercises</p>
+              <div className="space-y-2">
+                {Object.entries(session.repCounts ?? {}).map(([ex, reps]) => {
+                  const riskScore = session.exerciseRiskScores?.[ex]
+                  return (
+                    <div key={ex} className="flex items-center justify-between px-3 py-2.5 rounded-xl"
+                      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                      <span className="text-[13px] text-white capitalize">{EXERCISE_LABELS[ex] ?? ex}</span>
+                      <div className="flex items-center gap-3">
+                        {riskScore !== undefined && (
+                          <span className="text-[11px] font-bold font-mono" style={{ color: riskColor(riskScore) }}>
+                            risk {Math.round(riskScore)}
+                          </span>
+                        )}
+                        <span className="text-[13px] font-bold text-gray-300">{reps} reps</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Basketball shot details */}
+          {isBasketball && (
+            <div className="rounded-xl px-4 py-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <p className="text-[13px] text-gray-400">
+                <span className="text-amber-400 font-bold">{shots}</span> shots tracked during this basketball session.
+              </p>
+            </div>
+          )}
+
+          {/* Coach notes */}
+          {session.formSuggestions?.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Coach Notes</p>
+              <div className="space-y-1.5">
+                {session.formSuggestions.map((note, i) => (
+                  <div key={i} className="flex gap-2.5 px-3 py-2 rounded-xl"
+                    style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
+                    <span className="text-amber-500 text-[12px] shrink-0 mt-0.5">⚡</span>
+                    <p className="text-[12px] text-gray-300">{note}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Cooldown status */}
+          <div className="flex items-center gap-2">
+            <span className={session.cooldownCompleted ? 'text-green-400' : 'text-gray-600'}>
+              {session.cooldownCompleted ? '✓' : '○'}
+            </span>
+            <span className="text-[12px] text-gray-500">
+              Cooldown {session.cooldownCompleted ? 'completed' : 'skipped'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export function ProgressPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading]   = useState(true)
+  const [selected, setSelected] = useState<Session | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -201,11 +327,11 @@ export function ProgressPage() {
     : null
 
   return (
-    <div className="min-h-screen bg-[#07070e] pb-24 text-white">
+    <div className="min-h-screen bg-page pb-24 text-white">
 
       {/* ── Nav ── */}
       <nav className="sticky top-0 z-30 flex items-center justify-between px-5 py-4"
-        style={{ background: 'rgba(7,7,14,0.9)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        style={{ background: 'rgba(var(--bg-rgb),0.9)', backdropFilter: 'blur(14px)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
         <Link to="/home" className="flex items-center gap-2 text-[13px] font-semibold text-gray-400 hover:text-white transition-colors">
           ← Home
         </Link>
@@ -239,7 +365,7 @@ export function ProgressPage() {
                 { label: 'Total Reps', value: totalReps.toLocaleString(), unit: '' },
                 { label: 'Avg Form Risk', value: avgFormScore, unit: '' },
               ].map(({ label, value, unit }) => (
-                <div key={label} className="rounded-2xl p-4 text-center" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+                <div key={label} className="rounded-2xl p-4 text-center" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                   <div className="text-[28px] font-black leading-none text-white">{value}{unit}</div>
                   <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gray-500">{label}</div>
                 </div>
@@ -256,7 +382,7 @@ export function ProgressPage() {
                   </span>
                 )}
               </div>
-              <div className="rounded-2xl p-5" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+              <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                 <p className="text-[11px] text-gray-600 mb-4">Lower score = better form. Last {trendScores.length} sessions.</p>
                 <div className="w-full overflow-x-auto">
                   <Sparkline values={trendScores} w={380} h={72} />
@@ -274,7 +400,7 @@ export function ProgressPage() {
             {exerciseVolume.length > 0 && (
               <section className="mt-8">
                 <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.18em] text-gray-500">Volume by Exercise</h2>
-                <div className="rounded-2xl p-5 space-y-3.5" style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+                <div className="rounded-2xl p-5 space-y-3.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                   {exerciseVolume.map(([ex, count]) => (
                     <HorizontalBar
                       key={ex}
@@ -293,7 +419,7 @@ export function ProgressPage() {
               <section className="mt-8">
                 <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.18em] text-gray-500">Form Risk by Exercise</h2>
                 <p className="text-[11px] text-gray-600 mb-3">Avg risk score per exercise across sessions. Lower = better form.</p>
-                <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #1e1e2e' }}>
+                <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
                   {exerciseFormTrends.map(([ex, scores], i) => {
                     const latest = scores[scores.length - 1]
                     const first = scores[0]
@@ -304,8 +430,8 @@ export function ProgressPage() {
                       <div key={ex}
                         className="flex items-center justify-between px-5 py-3.5"
                         style={{
-                          background: i % 2 === 0 ? '#111119' : '#0e0e16',
-                          borderBottom: i < exerciseFormTrends.length - 1 ? '1px solid #1a1a28' : 'none',
+                          background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-2)',
+                          borderBottom: i < exerciseFormTrends.length - 1 ? '1px solid var(--border)' : 'none',
                         }}>
                         <span className="text-[14px] text-gray-300">{EXERCISE_LABELS[ex] ?? ex}</span>
                         <div className="flex items-center gap-3">
@@ -324,13 +450,13 @@ export function ProgressPage() {
             {personalBests.length > 0 && (
               <section className="mt-8">
                 <h2 className="mb-3 text-[13px] font-bold uppercase tracking-[0.18em] text-gray-500">Personal Bests</h2>
-                <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #1e1e2e' }}>
+                <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
                   {personalBests.map(([ex, best], i) => (
                     <div key={ex}
                       className="flex items-center justify-between px-5 py-3.5"
                       style={{
-                        background: i % 2 === 0 ? '#111119' : '#0e0e16',
-                        borderBottom: i < personalBests.length - 1 ? '1px solid #1a1a28' : 'none',
+                        background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-2)',
+                        borderBottom: i < personalBests.length - 1 ? '1px solid var(--border)' : 'none',
                       }}>
                       <span className="text-[14px] text-gray-300">{EXERCISE_LABELS[ex] ?? ex}</span>
                       <div className="flex items-center gap-2">
@@ -351,25 +477,41 @@ export function ProgressPage() {
               </h2>
               <ul className="space-y-2">
                 {sessions.map((s) => {
-                  const reps = Object.values(s.repCounts ?? {}).reduce((a, b) => a + b, 0)
+                  const basketball = isBasketballSession(s)
+                  const shots = s.repCounts?.basketball ?? 0
+                  const reps = basketball ? 0 : Object.values(s.repCounts ?? {}).reduce((a, b) => a + b, 0)
                   const c = riskColor(s.avgRiskScore)
                   return (
-                    <li key={s.id} className="rounded-xl px-4 py-3.5"
-                      style={{ background: '#111119', border: '1px solid #1e1e2e' }}>
+                    <li key={s.id}
+                      className="rounded-xl px-4 py-3.5 cursor-pointer hover:border-blue-500/40 transition-colors"
+                      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                      onClick={() => setSelected(s)}
+                    >
                       <div className="flex items-center justify-between">
-                        <span className="text-[15px] font-bold text-white">{formatDate(s.date)}</span>
+                        <div className="flex items-center gap-2">
+                          {basketball && <span className="text-[14px]">🏀</span>}
+                          <span className="text-[15px] font-bold text-white">{formatDate(s.date)}</span>
+                        </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-[12px] font-mono font-bold" style={{ color: c }}>
-                            risk {Math.round(s.avgRiskScore)}
-                          </span>
-                          <span className="text-[12px] text-gray-500 font-mono">{reps} reps</span>
+                          {basketball ? (
+                            <span className="text-[12px] font-mono font-bold text-amber-400">{shots} shots</span>
+                          ) : (
+                            <span className="text-[12px] font-mono font-bold" style={{ color: c }}>
+                              risk {Math.round(s.avgRiskScore)}
+                            </span>
+                          )}
+                          {!basketball && <span className="text-[12px] text-gray-500 font-mono">{reps} reps</span>}
                           <span className="text-[12px] text-gray-600">{s.durationMinutes}m</span>
+                          <span className="text-[11px] text-gray-700">›</span>
                         </div>
                       </div>
-                      {s.exercises?.length > 0 && (
+                      {!basketball && s.exercises?.length > 0 && (
                         <p className="mt-1 text-[12px] capitalize text-gray-600">
                           {s.exercises.join(' · ')}
                         </p>
+                      )}
+                      {basketball && (
+                        <p className="mt-1 text-[12px] text-gray-600">Basketball session</p>
                       )}
                     </li>
                   )
@@ -387,6 +529,7 @@ export function ProgressPage() {
         </div>
       </div>
       <BottomNav />
+      {selected && <SessionDetailModal session={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }

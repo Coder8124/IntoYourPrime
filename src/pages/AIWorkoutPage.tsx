@@ -102,7 +102,7 @@ export function AIWorkoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white pb-24">
+    <div className="min-h-screen bg-page text-white pb-24">
       <header className="sticky top-0 z-10 bg-[#0d0d18]/90 backdrop-blur border-b border-[#1e1e2e] px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <Link to="/programs" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Programs</Link>
@@ -134,7 +134,7 @@ export function AIWorkoutPage() {
             rows={3}
             disabled={!apiKey}
             className="w-full px-3 py-2.5 rounded-xl text-[13px] text-white placeholder-gray-600 outline-none resize-none disabled:opacity-40"
-            style={{ background: '#111119', border: '1px solid #2a2a42' }}
+            style={{ background: 'var(--surface)', border: '1px solid var(--border-2)' }}
           />
           <div className="flex flex-wrap gap-2">
             {SUGGESTIONS.map(s => (
@@ -184,7 +184,7 @@ export function AIWorkoutPage() {
               {preview.exercises.map((id, i) => {
                 const info = EXERCISE_INFO.find(e => e.id === id)
                 return (
-                  <div key={id} className="flex items-center gap-3 p-2.5 rounded-xl bg-[#0a0a0f] border border-[#1a1a2a]">
+                  <div key={id} className="flex items-center gap-3 p-2.5 rounded-xl bg-page border border-[#1a1a2a]">
                     <span className="text-[12px] font-black text-blue-600/50 w-5 shrink-0">{i + 1}</span>
                     <div className="flex-1">
                       <p className="text-[13px] font-semibold text-white">{info?.name ?? id}</p>

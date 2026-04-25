@@ -65,7 +65,7 @@ function ProgramCard({ program, onStart }: { program: WorkoutProgram; onStart: (
             {program.exercises.map((ex, i) => {
               const info = EXERCISE_INFO.find(e => e.id === ex)
               return (
-                <div key={ex} className="flex items-center gap-3 p-2.5 rounded-xl bg-[#0a0a0f] border border-[#1a1a2a]">
+                <div key={ex} className="flex items-center gap-3 p-2.5 rounded-xl bg-page border border-[#1a1a2a]">
                   <span className="text-[12px] font-black text-blue-600/50 w-5 shrink-0">{i + 1}</span>
                   <div className="flex-1">
                     <p className="text-[13px] font-semibold text-white">{exerciseName(ex)}</p>
@@ -115,8 +115,8 @@ export function ProgramsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white pb-24">
-      <header className="sticky top-0 z-10 bg-[#0d0d18]/90 backdrop-blur border-b border-[#1e1e2e] px-5 py-4">
+    <div className="min-h-screen bg-page text-white pb-24">
+      <header className="sticky top-0 z-10 bg-[color:rgba(var(--bg-rgb),0.9)] backdrop-blur border-b border-[#1e1e2e] px-5 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/home" className="text-sm font-semibold text-blue-400 hover:text-blue-300">← Home</Link>
@@ -182,7 +182,7 @@ export function ProgramsPage() {
               className="px-3 py-1.5 rounded-xl text-[12px] font-bold transition-colors"
               style={levelFilter === f
                 ? { background: 'rgba(59,130,246,0.2)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.4)' }
-                : { background: 'rgba(255,255,255,0.04)', color: '#4b5563', border: '1px solid #1e1e2e' }
+                : { background: 'rgba(255,255,255,0.04)', color: '#4b5563', border: '1px solid var(--border)' }
               }
             >
               {f}
