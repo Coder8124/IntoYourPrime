@@ -1,6 +1,6 @@
 import { useRef, useState, type JSX } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
-import { useCursor } from '@react-three/drei'
+import { Text, useCursor } from '@react-three/drei'
 import * as THREE from 'three'
 
 /**
@@ -154,6 +154,146 @@ export function Dumbbell({
           <meshStandardMaterial color={color} roughness={0.55} metalness={0.3} />
         </mesh>
       ))}
+    </group>
+  )
+}
+
+/**
+ * Wooden door with a "BASKETBALL" sign + hoop icon — the entry to the second
+ * room/minigame. Pulses gently and lights up on hover. Click → onClick().
+ */
+export function CourtDoor({
+  position,
+  rotation = [0, 0, 0],
+  onClick,
+}: {
+  position: [number, number, number]
+  rotation?: [number, number, number]
+  onClick?: () => void
+}): JSX.Element {
+  const [hovered, setHovered] = useState(false)
+  useCursor(hovered && !!onClick)
+  const signRef = useRef<THREE.MeshStandardMaterial>(null)
+  const arrowRef = useRef<THREE.Group>(null)
+  const W = 1.6
+  const H = 3.2
+
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    if (signRef.current) {
+      signRef.current.emissiveIntensity = 1.6 + Math.sin(t * 2) * 0.4
+    }
+    if (arrowRef.current) {
+      arrowRef.current.position.y = H + 1.0 + Math.sin(t * 3) * 0.06
+    }
+  })
+
+  const handleClick = (e: ThreeEvent<MouseEvent>) => {
+    if (!onClick) return
+    e.stopPropagation()
+    onClick()
+  }
+
+  return (
+    <group position={position} rotation={rotation}>
+      {/* Door frame (slightly outset) */}
+      <mesh position={[0, H / 2, -0.02]}>
+        <boxGeometry args={[W + 0.2, H + 0.2, 0.05]} />
+        <meshStandardMaterial color="#1a120a" roughness={0.85} metalness={0.1} />
+      </mesh>
+
+      {/* Door slab — warm wood, with click handler */}
+      <mesh
+        position={[0, H / 2, 0]}
+        onClick={handleClick}
+        onPointerOver={(e) => { e.stopPropagation(); setHovered(true) }}
+        onPointerOut={() => setHovered(false)}
+        castShadow
+      >
+        <boxGeometry args={[W, H, 0.12]} />
+        <meshStandardMaterial
+          color="#7a4d2a"
+          emissive={hovered ? '#f59e0b' : '#000'}
+          emissiveIntensity={hovered ? 0.45 : 0}
+          roughness={0.65}
+          metalness={0.05}
+        />
+      </mesh>
+
+      {/* Vertical inset trim panels */}
+      {[-0.35, 0.35].map((x, i) => (
+        <mesh key={i} position={[x, H / 2, 0.07]}>
+          <boxGeometry args={[0.36, H * 0.78, 0.012]} />
+          <meshStandardMaterial color="#5a3818" roughness={0.85} />
+        </mesh>
+      ))}
+
+      {/* Brass kickplate */}
+      <mesh position={[0, 0.25, 0.062]}>
+        <boxGeometry args={[W * 0.85, 0.4, 0.005]} />
+        <meshStandardMaterial color="#c08443" roughness={0.45} metalness={0.65} />
+      </mesh>
+
+      {/* Door handle */}
+      <mesh position={[W / 2 - 0.18, H / 2 - 0.1, 0.07]}>
+        <cylinderGeometry args={[0.04, 0.04, 0.16, 12]} />
+        <meshStandardMaterial color="#d4a259" roughness={0.4} metalness={0.85} />
+      </mesh>
+
+      {/* Sign above the door — "BASKETBALL" with neon orange glow */}
+      <group position={[0, H + 0.5, 0]}>
+        <mesh>
+          <boxGeometry args={[W + 0.6, 0.55, 0.18]} />
+          <meshStandardMaterial
+            ref={signRef}
+            color="#1f0a02"
+            emissive="#f97316"
+            emissiveIntensity={1.6}
+            toneMapped={false}
+          />
+        </mesh>
+        <Text
+          position={[0, 0, 0.12]}
+          fontSize={0.24}
+          color="#1a0500"
+          anchorX="center"
+          anchorY="middle"
+          letterSpacing={0.08}
+          fontWeight={700}
+        >
+          🏀  BASKETBALL
+        </Text>
+      </group>
+
+      {/* Floating "ENTER" hint above the sign */}
+      <group ref={arrowRef} position={[0, H + 1.0, 0]}>
+        <Text
+          fontSize={0.18}
+          color="#fff"
+          anchorX="center"
+          anchorY="middle"
+          fontWeight={700}
+          outlineWidth={0.012}
+          outlineColor="#1a0500"
+        >
+          ↓ ENTER ↓
+        </Text>
+      </group>
+
+      {/* Floor accent — orange court line in front of the door */}
+      <mesh position={[0, 0.005, 0.9]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.9, 32]} />
+        <meshBasicMaterial color="#f97316" transparent opacity={0.22} toneMapped={false} />
+      </mesh>
+
+      {/* Pin light on the door */}
+      <pointLight
+        position={[0, H + 0.4, 0.5]}
+        color="#fbbf24"
+        intensity={hovered ? 2.8 : 1.6}
+        distance={6}
+        decay={1.8}
+      />
     </group>
   )
 }

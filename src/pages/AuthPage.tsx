@@ -12,6 +12,9 @@ import type { Drink } from '../components/GymScene'
 const GymScene = lazy(() =>
   import('../components/GymScene').then(m => ({ default: m.GymScene })),
 )
+const BasketballFreeThrow = lazy(() =>
+  import('../components/BasketballFreeThrow').then(m => ({ default: m.BasketballFreeThrow })),
+)
 
 type Mode = 'signin' | 'signup'
 type VendingPhase = 'idle' | 'dispensed' | 'ready'
@@ -52,10 +55,25 @@ export function AuthPage() {
   // Bench flow
   const [bench, setBench] = useState<BenchState>(null)
 
+  // Basketball-room flow — door click triggers a camera fly-in then opens the minigame
+  const [doorOpening, setDoorOpening] = useState(false)
+  const [courtOpen,   setCourtOpen]   = useState(false)
+
   const cameraTarget =
+    courtOpen || doorOpening ? 'door' :
     bench ? 'bench' :
     vending === 'dispensed' || vending === 'ready' ? 'vending' :
     'idle'
+
+  // Door fly-in: when clicked, glide the camera to the door for 900ms, then open the court
+  useEffect(() => {
+    if (!doorOpening) return
+    const t = window.setTimeout(() => {
+      setCourtOpen(true)
+      setDoorOpening(false)
+    }, 900)
+    return () => window.clearTimeout(t)
+  }, [doorOpening])
 
   // When a drink is dispensed, camera zooms (via cameraTarget='vending')
   // and after 1200ms we flip to 'ready' and open the modal. Single-timer,
@@ -74,11 +92,12 @@ export function AuthPage() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       if (loginOpen) { setLoginOpen(false); setVending('idle'); setPickedDrink(null) }
+      else if (courtOpen) setCourtOpen(false)
       else if (bench) setBench(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [loginOpen, bench])
+  }, [loginOpen, bench, courtOpen])
 
   const canSubmit =
     email.includes('@') &&
@@ -163,6 +182,7 @@ export function AuthPage() {
             setVending('dispensed')
           }}
           onBenchClicked={() => setBench({ reps: 0, hits: 0, done: false })}
+          onDoorClicked={() => setDoorOpening(true)}
         />
       </Suspense>
 
@@ -186,7 +206,7 @@ export function AuthPage() {
       </div>
 
       {/* Top-center hint */}
-      {vending === 'idle' && !bench && (
+      {vending === 'idle' && !bench && !doorOpening && !courtOpen && (
         <div
           style={{
             position: 'absolute',
@@ -211,7 +231,7 @@ export function AuthPage() {
         >
           <div><span style={{ color: '#facc15' }}>↓</span> pick a drink to sign in <span style={{ color: '#facc15' }}>↓</span></div>
           <div style={{ marginTop: 4, fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>
-            or tap the bench · press a set
+            or tap the bench · or step through the basketball door
           </div>
         </div>
       )}
@@ -273,6 +293,13 @@ export function AuthPage() {
           onUpdate={setBench}
           onClose={() => setBench(null)}
         />
+      )}
+
+      {/* Basketball minigame — opens after door fly-in */}
+      {courtOpen && (
+        <Suspense fallback={null}>
+          <BasketballFreeThrow onClose={() => setCourtOpen(false)} />
+        </Suspense>
       )}
 
       {/* Login modal */}

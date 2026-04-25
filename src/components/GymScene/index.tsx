@@ -6,11 +6,11 @@ import { PerspectiveCamera } from '@react-three/drei'
 import * as THREE from 'three'
 import { Environment } from './Environment'
 import { VendingMachine, type Drink } from './VendingMachine'
-import { BenchPress, Dumbbell, WeightStack } from './Equipment'
+import { BenchPress, CourtDoor, Dumbbell, WeightStack } from './Equipment'
 
 export type { Drink } from './VendingMachine'
 
-type CameraTarget = 'idle' | 'vending' | 'bench'
+type CameraTarget = 'idle' | 'vending' | 'bench' | 'door'
 
 const DEFAULT_CAM: [number, number, number] = [0, 2.6, 11]
 const DEFAULT_LOOK: [number, number, number] = [0, 2.3, 0]
@@ -20,6 +20,9 @@ const VENDING_ZOOM_LOOK: [number, number, number] = [0, 0.25, 0]
 // Camera position looking at the bench
 const BENCH_CAM: [number, number, number] = [3.0, 1.8, 5.5]
 const BENCH_LOOK: [number, number, number] = [4.5, 1.2, 0.5]
+// Camera approaching the basketball door — fly-in effect
+const DOOR_CAM: [number, number, number] = [-7.5, 2.4, -8.0]
+const DOOR_LOOK: [number, number, number] = [-8.5, 2.0, -13]
 
 function CameraRig({ target }: { target: CameraTarget }) {
   const rig = useRef<THREE.Group>(null)
@@ -32,10 +35,12 @@ function CameraRig({ target }: { target: CameraTarget }) {
     const [cx, cy, cz] =
       target === 'vending' ? VENDING_ZOOM_CAM :
       target === 'bench'   ? BENCH_CAM :
+      target === 'door'    ? DOOR_CAM :
       DEFAULT_CAM
     const [lx, ly, lz] =
       target === 'vending' ? VENDING_ZOOM_LOOK :
       target === 'bench'   ? BENCH_LOOK :
+      target === 'door'    ? DOOR_LOOK :
       DEFAULT_LOOK
 
     // Idle parallax follows mouse; during zoom, ignore mouse
@@ -62,10 +67,12 @@ function CameraRig({ target }: { target: CameraTarget }) {
 export function GymScene({
   onVendingDispensed,
   onBenchClicked,
+  onDoorClicked,
   cameraTarget = 'idle',
 }: {
   onVendingDispensed: (drink: Drink) => void
   onBenchClicked: () => void
+  onDoorClicked: () => void
   cameraTarget?: CameraTarget
 }) {
   const [benchRepProgress, setBenchRepProgress] = useState(0)
@@ -100,12 +107,20 @@ export function GymScene({
 
         <WeightStack position={[-4.8, 0, 0.2]} />
 
+        {/* Basketball-room door — back-left wall, slightly inset so the frame reads */}
+        <CourtDoor
+          position={[-8.5, 0, -13.6]}
+          rotation={[0, 0, 0]}
+          onClick={onDoorClicked}
+        />
+
         <Dumbbell position={[-3.2, 0.13, 2.2]} rotation={[0, 0.4, 0]} color="#dc2626" />
         <Dumbbell position={[-2.6, 0.13, 2.0]} rotation={[0, 0.6, 0]} color="#dc2626" />
         <Dumbbell position={[3.1, 0.13, 2.4]} rotation={[0, -0.3, 0]} color="#0ea5e9" />
         <Dumbbell position={[2.5, 0.13, 2.1]} rotation={[0, -0.1, 0]} color="#0ea5e9" />
 
-        <mesh position={[-1.2, 0.05, 3.2]} rotation={[Math.PI / 2, 0, 0.3]} castShadow>
+        {/* Stray plate — tucked into the right back corner so it doesn't block the camera */}
+        <mesh position={[6.2, 0.05, -3.5]} rotation={[Math.PI / 2, 0, 0.3]} castShadow>
           <cylinderGeometry args={[0.32, 0.32, 0.08, 28]} />
           <meshStandardMaterial color="#facc15" emissive="#facc15" emissiveIntensity={0.12} roughness={0.55} />
         </mesh>
