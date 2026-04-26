@@ -793,6 +793,7 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
       'Breathe out as you extend — this helps flatten the back',
     ],
     riskNote: 'Very low injury risk. AI monitors lower back position — the key is that it never leaves the floor.',
+    isHold: true,
     isNew: true,
   },
   {
@@ -809,6 +810,7 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
       'Do not let the hip on the extended leg side hike up or rotate',
     ],
     riskNote: 'Very low injury risk. AI monitors hip rotation and spine alignment.',
+    isHold: true,
     isNew: true,
   },
   {
@@ -1016,7 +1018,7 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
     name: 'Cat-Cow',
     muscles: ['Spine', 'Lower Back', 'Core', 'Neck'],
     difficulty: 'Beginner',
-    isHold: false,
+    isHold: true,
     description: 'A gentle spinal flexion-extension mobilization. Warms up every segment of the spine — essential before any workout.',
     cues: [
       'Start on hands and knees, spine neutral',
@@ -1059,6 +1061,7 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
       'Do 5 reps each side as part of your warm-up',
     ],
     riskNote: 'Very low injury risk. AI tracks thoracic rotation depth and hip alignment.',
+    isHold: true,
     isNew: true,
   },
   {
