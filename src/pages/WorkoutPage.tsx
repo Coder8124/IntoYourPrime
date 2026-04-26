@@ -2488,6 +2488,7 @@ export function WorkoutPage() {
                   src={EXERCISE_GIFS[currentExercise]}
                   alt={EXERCISE_LABELS[currentExercise] ?? currentExercise}
                   style={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'contain' }}
+                  loading="lazy"
                 />
               </div>
               <p className="text-[9px] text-gray-700 mt-1 text-right leading-tight">
@@ -2587,6 +2588,7 @@ export function WorkoutPage() {
                   src={gif}
                   alt={label}
                   style={{ width: '100%', maxHeight: 160, objectFit: 'cover', display: 'block' }}
+                  loading="lazy"
                 />
                 <div style={{ padding: '8px 10px 6px' }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 2 }}>{label}</p>

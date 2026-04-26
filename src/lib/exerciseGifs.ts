@@ -31,63 +31,56 @@ export const EXERCISE_GIFS: Record<string, string> = {
   chestfly:         'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Fly.gif',
   jumpsquat:        'https://fitnessprogramer.com/wp-content/uploads/2021/02/Jump-Squat.gif',
   burpee:           'https://fitnessprogramer.com/wp-content/uploads/2021/02/burpees.gif',
-  // ── New exercises — all URLs verified from fitnessprogramer.com pages ──────
-  // Push variations
+  // ── Push variations ────────────────────────────────────────────────────────
   diamondpushup:          'https://fitnessprogramer.com/wp-content/uploads/2021/02/Diamond-Push-up.gif',
   widegripushup:          'https://fitnessprogramer.com/wp-content/uploads/2021/06/Wide-Push-Up.gif',
   declinepushup:          'https://fitnessprogramer.com/wp-content/uploads/2015/07/Decline-Push-Up.gif',
   inclinepushup:          'https://fitnessprogramer.com/wp-content/uploads/2021/06/Incline-Push-Up.gif',
   pikeupshup:             'https://fitnessprogramer.com/wp-content/uploads/2021/06/Pike-Push-up.gif',
-  // Pull / back
+  // ── Pull / back ────────────────────────────────────────────────────────────
   chinup:                 'https://fitnessprogramer.com/wp-content/uploads/2021/03/Chin-Up.gif',
   invertedrow:            'https://fitnessprogramer.com/wp-content/uploads/2021/06/Inverted-Row.gif',
   dumbbellrow:            'https://fitnessprogramer.com/wp-content/uploads/2021/02/Dumbbell-Row.gif',
   superman:               'https://fitnessprogramer.com/wp-content/uploads/2021/02/Superman-exercise.gif',
-  // Lower body
+  // ── Lower body ────────────────────────────────────────────────────────────
   bulgariansplitsquat:    'https://fitnessprogramer.com/wp-content/uploads/2022/02/Bodyweight-Bulgarian-Split-Squat.gif',
   glutebridge:            'https://fitnessprogramer.com/wp-content/uploads/2021/02/Glute-Bridge-.gif',
-  hipthrust:              'https://fitnessprogramer.com/wp-content/uploads/2021/02/barbell-hip-thrust.gif',
+  hipthrust:              'https://fitnessprogramer.com/wp-content/uploads/2021/02/Barbell-Hip-Thrust.gif',
   donkeykick:             'https://fitnessprogramer.com/wp-content/uploads/2021/02/Donkey-Kicks.gif',
   firehydrant:            'https://fitnessprogramer.com/wp-content/uploads/2021/02/Fire-Hydrant.gif',
   reverseLunge:           'https://fitnessprogramer.com/wp-content/uploads/2022/08/bodyweight-reverse-lunge.gif',
   curtsylunge:            'https://fitnessprogramer.com/wp-content/uploads/2023/09/curtsy-lunge.gif',
   sumoSquat:              'https://fitnessprogramer.com/wp-content/uploads/2021/02/BODYWEIGHT-SUMO-SQUAT.gif',
-  stepup:                 'https://fitnessprogramer.com/wp-content/uploads/2021/09/Step-Up.gif',
+  stepup:                 'https://fitnessprogramer.com/wp-content/uploads/2021/06/Barbell-Step-Up.gif',
   nordicCurl:             'https://fitnessprogramer.com/wp-content/uploads/2021/06/Nordic-Hamstring-Curl.gif',
-  // Core
-  sideplank:              'https://fitnessprogramer.com/wp-content/uploads/2021/06/Side-Plank.gif',
+  // ── Core ──────────────────────────────────────────────────────────────────
   deadbug:                'https://fitnessprogramer.com/wp-content/uploads/2021/05/Dead-Bug.gif',
   birddog:                'https://fitnessprogramer.com/wp-content/uploads/2022/07/Bird-Dog.gif',
   russiantwist:           'https://fitnessprogramer.com/wp-content/uploads/2021/02/Russian-Twist.gif',
   bicycleCrunch:          'https://fitnessprogramer.com/wp-content/uploads/2021/02/Bicycle-Crunch.gif',
   legRaise:               'https://fitnessprogramer.com/wp-content/uploads/2021/02/Lying-Leg-Raise.gif',
   flutterKick:            'https://fitnessprogramer.com/wp-content/uploads/2022/02/Seated-Flutter-Kick.gif',
-  hollowbody:             'https://fitnessprogramer.com/wp-content/uploads/2021/06/Hollow-Body-Hold.gif',
   vSit:                   'https://fitnessprogramer.com/wp-content/uploads/2021/06/V-Sit.gif',
   abWheel:                'https://fitnessprogramer.com/wp-content/uploads/2021/06/Ab-Wheel-Rollout.gif',
-  // Cardio / plyometric
+  // ── Cardio / plyometric ───────────────────────────────────────────────────
   boxjump:                'https://fitnessprogramer.com/wp-content/uploads/2021/06/Box-Jump.gif',
-  skaterjump:             'https://fitnessprogramer.com/wp-content/uploads/2021/09/Skater-Jump.gif',
+  skaterjump:             'https://fitnessprogramer.com/wp-content/uploads/2021/02/Skater.gif',
   tuckjump:               'https://fitnessprogramer.com/wp-content/uploads/2021/09/Tuck-Jump.gif',
-  starjump:               'https://fitnessprogramer.com/wp-content/uploads/2021/06/Star-Jump.gif',
-  broadjump:              'https://fitnessprogramer.com/wp-content/uploads/2021/09/Broad-Jump.gif',
+  broadjump:              'https://fitnessprogramer.com/wp-content/uploads/2021/05/Single-Leg-Broad-Jump.gif',
   shadowboxing:           'https://fitnessprogramer.com/wp-content/uploads/2023/09/shadow-boxing-workout.gif',
-  // Mobility / stretches
+  // ── Mobility / stretches ─────────────────────────────────────────────────
   catcow:                 'https://fitnessprogramer.com/wp-content/uploads/2021/02/cat-cow.gif',
-  childpose:              'https://fitnessprogramer.com/wp-content/uploads/2021/04/Childs-Pose.gif',
-  worldsgreateststretch:  'https://fitnessprogramer.com/wp-content/uploads/2022/01/Worlds-Greatest-Stretch.gif',
+  childpose:              'https://fitnessprogramer.com/wp-content/uploads/2022/05/Balasana-Child-Pose.gif',
   hipflexorstretch:       'https://fitnessprogramer.com/wp-content/uploads/2021/08/Kneeling-Hip-Flexor-Stretch.gif',
   hamstringstretch:       'https://fitnessprogramer.com/wp-content/uploads/2021/05/Standing-Hamstring-Stretch.gif',
   quadstretch:            'https://fitnessprogramer.com/wp-content/uploads/2021/06/Standing-Quad-Stretch.gif',
-  pigeonpose:             'https://fitnessprogramer.com/wp-content/uploads/2021/06/Pigeon-Pose.gif',
-  downdogstretch:         'https://fitnessprogramer.com/wp-content/uploads/2021/04/Downward-Dog-Stretch.gif',
-  cobrapose:              'https://fitnessprogramer.com/wp-content/uploads/2021/04/Cobra-Stretch.gif',
-  seatedspinaltwist:      'https://fitnessprogramer.com/wp-content/uploads/2021/06/Seated-Spinal-Twist.gif',
-  anklecircle:            'https://fitnessprogramer.com/wp-content/uploads/2021/09/Ankle-Circles.gif',
-  neckroll:               'https://fitnessprogramer.com/wp-content/uploads/2021/04/Neck-Circles.gif',
-  shoulderroll:           'https://fitnessprogramer.com/wp-content/uploads/2021/07/Shoulder-Rolls.gif',
-  wristcircle:            'https://fitnessprogramer.com/wp-content/uploads/2021/09/Wrist-Circles.gif',
-  // Dumbbell strength
+  pigeonpose:             'https://fitnessprogramer.com/wp-content/uploads/2021/02/Double-Pigeon-Pose.gif',
+  cobrapose:              'https://fitnessprogramer.com/wp-content/uploads/2021/06/abdominal-stretch.gif',
+  seatedspinaltwist:      'https://fitnessprogramer.com/wp-content/uploads/2022/12/Supine-Spinal-Twist.gif',
+  anklecircle:            'https://fitnessprogramer.com/wp-content/uploads/2022/02/Feet-and-Ankle-Rotation.gif',
+  neckroll:               'https://fitnessprogramer.com/wp-content/uploads/2021/07/Rotating-Neck-Stretch.gif',
+  wristcircle:            'https://fitnessprogramer.com/wp-content/uploads/2021/06/Wrist-Circles-Stretch.gif',
+  // ── Dumbbell strength ────────────────────────────────────────────────────
   gobletSquat:            'https://fitnessprogramer.com/wp-content/uploads/2023/01/Dumbbell-Goblet-Squat.gif',
   romaniandeadlift:       'https://fitnessprogramer.com/wp-content/uploads/2021/02/Barbell-Romanian-Deadlift.gif',
   arnoldpress:            'https://fitnessprogramer.com/wp-content/uploads/2021/02/Arnold-Press.gif',
@@ -97,6 +90,6 @@ export const EXERCISE_GIFS: Record<string, string> = {
   concentrationcurl:      'https://fitnessprogramer.com/wp-content/uploads/2021/02/Concentration-Curl.gif',
   zottmancurl:            'https://fitnessprogramer.com/wp-content/uploads/2021/04/zottman-curl.gif',
   wristcurl:              'https://fitnessprogramer.com/wp-content/uploads/2021/02/barbell-Wrist-Curl.gif',
-  goodmorning:            'https://fitnessprogramer.com/wp-content/uploads/2021/09/Good-Morning-Exercise.gif',
-  hyperextension:         'https://fitnessprogramer.com/wp-content/uploads/2021/04/Hyperextensions.gif',
+  goodmorning:            'https://fitnessprogramer.com/wp-content/uploads/2021/02/Barbell-Good-Morning.gif',
+  hyperextension:         'https://fitnessprogramer.com/wp-content/uploads/2021/02/hyperextension.gif',
 }
