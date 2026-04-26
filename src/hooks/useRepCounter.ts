@@ -309,7 +309,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   goodmorning:         'deadlift',
   hyperextension:      'deadlift',
   nordicCurl:          'situp',    // shoulder Y change tracks torso fall better than hip Y
-  superman:            'deadlift',
+  superman:            'situp',    // prone chest lift: shoulderY drops as chest rises, same hipY-shoulderY signal
   // ── Glute / hip — dedicated signals ─────────────────────────────────
   // glutebridge, hipthrust, firehydrant are now proper SupportedExercises
   // donkeykick is now a dedicated SupportedExercise
@@ -362,10 +362,10 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   cobrapose:           'plank',
   seatedspinaltwist:   'plank',
   // ── Circles / rotations ───────────────────────────────────────────────
-  anklecircle:         'armcircle',
-  neckroll:            'armcircle',
-  shoulderroll:        'armcircle',
-  wristcircle:         'armcircle',
+  anklecircle:         'plank',     // ankle rotation — hold timer handles, wrist Y irrelevant
+  neckroll:            'plank',     // neck rotation — hold timer handles, wrist Y irrelevant
+  shoulderroll:        'armcircle', // shoulder rolls move wrists up/down — armcircle signal works
+  wristcircle:         'armcircle', // wrist rotation moves wrist Y slightly — marginal but OK
 }
 
 export function useRepCounter(

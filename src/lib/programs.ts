@@ -1197,6 +1197,7 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
       'Slow and deliberate beats fast',
     ],
     riskNote: 'No injury risk. AI monitors range of motion symmetry between left and right.',
+    isHold: true,
     isNew: true,
   },
   {
@@ -1213,6 +1214,7 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
       '5 circles each direction is sufficient',
     ],
     riskNote: 'Avoid full backward neck circles. AI monitors movement speed — should be slow and controlled.',
+    isHold: true,
     isNew: true,
   },
   {

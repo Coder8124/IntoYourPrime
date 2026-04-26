@@ -175,6 +175,7 @@ export const HOLD_EXERCISES: readonly string[] = [
   'childpose', 'hipflexorstretch', 'hamstringstretch', 'quadstretch',
   'pigeonpose', 'downdogstretch', 'cobrapose', 'seatedspinaltwist',
   'worldsgreateststretch',
+  'catcow', 'anklecircle', 'neckroll',
 ]
 
 export interface UseHoldTimerReturn {
