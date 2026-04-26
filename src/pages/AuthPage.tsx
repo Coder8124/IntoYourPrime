@@ -161,6 +161,7 @@ export function AuthPage() {
             setVending('dispensed')
           }}
           onBenchClicked={() => setBench({ reps: 0, hits: 0, done: false })}
+          onDoorClicked={() => {}}
         />
       </Suspense>
 
