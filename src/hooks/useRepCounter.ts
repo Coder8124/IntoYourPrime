@@ -387,6 +387,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   hipflexorstretch:    'plank',
   hamstringstretch:    'plank',
   quadstretch:         'plank',
+  pigeonpose:          'plank',
   downdogstretch:      'plank',
   cobrapose:           'plank',
   seatedspinaltwist:   'plank',
