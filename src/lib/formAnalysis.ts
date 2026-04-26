@@ -329,6 +329,40 @@ export const EXERCISE_GUIDES: Record<string, string> = {
   ].join('\n'),
 }
 
+// ── Body-part focus per exercise ───────────────────────────────────────────
+export const BODY_FOCUS: Record<string, string> = {
+  pushup:          'hands, wrists, elbows, shoulders, spine, hips, ankles — full body alignment',
+  benchpress:      'wrists, elbows, shoulders, chest — NOT knees or ankles',
+  mountainclimber: 'shoulders, hips, core, driving knee — spine and hip alignment',
+  squat:           'feet, ankles, knees, hips, spine, shoulders',
+  deadlift:        'feet, hips, spine, shoulders, bar path',
+  lunge:           'front knee, back knee, hips, torso, feet',
+  shoulderpress:   'wrists, elbows, shoulders, upper back, core — NOT knees or ankles',
+  curlup:          'neck, shoulders, lower back, core — NOT knees or ankles',
+  bicepcurl:       'wrists, elbows, shoulders, torso — NOT knees or ankles',
+  hammercurl:      'wrists, elbows, shoulders, torso — NOT knees or ankles',
+  tricepextension: 'elbows, wrists, upper arms, shoulders — NOT knees, ankles, or lower body',
+  lateralraise:    'wrists, elbows, shoulders — NOT knees or ankles',
+  pullup:          'hands, elbows, shoulders, core — NOT knees or ankles',
+  plank:           'shoulders, hips, spine, ankles — full body alignment',
+  wallsit:         'knees, hips, back against wall — lower body only',
+  jumpingjack:     'arms, shoulders, knees, landing mechanics',
+  highnees:        'knees, hips, torso — upright posture',
+  buttskick:       'heels, glutes, torso posture, arm swing — NOT upper body isolation',
+  calfraise:       'feet, ankles, calves, knees — NOT upper body or hips',
+  situp:           'neck, shoulders, lower back, core, torso — NOT knees or ankles',
+  armcircle:       'wrists, elbows, shoulders, upper back — NOT knees, ankles, or hips',
+  scapulasqueeze:   'shoulders, upper back, shoulder blades, chest — NOT knees, ankles, or lower body',
+  hipcircle:        'hips, lower back, core — shoulders should stay still, NOT upper body movement',
+  chestpress:       'wrists, elbows, shoulders, chest, torso — NOT knees or ankles',
+  crossbodystretch: 'shoulders, neck, upper back, stretched arm — NOT knees, ankles, or lower body',
+  tricepstretch:    'elbow, shoulder, neck, torso alignment — NOT knees, ankles, or lower body',
+  sidelunge:        'bending knee, ankle, hip, torso — lateral knee tracking and upright posture',
+  chestfly:         'wrists, elbows, shoulders, chest — NOT knees, ankles, or lower body',
+  jumpsquat:        'feet, ankles, knees, hips, spine — especially landing mechanics and knee valgus',
+  burpee:           'full body: knees, hips, spine, shoulders — plank alignment and landing mechanics',
+}
+
 // ── analyzeForm ────────────────────────────────────────────────────────────
 
 export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisResult> {
@@ -364,40 +398,7 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
     const guide = EXERCISE_GUIDES[params.exercise.toLowerCase()]
       ?? 'Check posture, joint alignment, spine neutrality, and full range of motion. Flag any rounding, collapsing, or compensatory movement patterns.'
 
-    // Which body parts are actually relevant — the AI must not flag others
-    const bodyFocus: Record<string, string> = {
-      pushup:          'hands, wrists, elbows, shoulders, spine, hips, ankles — full body alignment',
-      benchpress:      'wrists, elbows, shoulders, chest — NOT knees or ankles',
-      mountainclimber: 'shoulders, hips, core, driving knee — spine and hip alignment',
-      squat:           'feet, ankles, knees, hips, spine, shoulders',
-      deadlift:        'feet, hips, spine, shoulders, bar path',
-      lunge:           'front knee, back knee, hips, torso, feet',
-      shoulderpress:   'wrists, elbows, shoulders, upper back, core — NOT knees or ankles',
-      curlup:          'neck, shoulders, lower back, core — NOT knees or ankles',
-      bicepcurl:       'wrists, elbows, shoulders, torso — NOT knees or ankles',
-      hammercurl:      'wrists, elbows, shoulders, torso — NOT knees or ankles',
-      tricepextension: 'elbows, wrists, upper arms, shoulders — NOT knees, ankles, or lower body',
-      lateralraise:    'wrists, elbows, shoulders — NOT knees or ankles',
-      pullup:          'hands, elbows, shoulders, core — NOT knees or ankles',
-      plank:           'shoulders, hips, spine, ankles — full body alignment',
-      wallsit:         'knees, hips, back against wall — lower body only',
-      jumpingjack:     'arms, shoulders, knees, landing mechanics',
-      highnees:        'knees, hips, torso — upright posture',
-      buttskick:       'heels, glutes, torso posture, arm swing — NOT upper body isolation',
-      calfraise:       'feet, ankles, calves, knees — NOT upper body or hips',
-      situp:           'neck, shoulders, lower back, core, torso — NOT knees or ankles',
-      armcircle:       'wrists, elbows, shoulders, upper back — NOT knees, ankles, or hips',
-      scapulasqueeze:   'shoulders, upper back, shoulder blades, chest — NOT knees, ankles, or lower body',
-      hipcircle:        'hips, lower back, core — shoulders should stay still, NOT upper body movement',
-      chestpress:       'wrists, elbows, shoulders, chest, torso — NOT knees or ankles',
-      crossbodystretch: 'shoulders, neck, upper back, stretched arm — NOT knees, ankles, or lower body',
-      tricepstretch:    'elbow, shoulder, neck, torso alignment — NOT knees, ankles, or lower body',
-      sidelunge:        'bending knee, ankle, hip, torso — lateral knee tracking and upright posture',
-      chestfly:         'wrists, elbows, shoulders, chest — NOT knees, ankles, or lower body',
-      jumpsquat:        'feet, ankles, knees, hips, spine — especially landing mechanics and knee valgus',
-      burpee:           'full body: knees, hips, spine, shoulders — plank alignment and landing mechanics',
-    }
-    const focusNote = bodyFocus[params.exercise.toLowerCase()]
+    const focusNote = BODY_FOCUS[params.exercise.toLowerCase()]
       ?? 'all major joints relevant to this exercise'
 
     const repInfo = params.repCount != null ? ` (${params.repCount} reps completed so far)` : ''
@@ -596,6 +597,9 @@ export async function analyzeClip(params: {
       '- suggestions must be coaching cues in second person: "Your left knee is caving — press it out."',
       '- safetyConcerns only for genuinely dangerous patterns (score 65+). Empty array otherwise.',
       '- repCountEstimate: count visible reps across all frames. 0 if unclear.',
+      '',
+      `RELEVANT BODY PARTS FOR THIS EXERCISE: ${BODY_FOCUS[params.exercise.toLowerCase()] ?? 'all major joints relevant to this exercise'}`,
+      '- Analyze ONLY the body parts listed above. Do NOT comment on, penalize, or mention body parts not listed.',
       '',
       'Respond with ONLY this JSON — no markdown, no prose:',
       '{',
