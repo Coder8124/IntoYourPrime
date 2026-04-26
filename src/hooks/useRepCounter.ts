@@ -57,6 +57,7 @@ export type SupportedExercise =
   | 'firehydrant'
   | 'glutebridge'
   | 'hipthrust'
+  | 'donkeykick'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -159,6 +160,8 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Glute bridge / hip thrust: hip Y rises as hips extend from floor. Uses hip Y signal same as squat fallback.
   glutebridge:      { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'down_to_up', debounceMs: 1500 },
   hipthrust:        { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'down_to_up', debounceMs: 1500 },
+  // Donkey kick: on all fours, ankle kicks UP toward/above hip level. hip-ankle Y diff = glute signal.
+  donkeykick:       { joints: [LM.LEFT_ANKLE,         LM.RIGHT_ANKLE],    repOn: 'down_to_up', debounceMs: 1200 },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -305,11 +308,11 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   romaniandeadlift:    'deadlift',
   goodmorning:         'deadlift',
   hyperextension:      'deadlift',
-  nordicCurl:          'deadlift',
+  nordicCurl:          'situp',    // shoulder Y change tracks torso fall better than hip Y
   superman:            'deadlift',
   // ── Glute / hip — dedicated signals ─────────────────────────────────
   // glutebridge, hipthrust, firehydrant are now proper SupportedExercises
-  donkeykick:          'buttskick',
+  // donkeykick is now a dedicated SupportedExercise
   // ── Push — elbow angle like pushup ───────────────────────────────────
   diamondpushup:       'pushup',
   widegripushup:       'pushup',
@@ -725,16 +728,34 @@ export function useRepCounter(
       rawSignal    = ys.reduce((s, v) => s + v, 0) / ys.length
       invertSignal = false  // high Y (legs down) = "down"; low Y (legs up) = "up"
     } else if (exerciseKey === 'firehydrant') {
-      // Hip abduction on hands and knees. One knee lifts laterally → that knee's Y drops.
-      // Min knee Y captures the lifting leg. Low Y = lifted = "up". High Y = neutral = "down".
-      const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
-      const lConf = lKn?.visibility ?? 0, rConf = rKn?.visibility ?? 0
+      // Hip abduction on hands and knees. One knee lifts laterally → rises toward hip level.
+      // Use max(hipY - kneeY): when knee is neutral both are similar (small diff);
+      // when knee is lifted the gap grows (large diff = "up" position).
+      // invertSignal: large diff → low normalised → "up" phase.
+      const lKn = landmarks[LM.LEFT_KNEE], lHip = landmarks[LM.LEFT_HIP]
+      const rKn = landmarks[LM.RIGHT_KNEE], rHip = landmarks[LM.RIGHT_HIP]
+      const lConf = Math.min(lKn?.visibility ?? 0, lHip?.visibility ?? 0)
+      const rConf = Math.min(rKn?.visibility ?? 0, rHip?.visibility ?? 0)
       if (lConf < 0.3 && rConf < 0.3) return
-      const ys: number[] = []
-      if (lConf >= 0.3) ys.push(lKn.y)
-      if (rConf >= 0.3) ys.push(rKn.y)
-      rawSignal    = Math.min(...ys)
-      invertSignal = false  // low Y (knee raised) = "up"; high Y = "down"
+      const diffs: number[] = []
+      if (lConf >= 0.3) diffs.push(lHip.y - lKn.y)
+      if (rConf >= 0.3) diffs.push(rHip.y - rKn.y)
+      rawSignal    = Math.max(...diffs)  // most-lifted knee drives signal
+      invertSignal = true  // large diff (knee above hip) → low normalised → "up"
+    } else if (exerciseKey === 'donkeykick') {
+      // On all fours: ankle kicks backward and upward toward hip level.
+      // hip-ankle Y diff: neutral (ankle near floor) = small diff; kicked (ankle near hip) = large diff.
+      // invertSignal: large diff → low normalised → "up" phase.
+      const lAn = landmarks[LM.LEFT_ANKLE], lHip = landmarks[LM.LEFT_HIP]
+      const rAn = landmarks[LM.RIGHT_ANKLE], rHip = landmarks[LM.RIGHT_HIP]
+      const lConf = Math.min(lAn?.visibility ?? 0, lHip?.visibility ?? 0)
+      const rConf = Math.min(rAn?.visibility ?? 0, rHip?.visibility ?? 0)
+      if (lConf < 0.3 && rConf < 0.3) return
+      const diffs: number[] = []
+      if (lConf >= 0.3) diffs.push(lHip.y - lAn.y)
+      if (rConf >= 0.3) diffs.push(rHip.y - rAn.y)
+      rawSignal    = Math.max(...diffs)
+      invertSignal = true  // ankle rises toward/above hip → "up"
     } else if (exerciseKey === 'glutebridge' || exerciseKey === 'hipthrust') {
       // Person lying supine. Hips start near the floor (high Y) and rise during the bridge (low Y).
       // Knee angle stays roughly constant at ~90° throughout — use hip Y directly.
