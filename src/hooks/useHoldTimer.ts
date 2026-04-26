@@ -225,9 +225,15 @@ export function useHoldTimer(
     const ex = exercise.toLowerCase().trim()
     let detected = false
     if (ex === 'plank')            detected = detectPlank(landmarks)
-    if (ex === 'wallsit')          detected = detectWallSit(landmarks)
-    if (ex === 'crossbodystretch') detected = detectCrossBodyStretch(landmarks)
-    if (ex === 'tricepstretch')    detected = detectTricepStretch(landmarks)
+    else if (ex === 'wallsit')          detected = detectWallSit(landmarks)
+    else if (ex === 'crossbodystretch') detected = detectCrossBodyStretch(landmarks)
+    else if (ex === 'tricepstretch')    detected = detectTricepStretch(landmarks)
+    else {
+      // For all other hold/stretch exercises (floor poses, mobility, etc.)
+      // precise pose detection isn't feasible — run the timer whenever the
+      // person is visible in frame so the UX isn't broken.
+      detected = landmarks.some(lm => (lm?.visibility ?? 0) > 0.5)
+    }
 
     if (detected !== inPositionRef.current) {
       inPositionRef.current = detected
