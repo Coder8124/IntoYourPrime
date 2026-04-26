@@ -228,10 +228,9 @@ export function useHoldTimer(
     else if (ex === 'wallsit')          detected = detectWallSit(landmarks)
     else if (ex === 'crossbodystretch') detected = detectCrossBodyStretch(landmarks)
     else if (ex === 'tricepstretch')    detected = detectTricepStretch(landmarks)
-    else {
-      // For all other hold/stretch exercises (floor poses, mobility, etc.)
-      // precise pose detection isn't feasible — run the timer whenever the
-      // person is visible in frame so the UX isn't broken.
+    else if (HOLD_EXERCISES.includes(exercise)) {
+      // For hold/stretch exercises without specific pose detection (floor poses,
+      // mobility, etc.) run the timer whenever landmarks are visible.
       detected = landmarks.some(lm => (lm?.visibility ?? 0) > 0.5)
     }
 
