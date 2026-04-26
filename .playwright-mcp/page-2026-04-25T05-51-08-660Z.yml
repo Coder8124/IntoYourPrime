@@ -1,0 +1,102 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e7]: · booting basement ·
+    - generic:
+      - generic:
+        - img
+        - generic: IntoYourPrime
+    - generic:
+      - generic: ↓ pick a drink to sign in ↓
+      - generic: or tap the bench · or step through the basketball door
+    - generic: v2.6 · AI coach online · 33 landmarks · 30 fps
+    - button "Scroll for the pitch ↓" [ref=e8] [cursor=pointer]
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - generic [ref=e11]: The pitch
+      - heading "A trainer in your pocket. At a fraction of the cost." [level=2] [ref=e12]:
+        - text: A trainer in your pocket.
+        - text: At a fraction of the cost.
+      - paragraph [ref=e13]: Real-time form coaching, injury-risk detection, and automatic rep counting — powered by GPT-4o vision and MediaPipe. Just a webcam and your body.
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]: "33"
+        - generic [ref=e17]: body landmarks tracked
+      - generic [ref=e18]:
+        - generic [ref=e19]: 30fps
+        - generic [ref=e20]: real-time analysis
+      - generic [ref=e21]:
+        - generic [ref=e22]: "11"
+        - generic [ref=e23]: supported exercises
+      - generic [ref=e24]:
+        - generic [ref=e25]: 0ms
+        - generic [ref=e26]: server-side pose latency
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - text: Features
+        - heading "Everything a trainer gives you." [level=3] [ref=e29]
+      - generic [ref=e30]:
+        - generic [ref=e32]:
+          - generic [ref=e33]: 🎯
+          - generic [ref=e34]: Real-time form coaching
+          - paragraph [ref=e35]: GPT-4o vision analyzes every rep through your webcam and gives instant, personalized corrections — no guessing, no waiting.
+        - generic [ref=e37]:
+          - generic [ref=e38]: 🦴
+          - generic [ref=e39]: Injury-risk detection
+          - paragraph [ref=e40]: MediaPipe tracks 33 body landmarks at 30 fps. Knee valgus, hip sag, spine rounding — caught before they become injuries.
+        - generic [ref=e42]:
+          - generic [ref=e43]: 🔢
+          - generic [ref=e44]: Automatic rep counting
+          - paragraph [ref=e45]: No clicker. No wristband. Just move — the app counts your reps using pose geometry, 100% locally in your browser.
+        - generic [ref=e47]:
+          - generic [ref=e48]: 👥
+          - generic [ref=e49]: Squad accountability
+          - paragraph [ref=e50]: Add friends, see streaks, and let Prime Intelligence rank your squad’s training output every week.
+        - generic [ref=e52]:
+          - generic [ref=e53]: 🧬
+          - generic [ref=e54]: Personalized recovery
+          - paragraph [ref=e55]: AI-generated cooldown stretches and weekly insights based on your session history and daily wellness logs.
+        - generic [ref=e57]:
+          - generic [ref=e58]: 📊
+          - generic [ref=e59]: Progress dashboard
+          - paragraph [ref=e60]: Form-score trends, volume charts, streak tracking, and fatigue detection across every session you complete.
+    - generic [ref=e61]:
+      - generic [ref=e62]:
+        - text: How it works
+        - heading "Up and running in 2 minutes." [level=3] [ref=e63]
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - generic [ref=e66]: STEP 01
+          - generic [ref=e67]: Set up once
+          - paragraph [ref=e68]: Create an account, drop in your stats, and (optionally) wire up your OpenAI key for full AI coaching.
+        - generic [ref=e69]:
+          - generic [ref=e70]: STEP 02
+          - generic [ref=e71]: Open your camera
+          - paragraph [ref=e72]: No hardware required — any webcam works. Everything runs in the browser.
+        - generic [ref=e73]:
+          - generic [ref=e74]: STEP 03
+          - generic [ref=e75]: Start moving
+          - paragraph [ref=e76]: Pick an exercise, run your warmup, and get coached rep-by-rep with live risk scoring.
+        - generic [ref=e77]:
+          - generic [ref=e78]: STEP 04
+          - generic [ref=e79]: Review & recover
+          - paragraph [ref=e80]: After your session, review form trends, log recovery, and share your stats with your squad.
+    - generic [ref=e81]:
+      - generic [ref=e82]:
+        - text: Built with
+        - heading "The good stuff." [level=3] [ref=e83]
+      - generic [ref=e84]:
+        - generic [ref=e85]: GPT-4o Vision
+        - generic [ref=e86]: MediaPipe Pose
+        - generic [ref=e87]: React 19
+        - generic [ref=e88]: TypeScript
+        - generic [ref=e89]: Firebase
+        - generic [ref=e90]: Tailwind CSS
+        - generic [ref=e91]: Web Speech API
+        - generic [ref=e92]: Three.js
+    - generic [ref=e93]:
+      - heading "Ready to reach your prime?" [level=3] [ref=e94]
+      - paragraph [ref=e95]: Free to use. No hardware. No subscription. Show up and train smarter.
+      - generic [ref=e96]:
+        - button "↑ Pick a drink to sign in" [ref=e97] [cursor=pointer]
+        - button "Back to the gym" [ref=e98] [cursor=pointer]
+    - generic [ref=e99]: IntoYourPrime · v2.6 · Made for the floor

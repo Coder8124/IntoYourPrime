@@ -1,0 +1,22 @@
+- generic [ref=e4]:
+  - generic:
+    - generic:
+      - img
+      - generic: IntoYourPrime
+  - generic: v2.6 · AI coach online · 33 landmarks · 30 fps
+  - generic [ref=e7]:
+    - generic:
+      - img:
+        - generic: FREE THROW · 15 FT
+    - img
+    - generic:
+      - img
+    - generic:
+      - generic: Shots · 1 / 2 of 5
+      - generic: Streak · 1 · best 1
+    - button "Close" [ref=e8] [cursor=pointer]: ×
+    - generic:
+      - generic:
+        - generic: Power
+        - generic: "55"
+      - generic: ball in flight…

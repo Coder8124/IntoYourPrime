@@ -1,0 +1,156 @@
+- generic [ref=e4]:
+  - navigation [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - link "I IntoYourPrime" [ref=e8] [cursor=pointer]:
+          - /url: /home
+          - generic [ref=e9]: I
+          - generic [ref=e10]: IntoYourPrime
+        - generic [ref=e11]:
+          - link "Today" [ref=e12] [cursor=pointer]:
+            - /url: /home
+          - link "Workout" [ref=e13] [cursor=pointer]:
+            - /url: /workout
+          - link "Progress" [ref=e14] [cursor=pointer]:
+            - /url: /progress
+          - link "Squad" [ref=e15] [cursor=pointer]:
+            - /url: /friends
+          - link "Recovery" [ref=e16] [cursor=pointer]:
+            - /url: /recovery-log
+      - generic [ref=e17]:
+        - generic [ref=e18]: ✓ AI Active
+        - link "A" [ref=e19] [cursor=pointer]:
+          - /url: /profile
+  - generic [ref=e20]:
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - generic [ref=e25]: FRIDAY · READY TO TRAIN
+        - heading "Start your first workout" [level=1] [ref=e26]
+        - paragraph [ref=e27]: Your AI coach is ready. Camera-based form analysis, rep counting, and real-time coaching.
+        - generic [ref=e28]:
+          - button "▶ Start session" [ref=e29] [cursor=pointer]
+          - link "↺ Programs" [ref=e30] [cursor=pointer]:
+            - /url: /programs
+          - link "✨ AI Generate" [ref=e31] [cursor=pointer]:
+            - /url: /programs/generate
+          - link "🏀 Shooting" [ref=e32] [cursor=pointer]:
+            - /url: /basketball
+      - generic [ref=e33]:
+        - generic [ref=e34]:
+          - paragraph [ref=e35]: FORM SCORE
+          - generic [ref=e37]: —
+        - generic [ref=e40]:
+          - paragraph [ref=e41]: WEEKLY REPS
+          - generic [ref=e43]: —
+        - generic [ref=e46]:
+          - paragraph [ref=e47]: INJURY RISK
+          - generic [ref=e49]: —
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - heading "Quick Start" [level=2] [ref=e55]
+          - link "Browse plans →" [ref=e56] [cursor=pointer]:
+            - /url: /programs
+        - generic [ref=e57]:
+          - link "🏋️ Custom Workout Any exercise, AI-coached" [ref=e58] [cursor=pointer]:
+            - /url: /workout
+            - generic [ref=e59]: 🏋️
+            - generic [ref=e60]:
+              - paragraph [ref=e61]: Custom Workout
+              - paragraph [ref=e62]: Any exercise, AI-coached
+          - link "📋 Structured Program Follow a preset training plan" [ref=e63] [cursor=pointer]:
+            - /url: /programs
+            - generic [ref=e64]: 📋
+            - generic [ref=e65]:
+              - paragraph [ref=e66]: Structured Program
+              - paragraph [ref=e67]: Follow a preset training plan
+          - link "✨ AI Workout Generator Describe a goal, get a program" [ref=e68] [cursor=pointer]:
+            - /url: /programs/generate
+            - generic [ref=e69]: ✨
+            - generic [ref=e70]:
+              - paragraph [ref=e71]: AI Workout Generator
+              - paragraph [ref=e72]: Describe a goal, get a program
+          - link "🔧 Build Your Program Pick exercises, set reps & order" [ref=e73] [cursor=pointer]:
+            - /url: /programs/builder
+            - generic [ref=e74]: 🔧
+            - generic [ref=e75]:
+              - paragraph [ref=e76]: Build Your Program
+              - paragraph [ref=e77]: Pick exercises, set reps & order
+          - link "📖 Exercise Library Browse all 30+ exercises" [ref=e78] [cursor=pointer]:
+            - /url: /library
+            - generic [ref=e79]: 📖
+            - generic [ref=e80]:
+              - paragraph [ref=e81]: Exercise Library
+              - paragraph [ref=e82]: Browse all 30+ exercises
+          - link "🏀 Basketball Shooting form + BEEF scoring" [ref=e83] [cursor=pointer]:
+            - /url: /basketball
+            - generic [ref=e84]: 🏀
+            - generic [ref=e85]:
+              - paragraph [ref=e86]: Basketball
+              - paragraph [ref=e87]: Shooting form + BEEF scoring
+          - link "🏆 Squad Leaderboard See how you rank vs friends" [ref=e88] [cursor=pointer]:
+            - /url: /friends
+            - generic [ref=e89]: 🏆
+            - generic [ref=e90]:
+              - paragraph [ref=e91]: Squad Leaderboard
+              - paragraph [ref=e92]: See how you rank vs friends
+          - link "📈 Progress Sessions, reps & form trends" [ref=e93] [cursor=pointer]:
+            - /url: /progress
+            - generic [ref=e94]: 📈
+            - generic [ref=e95]:
+              - paragraph [ref=e96]: Progress
+              - paragraph [ref=e97]: Sessions, reps & form trends
+    - generic [ref=e98]:
+      - generic [ref=e99]:
+        - paragraph [ref=e100]: Readiness
+        - generic [ref=e102]:
+          - generic [ref=e103]: 📓
+          - paragraph [ref=e104]:
+            - text: Log recovery to
+            - text: see readiness score
+          - link "Log now →" [ref=e105] [cursor=pointer]:
+            - /url: /recovery-log
+      - generic [ref=e106]:
+        - generic [ref=e107]:
+          - paragraph [ref=e108]: Streak
+          - img [ref=e109]
+        - generic [ref=e111]:
+          - generic [ref=e112]: "0"
+          - generic [ref=e113]: days
+        - generic [ref=e114]:
+          - generic [ref=e117]: S
+          - generic [ref=e120]: S
+          - generic [ref=e123]: M
+          - generic [ref=e126]: T
+          - generic [ref=e129]: W
+          - generic [ref=e132]: T
+          - generic [ref=e135]: F
+          - generic [ref=e138]: S
+      - generic [ref=e139]:
+        - generic [ref=e140]:
+          - paragraph [ref=e141]: Squad This Week
+          - link "0 active →" [ref=e142] [cursor=pointer]:
+            - /url: /friends
+        - generic [ref=e143]:
+          - paragraph [ref=e144]: No squad activity yet.
+          - link "Add friends →" [ref=e145] [cursor=pointer]:
+            - /url: /friends
+      - generic [ref=e146]:
+        - link "Last session →" [ref=e147] [cursor=pointer]:
+          - /url: /session-summary
+        - link "Recovery log →" [ref=e148] [cursor=pointer]:
+          - /url: /recovery-log
+        - link "✨ AI Generate →" [ref=e149] [cursor=pointer]:
+          - /url: /programs/generate
+        - link "🔧 Build plan →" [ref=e150] [cursor=pointer]:
+          - /url: /programs/builder
+      - generic [ref=e151]:
+        - link "Profile" [ref=e152] [cursor=pointer]:
+          - /url: /profile
+        - link "Progress" [ref=e153] [cursor=pointer]:
+          - /url: /progress
+        - link "Squad" [ref=e154] [cursor=pointer]:
+          - /url: /friends
+        - link "Recovery" [ref=e155] [cursor=pointer]:
+          - /url: /recovery-log
+  - 'button "Theme: Electric. Click to change." [ref=e158] [cursor=pointer]':
+    - generic [ref=e160]: Electric
