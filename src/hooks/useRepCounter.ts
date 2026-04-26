@@ -110,9 +110,8 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Hold exercises — no reps counted; useHoldTimer handles timing
   plank:           { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
   wallsit:         { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
-  // Tricep extension: elbow angle. Extended overhead (~160°) = up; bent behind head (~40°) = down.
-  // invertSignal=true: large angle (extended) → low normalised → "up" phase.
-  tricepextension: { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
+  // Tricep extension: elbow angle (shoulder→elbow→wrist). Extended (~160°) = up; bent (~40°) = down.
+  tricepextension: { joints: [LM.LEFT_ELBOW,       LM.RIGHT_ELBOW],    repOn: 'down_to_up' },
   // Lateral raise: wrist Y. Arms at sides (high Y) = "down"; arms at shoulder height (low Y) = "up".
   lateralraise:    { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'up_to_down',  debounceMs: 900 },
   // Hammer curl: same elbow-angle signal as bicep curl, neutral grip (indistinguishable by pose).
@@ -567,15 +566,16 @@ export function useRepCounter(
       rawSignal    = result.value
       invertSignal = false
     } else if (exerciseKey === 'tricepextension') {
-      // wristY − elbowY. Extended overhead: wrist near/above elbow → diff ≈ 0 or negative.
-      // Bent behind head: wrist drops below elbow → diff grows positive.
-      // No inversion: large diff = "down" (bent); small diff = "up" (extended).
-      // Rep counted on down→up (returning to full extension).
-      // Lower wrist-confidence threshold (0.35) so occlusion behind the head doesn't drop the signal.
-      const result = getTricepExtSignal(landmarks)
-      if (!result) return
+      // Elbow angle (shoulder→elbow→wrist).
+      // Arm extended overhead: ~160-170° = "up". Forearm bent behind head: ~40-60° = "down".
+      // invertSignal: large angle (extended) → low normalised → "up" phase.
+      // Rep counted on down→up (arm returns to full extension).
+      // More reliable than wrist-Y diff because the elbow stays visible even when
+      // the wrist disappears behind the head at the bottom of the movement.
+      const result = getElbowAngle(landmarks)
+      if (!result || result.confidence < 0.35) return
       rawSignal    = result.value
-      invertSignal = false
+      invertSignal = true
     } else if (exerciseKey === 'curlup') {
       // hipY − shoulderY. Near-zero when flat, positive when curled up.
       // No inversion: high value = curled up = "up" phase naturally maps to low normalised.
