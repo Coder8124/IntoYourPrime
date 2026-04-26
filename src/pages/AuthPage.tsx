@@ -67,6 +67,13 @@ export function AuthPage() {
     vending === 'dispensed' || vending === 'ready' ? 'vending' :
     'idle'
 
+  // Lock body scroll whenever any overlay is active (court, login modal, bench HUD)
+  useEffect(() => {
+    const active = courtOpen || loginOpen || bench !== null
+    document.body.style.overflow = active ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [courtOpen, loginOpen, bench])
+
   // Door fly-in: when clicked, glide the camera to the door for 900ms, then open the court
   useEffect(() => {
     if (!doorOpening) return
@@ -178,9 +185,10 @@ export function AuthPage() {
     <div style={{ position: 'relative', background: 'var(--bg)' }}>
       {/* Hero — 3D gym scene fills the first viewport */}
       <section style={{ position: 'relative', height: '100vh', overflow: 'hidden' }}>
-      {/* Unmount the heavy 3D scene while the basketball room is open so the
-          minigame has the GPU to itself — kills the lag from running both at once. */}
-      {!courtOpen && (
+      {/* Keep GymScene mounted but hidden while court is open — avoids the
+          reload flash when the court closes. GPU is shared; the 3D canvas
+          is invisible so it's not actively rendering while courtOpen. */}
+      <div style={{ display: courtOpen ? 'none' : 'block', position: 'absolute', inset: 0 }}>
         <Suspense fallback={<SceneLoading />}>
           <GymScene
             cameraTarget={cameraTarget}
@@ -192,7 +200,7 @@ export function AuthPage() {
             onDoorClicked={() => setDoorOpening(true)}
           />
         </Suspense>
-      )}
+      </div>
 
       {/* Brand (top-left) */}
       <div

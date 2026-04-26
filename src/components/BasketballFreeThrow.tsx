@@ -201,7 +201,7 @@ export function BasketballFreeThrow({ onClose }: { onClose: () => void }) {
         inset: 0,
         zIndex: 60,
         background: 'linear-gradient(180deg, #0e1020 0%, #1a1530 100%)',
-        animation: 'fadeIn 0.32s ease',
+        animation: 'fadeIn 0.45s cubic-bezier(0.2,0.8,0.2,1)',
         overflow: 'hidden',
         cursor: phase === 'idle' || phase === 'charging' ? 'pointer' : 'default',
       }}
