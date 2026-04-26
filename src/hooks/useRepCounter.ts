@@ -230,38 +230,6 @@ function getElbowAngle(
 }
 
 /**
- * Overhead tricep-extension signal: average of (wristY − elbowY) across visible arms.
- * Extended (top): wrist near or above elbow → diff ≈ 0 or negative.
- * Bent behind head (bottom): wrist drops well below elbow → diff large positive.
- * Uses a lower wrist-confidence threshold (0.35) because the wrist partially
- * occludes behind the head at the bottom of the movement.
- */
-function getTricepExtSignal(
-  landmarks: NormalizedLandmark[],
-): { value: number; confidence: number } | null {
-  const lEl = landmarks[LM.LEFT_ELBOW],  lWr = landmarks[LM.LEFT_WRIST]
-  const rEl = landmarks[LM.RIGHT_ELBOW], rWr = landmarks[LM.RIGHT_WRIST]
-
-  const lElConf = lEl?.visibility ?? 0
-  const lWrConf = lWr?.visibility ?? 0
-  const rElConf = rEl?.visibility ?? 0
-  const rWrConf = rWr?.visibility ?? 0
-
-  const diffs: number[] = []
-  const confs:  number[] = []
-  // Require elbow clearly visible; wrist can lose confidence behind the head
-  if (lElConf >= CONFIDENCE_THRESH && lWrConf >= 0.35) { diffs.push(lWr.y - lEl.y); confs.push(Math.min(lElConf, lWrConf)) }
-  if (rElConf >= CONFIDENCE_THRESH && rWrConf >= 0.35) { diffs.push(rWr.y - rEl.y); confs.push(Math.min(rElConf, rWrConf)) }
-  if (diffs.length === 0) return null
-
-  const n = diffs.length
-  return {
-    value:      diffs.reduce((s, v) => s + v, 0) / n,
-    confidence: confs.reduce((s, v) => s + v, 0) / n,
-  }
-}
-
-/**
  * Average knee angle (hip→knee→ankle) across visible legs.
  * Standing: ~160–170°. Bottom of squat: ~80–100°.
  * Large angle = standing (up), small angle = squatting (down).
