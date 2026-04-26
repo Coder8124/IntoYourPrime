@@ -13,6 +13,7 @@ import { getOrCreateLocalUserId } from '../lib/localUserId'
 import { getActiveProgram, EXERCISE_INFO, type ActiveProgram } from '../lib/programs'
 import type { ActivityFeedItem, DailyLog, Session } from '../types'
 import { ThemeSwitcher } from '../components/ThemeSwitcher'
+import { ClipCoach } from '../components/ClipCoach'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -706,6 +707,9 @@ export function HomePage() {
               🔧 Build plan →
             </Link>
           </div>
+
+          {/* Clip coach — video upload for post-workout AI analysis */}
+          <ClipCoach />
 
           {/* Footer links */}
           <div className="flex justify-center flex-wrap gap-x-4 gap-y-1.5 pt-2">
