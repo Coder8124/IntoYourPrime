@@ -708,11 +708,14 @@ export function HomePage() {
           </div>
 
           {/* Footer links */}
-          <div className="flex justify-center gap-4 pt-2">
-            <Link to="/profile"  className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Profile</Link>
-            <Link to="/progress" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Progress</Link>
-            <Link to="/friends"  className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Squad</Link>
+          <div className="flex justify-center flex-wrap gap-x-4 gap-y-1.5 pt-2">
+            <Link to="/profile"      className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Profile</Link>
+            <Link to="/progress"     className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Progress</Link>
+            <Link to="/friends"      className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Squad</Link>
             <Link to="/recovery-log" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Recovery</Link>
+            <Link to="/library"      className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Library</Link>
+            <Link to="/measurements" className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">Measurements</Link>
+            <Link to="/auth"         className="text-[11px] text-gray-700 hover:text-gray-400 transition-colors">🏛 Gym</Link>
           </div>
 
           {/* Spacer so the floating theme pill never overlaps the footer */}

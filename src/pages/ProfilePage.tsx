@@ -379,7 +379,14 @@ export function ProfilePage() {
         </button>
 
         {/* Sign out */}
-        <div className="mt-8 border-t border-subtle pt-6">
+        <div className="mt-8 border-t border-subtle pt-6 space-y-3">
+          <Link
+            to="/auth"
+            className="block w-full rounded-xl border py-3 text-center text-[13px] font-semibold text-gray-400 transition hover:text-white"
+            style={{ borderColor: 'var(--border-2)' }}
+          >
+            🏛 Visit the Gym
+          </Link>
           <button
             type="button"
             onClick={async () => {

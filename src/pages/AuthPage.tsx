@@ -41,6 +41,7 @@ function BrandMark() {
 
 export function AuthPage() {
   const navigate = useNavigate()
+  const alreadySignedIn = Boolean(auth.currentUser)
   const [mode,     setMode]     = useState<Mode>('signin')
   const [name,     setName]     = useState('')
   const [email,    setEmail]    = useState('')
@@ -221,7 +222,6 @@ export function AuthPage() {
             top: 32,
             transform: 'translateX(-50%)',
             zIndex: 10,
-            pointerEvents: 'none',
             padding: '10px 20px',
             borderRadius: 999,
             background: 'rgba(15, 15, 25, 0.7)',
@@ -234,12 +234,25 @@ export function AuthPage() {
             color: '#fff',
             textTransform: 'uppercase',
             textAlign: 'center',
+            pointerEvents: alreadySignedIn ? 'auto' : 'none',
           }}
         >
-          <div><span style={{ color: '#facc15' }}>↓</span> pick a drink to sign in <span style={{ color: '#facc15' }}>↓</span></div>
-          <div style={{ marginTop: 4, fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>
-            or tap the bench · or step through the basketball door
-          </div>
+          {alreadySignedIn ? (
+            <button
+              type="button"
+              onClick={() => navigate('/home')}
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit' }}
+            >
+              ← back to app
+            </button>
+          ) : (
+            <>
+              <div><span style={{ color: '#facc15' }}>↓</span> pick a drink to sign in <span style={{ color: '#facc15' }}>↓</span></div>
+              <div style={{ marginTop: 4, fontSize: 10, color: 'rgba(255,255,255,0.6)' }}>
+                or tap the bench · or step through the basketball door
+              </div>
+            </>
+          )}
         </div>
       )}
 
