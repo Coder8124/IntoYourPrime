@@ -266,6 +266,23 @@ export function ClipCoach() {
 
   // ── results ───────────────────────────────────────────────────────────────
   if (state === 'results' && result) {
+    const notFitness = result.dominantIssue === '__not_fitness__'
+
+    if (notFitness) {
+      return (
+        <div className="card-surface p-4 rounded-xl space-y-3">
+          <p className="text-[11px] font-bold tracking-[0.12em] text-gray-500 uppercase">Clip Coach</p>
+          <p className="text-[13px] text-gray-400 leading-snug">
+            No workout detected in this clip. Upload a video of yourself exercising and I'll coach your form.
+          </p>
+          <button type="button" onClick={reset}
+            className="text-[11px] text-accent hover:text-accent/80 transition-colors">
+            Try another clip
+          </button>
+        </div>
+      )
+    }
+
     const color = riskColor(result.riskScore)
     return (
       <div className="card-surface p-4 rounded-xl space-y-3">

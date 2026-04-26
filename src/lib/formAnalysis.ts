@@ -593,6 +593,9 @@ export async function analyzeClip(params: {
       '',
       'IMPORTANT RULES:',
       '- These are evenly-spaced frames from a recorded clip, not live footage.',
+      '- FIRST: check whether a human is visibly performing physical exercise in these frames.',
+      '  If NO human is doing exercise (e.g. a board game, screen recording, animals, scenery,',
+      '  sitting at a desk, etc.), set notFitness: true and leave all other fields at defaults.',
       '- Identify the most common or most dangerous fault visible across the frames.',
       '- suggestions must be coaching cues in second person: "Your left knee is caving — press it out."',
       '- safetyConcerns only for genuinely dangerous patterns (score 65+). Empty array otherwise.',
@@ -603,6 +606,7 @@ export async function analyzeClip(params: {
       '',
       'Respond with ONLY this JSON — no markdown, no prose:',
       '{',
+      '  "notFitness": boolean,',
       '  "riskScore": number,',
       '  "suggestions": string[],',
       '  "safetyConcerns": string[],',
@@ -629,7 +633,11 @@ export async function analyzeClip(params: {
       ],
     })
     const raw = completion.choices[0]?.message?.content ?? ''
-    return JSON.parse(stripJsonFences(raw)) as FormAnalysisResult
+    const parsed = JSON.parse(stripJsonFences(raw)) as FormAnalysisResult & { notFitness?: boolean }
+    if (parsed.notFitness) {
+      return { ...DEFAULT_FORM_RESULT, dominantIssue: '__not_fitness__' }
+    }
+    return parsed
   } catch {
     return { ...DEFAULT_FORM_RESULT }
   }
