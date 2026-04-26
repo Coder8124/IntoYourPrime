@@ -1247,6 +1247,7 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
       'Follow with wrist flexor and extensor stretches',
     ],
     riskNote: 'No injury risk. AI monitors range of motion and arm symmetry.',
+    isHold: true,
     isNew: true,
   },
 

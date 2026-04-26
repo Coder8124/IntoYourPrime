@@ -58,6 +58,7 @@ export type SupportedExercise =
   | 'glutebridge'
   | 'hipthrust'
   | 'donkeykick'
+  | 'russiantwist'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -162,6 +163,8 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   hipthrust:        { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'down_to_up', debounceMs: 1500 },
   // Donkey kick: on all fours, ankle kicks UP toward/above hip level. hip-ankle Y diff = glute signal.
   donkeykick:       { joints: [LM.LEFT_ANKLE,         LM.RIGHT_ANKLE],    repOn: 'down_to_up', debounceMs: 1200 },
+  // Russian twist: seated, torso rotates left-right. Wrists sweep side to side — track wrist center X.
+  russiantwist:     { joints: [LM.LEFT_WRIST,          LM.RIGHT_WRIST],    repOn: 'up_to_down', debounceMs: 700 },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -333,7 +336,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   skullcrusher:        'tricepextension',
   wristcurl:           'bicepcurl',
   // ── Core — torso signal ───────────────────────────────────────────────
-  russiantwist:        'hipcircle',
+  // russiantwist is now a dedicated SupportedExercise (wrist X oscillation)
   bicycleCrunch:       'mountainclimber',
   // legRaise is now a proper SupportedExercise (dedicated ankle-Y signal)
   flutterKick:         'highnees',
@@ -344,7 +347,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   tuckjump:            'jumpsquat',
   starjump:            'jumpsquat',
   broadjump:           'jumpsquat',
-  shadowboxing:        'jumpingjack',
+  shadowboxing:        'chestpress',  // punches extend the elbow — chestpress elbow-angle signal works
   // ── Isometric / mobility — map to plank (hold timer handles them) ─────
   sideplank:           'plank',
   deadbug:             'plank',
@@ -365,7 +368,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   anklecircle:         'plank',     // ankle rotation — hold timer handles, wrist Y irrelevant
   neckroll:            'plank',     // neck rotation — hold timer handles, wrist Y irrelevant
   shoulderroll:        'armcircle', // shoulder rolls move wrists up/down — armcircle signal works
-  wristcircle:         'armcircle', // wrist rotation moves wrist Y slightly — marginal but OK
+  wristcircle:         'plank',     // arms held horizontal during wrist rotation — Y barely changes
 }
 
 export function useRepCounter(
@@ -767,6 +770,18 @@ export function useRepCounter(
       if (rConf >= 0.3) ys.push(rHip.y)
       rawSignal    = ys.reduce((s, v) => s + v, 0) / ys.length
       invertSignal = false  // high Y (hips on floor) = "down"; low Y (hips raised) = "up"
+    } else if (exerciseKey === 'russiantwist') {
+      // Seated torso rotation. Hips stay planted — hip X is static.
+      // Wrists hold the weight and sweep left→right with the torso.
+      // Track average wrist X: oscillates as torso rotates side to side.
+      const lWr = landmarks[LM.LEFT_WRIST], rWr = landmarks[LM.RIGHT_WRIST]
+      const lConf = lWr?.visibility ?? 0, rConf = rWr?.visibility ?? 0
+      if (lConf < 0.3 && rConf < 0.3) return
+      const xs: number[] = []
+      if (lConf >= 0.3) xs.push(lWr.x)
+      if (rConf >= 0.3) xs.push(rWr.x)
+      rawSignal    = xs.reduce((s, v) => s + v, 0) / xs.length
+      invertSignal = false  // X oscillates left (small) ↔ right (large); each crossing = half a twist
     } else if (exerciseKey === 'burpee') {
       // Body height via average of (shoulder + hip) Y.
       // Standing: all landmarks high in frame → low Y → "up".
