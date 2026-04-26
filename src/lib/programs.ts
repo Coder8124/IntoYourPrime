@@ -1411,6 +1411,7 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
       'Use light weight — forearms are a small muscle group',
     ],
     riskNote: 'Can aggravate carpal tunnel. AI monitors wrist range of motion and symmetry.',
+    isHold: true,
     isNew: true,
   },
   {

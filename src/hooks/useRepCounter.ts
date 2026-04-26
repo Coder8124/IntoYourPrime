@@ -310,7 +310,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   // ── Posterior chain — hip hinge like deadlift ─────────────────────────
   romaniandeadlift:    'deadlift',
   goodmorning:         'deadlift',
-  hyperextension:      'deadlift',
+  hyperextension:      'situp',     // hips anchored on pad — shoulderY rises as torso lifts, same as superman
   nordicCurl:          'situp',    // shoulder Y change tracks torso fall better than hip Y
   superman:            'situp',    // prone chest lift: shoulderY drops as chest rises, same hipY-shoulderY signal
   // ── Glute / hip — dedicated signals ─────────────────────────────────
@@ -334,7 +334,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   concentrationcurl:   'bicepcurl',
   zottmancurl:         'bicepcurl',
   skullcrusher:        'tricepextension',
-  wristcurl:           'bicepcurl',
+  wristcurl:           'plank',     // wrist joint flexion — elbow angle never changes; untrackable via pose
   // ── Core — torso signal ───────────────────────────────────────────────
   // russiantwist is now a dedicated SupportedExercise (wrist X oscillation)
   bicycleCrunch:       'mountainclimber',
