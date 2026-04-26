@@ -354,19 +354,14 @@ export function HomePage() {
 
           {/* Right side */}
           <div className="flex items-center gap-3">
-            {!apiKeySet ? (
-              <button
-                onClick={() => setShowApiInput(v => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-all"
-                style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#fbbf24' }}>
-                ⚡ Add AI Key
-              </button>
-            ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold"
-                style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', color: '#4ade80' }}>
-                ✓ AI Active
-              </div>
-            )}
+            <button
+              onClick={() => setShowApiInput(v => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-all"
+              style={apiKeySet
+                ? { background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', color: '#4ade80' }
+                : { background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', color: '#fbbf24' }}>
+              {apiKeySet ? '✓ AI Active — Change Key' : '⚡ Add AI Key'}
+            </button>
             <Link to="/profile"
               className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black text-white"
               style={{ background: 'linear-gradient(135deg,#3b82f6,#7c3aed)' }}>

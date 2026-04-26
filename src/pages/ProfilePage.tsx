@@ -269,7 +269,7 @@ export function ProfilePage() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.1em]">
-                {keyHasValue ? 'Replace Key' : 'Add Key'}
+                {keyHasValue ? 'Change API Key' : 'Add API Key'}
               </label>
               <button
                 type="button"
