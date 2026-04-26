@@ -26,18 +26,32 @@ function loadProfile() {
   }
 }
 
-async function extractFrames(file: File): Promise<string[]> {
+async function extractFrames(file: File, signal?: AbortSignal): Promise<string[]> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new DOMException('Aborted', 'AbortError')); return }
+
     const video = document.createElement('video')
     video.muted = true
     video.playsInline = true
     const url = URL.createObjectURL(file)
     video.src = url
 
+    const cleanup = () => {
+      URL.revokeObjectURL(url)
+      video.src = ''
+    }
+
+    signal?.addEventListener('abort', () => {
+      cleanup()
+      reject(new DOMException('Aborted', 'AbortError'))
+    }, { once: true })
+
     video.addEventListener('loadedmetadata', () => {
+      if (signal?.aborted) { cleanup(); reject(new DOMException('Aborted', 'AbortError')); return }
+
       const duration = video.duration
       if (!duration || !isFinite(duration)) {
-        URL.revokeObjectURL(url)
+        cleanup()
         reject(new Error('Could not read video duration'))
         return
       }
@@ -45,33 +59,37 @@ async function extractFrames(file: File): Promise<string[]> {
       const canvas = document.createElement('canvas')
       canvas.width  = 256
       canvas.height = 256
-      const ctx = canvas.getContext('2d')!
+      const ctx = canvas.getContext('2d')! // always non-null for createElement canvas
       const frames: string[] = []
       let i = 0
 
-      const seekNext = () => {
-        if (i >= SEEK_RATIOS.length) {
-          URL.revokeObjectURL(url)
-          resolve(frames)
+      const onSeeked = () => {
+        if (signal?.aborted) {
+          video.removeEventListener('seeked', onSeeked)
+          cleanup()
+          reject(new DOMException('Aborted', 'AbortError'))
           return
         }
-        video.currentTime = SEEK_RATIOS[i] * duration
-      }
-
-      video.addEventListener('seeked', () => {
         ctx.drawImage(video, 0, 0, 256, 256)
         frames.push(canvas.toDataURL('image/jpeg', 0.7))
         i++
-        seekNext()
-      })
+        if (i >= SEEK_RATIOS.length) {
+          video.removeEventListener('seeked', onSeeked)
+          cleanup()
+          resolve(frames)
+        } else {
+          video.currentTime = SEEK_RATIOS[i] * duration
+        }
+      }
 
-      seekNext()
-    })
+      video.addEventListener('seeked', onSeeked)
+      video.currentTime = SEEK_RATIOS[0] * duration
+    }, { once: true })
 
     video.addEventListener('error', () => {
-      URL.revokeObjectURL(url)
+      cleanup()
       reject(new Error('Failed to load video file'))
-    })
+    }, { once: true })
   })
 }
 
@@ -82,7 +100,8 @@ function riskColor(score: number): string {
 }
 
 export function ClipCoach() {
-  const fileRef = useRef<HTMLInputElement>(null)
+  const fileRef  = useRef<HTMLInputElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
   const [state,    setState]    = useState<ClipState>('idle')
   const [file,     setFile]     = useState<File | null>(null)
   const [exercise, setExercise] = useState('')
@@ -102,6 +121,8 @@ export function ClipCoach() {
   }
 
   const reset = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
     setState('idle')
     setFile(null)
     setExercise('')
@@ -117,17 +138,23 @@ export function ClipCoach() {
 
   const handleAnalyze = async () => {
     if (!file || !exercise) return
+    abortRef.current?.abort()
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
     try {
       setState('extracting')
-      const frames = await extractFrames(file)
+      const frames = await extractFrames(file, ctrl.signal)
+      if (ctrl.signal.aborted) return
 
       setState('analyzing')
       const profile = loadProfile()
       const res = await analyzeClip({ frames, exercise, userProfile: profile })
+      if (ctrl.signal.aborted) return
 
       setResult(res)
       setState('results')
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong')
       setState('error')
     }
