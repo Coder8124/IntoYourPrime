@@ -548,3 +548,85 @@ export async function generateRecoveryInsight(context: {
     return ''
   }
 }
+
+// ── analyzeClip ────────────────────────────────────────────────────────────
+
+export async function analyzeClip(params: {
+  frames:      string[]
+  exercise:    string
+  userProfile: { age: number; weight: number; fitnessLevel: string }
+}): Promise<FormAnalysisResult> {
+  const c = client()
+  if (!c) return { ...DEFAULT_FORM_RESULT }
+
+  const guide = EXERCISE_GUIDES[params.exercise.toLowerCase()]
+    ?? 'Check posture, joint alignment, spine neutrality, and full range of motion. Flag any rounding, collapsing, or compensatory movement patterns.'
+
+  const levelMap: Record<string, string> = {
+    beginner:     'beginner — be encouraging but very direct about safety issues',
+    intermediate: 'intermediate — be direct and technically precise',
+    advanced:     'advanced — be concise, assume they know the basics, focus only on what is actually off',
+  }
+  const levelNote = levelMap[params.userProfile.fitnessLevel] ?? 'intermediate'
+
+  const imageBlocks: OpenAI.Chat.Completions.ChatCompletionContentPart[] = params.frames.map(f => ({
+    type:      'image_url' as const,
+    image_url: { url: f, detail: 'low' as const },
+  }))
+
+  const textBlock: OpenAI.Chat.Completions.ChatCompletionContentPart = {
+    type: 'text',
+    text: [
+      `EXERCISE: ${params.exercise.toUpperCase()} (recorded clip review)`,
+      `ATHLETE: ${params.userProfile.age} yrs, ${params.userProfile.weight} kg, ${levelNote}`,
+      '',
+      'FORM RUBRIC:',
+      guide,
+      '',
+      'SCORING:',
+      '  0–20 = excellent form',
+      '  21–40 = minor issues',
+      '  41–60 = clear form breakdown',
+      '  61–80 = significant fault, needs correction',
+      '  81–100 = dangerous, high injury risk',
+      '',
+      'IMPORTANT RULES:',
+      '- These are evenly-spaced frames from a recorded clip, not live footage.',
+      '- Identify the most common or most dangerous fault visible across the frames.',
+      '- suggestions must be coaching cues in second person: "Your left knee is caving — press it out."',
+      '- safetyConcerns only for genuinely dangerous patterns (score 65+). Empty array otherwise.',
+      '- repCountEstimate: count visible reps across all frames. 0 if unclear.',
+      '',
+      'Respond with ONLY this JSON — no markdown, no prose:',
+      '{',
+      '  "riskScore": number,',
+      '  "suggestions": string[],',
+      '  "safetyConcerns": string[],',
+      '  "dominantIssue": string | null,',
+      '  "warmupQuality": null,',
+      '  "repCountEstimate": number',
+      '}',
+    ].join('\n'),
+  }
+
+  try {
+    const completion = await c.chat.completions.create({
+      model:      'gpt-4o-mini',
+      max_tokens: 500,
+      messages: [
+        {
+          role:    'system',
+          content: 'You are an elite strength coach reviewing recorded workout footage. Analyze form quality across all frames and return JSON only.',
+        },
+        {
+          role:    'user',
+          content: [...imageBlocks, textBlock],
+        },
+      ],
+    })
+    const raw = completion.choices[0]?.message?.content ?? ''
+    return JSON.parse(stripJsonFences(raw)) as FormAnalysisResult
+  } catch {
+    return { ...DEFAULT_FORM_RESULT }
+  }
+}
