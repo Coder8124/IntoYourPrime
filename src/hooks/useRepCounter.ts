@@ -380,7 +380,9 @@ export function useRepCounter(
   const exerciseKey: SupportedExercise =
     (raw as SupportedExercise) in EXERCISE_CONFIG
       ? (raw as SupportedExercise)
-      : SIGNAL_ALIAS[raw] ?? SIGNAL_ALIAS[exercise] ?? 'squat'
+      : (exercise as SupportedExercise) in EXERCISE_CONFIG  // catch mixed-case IDs like 'legRaise'
+        ? (exercise as SupportedExercise)
+        : SIGNAL_ALIAS[raw] ?? SIGNAL_ALIAS[exercise] ?? 'squat'
 
   const config = EXERCISE_CONFIG[exerciseKey]
 
