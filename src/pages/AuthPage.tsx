@@ -67,11 +67,11 @@ export function AuthPage() {
     vending === 'dispensed' || vending === 'ready' ? 'vending' :
     'idle'
 
-  // Lock body scroll whenever any overlay is active (court, login modal, bench HUD)
+  // Lock scroll whenever any overlay is active (court, login modal, bench HUD)
   useEffect(() => {
     const active = courtOpen || loginOpen || bench !== null
-    document.body.style.overflow = active ? 'hidden' : ''
-    return () => { document.body.style.overflow = '' }
+    document.documentElement.style.overflow = active ? 'hidden' : ''
+    return () => { document.documentElement.style.overflow = '' }
   }, [courtOpen, loginOpen, bench])
 
   // Door fly-in: when clicked, glide the camera to the door for 900ms, then open the court

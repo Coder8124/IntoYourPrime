@@ -23,7 +23,7 @@ export function RouteFade({ children }: { children: ReactNode }) {
   }, [children, location.pathname])
 
   return (
-    <div key={displayed.key} className="animate-fade-up" style={{ minHeight: '100vh' }}>
+    <div key={displayed.key} className="route-fade" style={{ minHeight: '100vh' }}>
       {displayed.node}
     </div>
   )
