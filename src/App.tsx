@@ -4,6 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { auth } from './lib/firebase'
 import { upsertUserDisplayName } from './lib/firebaseHelpers'
+import { loadSubscriptionStatus, clearSubscriptionCache } from './lib/subscriptionStatus'
 import { RootRedirect } from './components/RootRedirect'
 import { RouteFade } from './components/RouteFade'
 import { NavigationProgress } from './components/NavigationProgress'
@@ -43,7 +44,10 @@ function PageLoader() {
 export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (!user) return
+      if (!user) {
+        clearSubscriptionCache()
+        return
+      }
       const profile = JSON.parse(localStorage.getItem('formAI_profile') ?? '{}') as Record<string, unknown>
       const name = (typeof profile.name === 'string' && profile.name.trim())
         ? profile.name.trim()
@@ -51,6 +55,7 @@ export default function App() {
       if (name) {
         upsertUserDisplayName(user.uid, name, user.email ?? '').catch(() => {})
       }
+      loadSubscriptionStatus().catch(() => {})
     })
     return unsub
   }, [])
