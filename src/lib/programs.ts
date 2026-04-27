@@ -8,6 +8,7 @@ export interface ExerciseInfo {
   riskNote: string
   isHold?: boolean
   isNew?: boolean
+  isLimitedTracking?: boolean
 }
 
 export const EXERCISE_INFO: ExerciseInfo[] = [
@@ -404,6 +405,7 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
       'Arms can be at your sides, in a "T", or bent in a "W" — all are valid',
     ],
     riskNote: 'Very low injury risk. Main error is shrugging instead of retracting. AI tracks shoulder symmetry and height.',
+    isLimitedTracking: true,
   },
   {
     id: 'sidelunge',
@@ -1009,6 +1011,7 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
     ],
     riskNote: 'Low injury risk. AI monitors arm symmetry and shoulder height throughout.',
     isNew: true,
+    isLimitedTracking: true,
   },
 
   // ── Stretching / Mobility ──────────────────────────────────────────────
@@ -1018,7 +1021,6 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
     name: 'Cat-Cow',
     muscles: ['Spine', 'Lower Back', 'Core', 'Neck'],
     difficulty: 'Beginner',
-    isHold: true,
     description: 'A gentle spinal flexion-extension mobilization. Warms up every segment of the spine — essential before any workout.',
     cues: [
       'Start on hands and knees, spine neutral',
@@ -1029,6 +1031,7 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
     ],
     riskNote: 'Extremely low injury risk. AI monitors the completeness of both flexion and extension.',
     isNew: true,
+    isLimitedTracking: true,
   },
   {
     id: 'childpose',
@@ -1470,6 +1473,7 @@ export interface WorkoutProgram {
   description: string
   level: 'Beginner' | 'Intermediate' | 'Advanced'
   duration: string
+  warmup?: string[]      // optional warmup exercises played before main set
   exercises: string[]
   tags: string[]
   emoji: string
@@ -1586,10 +1590,14 @@ export function getActiveProgram(): ActiveProgram | null {
 }
 
 export function setActiveProgram(program: WorkoutProgram): void {
+  const allExercises = [
+    ...(program.warmup ?? []),
+    ...program.exercises,
+  ]
   const active: ActiveProgram = {
     id: program.id,
     name: program.name,
-    exercises: program.exercises,
+    exercises: allExercises,
     currentIndex: 0,
     targetReps: program.targetReps,
     targetHoldSecs: program.targetHoldSecs,

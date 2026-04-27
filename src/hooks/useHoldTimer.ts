@@ -121,6 +121,110 @@ function detectWallSit(landmarks: NormalizedLandmark[]): boolean {
 }
 
 /**
+ * Side plank: body horizontal like a plank — reuse the plank detector.
+ * From camera it's visually similar (horizontal body, shoulder/hip at same Y).
+ */
+function detectSidePlank(landmarks: NormalizedLandmark[]): boolean {
+  return detectPlank(landmarks)
+}
+
+/**
+ * Downward dog: hips are the apex of the inverted-V.
+ * Hip Y < shoulder Y (hips higher in real world = lower normalized Y).
+ */
+function detectDownDog(landmarks: NormalizedLandmark[]): boolean {
+  if (landmarks.length < 29) return false
+  const lSh  = landmarks[LM.LEFT_SHOULDER],  rSh  = landmarks[LM.RIGHT_SHOULDER]
+  const lHip = landmarks[LM.LEFT_HIP],       rHip = landmarks[LM.RIGHT_HIP]
+  if (!vis(lSh) && !vis(rSh)) return false
+  if (!vis(lHip) && !vis(rHip)) return false
+  const shY  = ((vis(lSh)  ? lSh.y  : rSh.y)  + (vis(rSh)  ? rSh.y  : lSh.y))  / 2
+  const hipY = ((vis(lHip) ? lHip.y : rHip.y) + (vis(rHip) ? rHip.y : lHip.y)) / 2
+  return hipY < shY - 0.08  // hips clearly above shoulders
+}
+
+/**
+ * Cobra pose: prone back-bend — chest/shoulders raised while hips stay on ground.
+ * Shoulder Y < hip Y (shoulders above hips in normalized coords).
+ */
+function detectCobra(landmarks: NormalizedLandmark[]): boolean {
+  if (landmarks.length < 25) return false
+  const lSh  = landmarks[LM.LEFT_SHOULDER],  rSh  = landmarks[LM.RIGHT_SHOULDER]
+  const lHip = landmarks[LM.LEFT_HIP],       rHip = landmarks[LM.RIGHT_HIP]
+  if (!vis(lSh) && !vis(rSh)) return false
+  if (!vis(lHip) && !vis(rHip)) return false
+  const shY  = ((vis(lSh)  ? lSh.y  : rSh.y)  + (vis(rSh)  ? rSh.y  : lSh.y))  / 2
+  const hipY = ((vis(lHip) ? lHip.y : rHip.y) + (vis(rHip) ? rHip.y : lHip.y)) / 2
+  return shY < hipY - 0.08  // shoulders clearly above hips
+}
+
+/**
+ * Child's pose: hips sit back near ankles, torso folded forward (shoulders below hips in image).
+ */
+function detectChildPose(landmarks: NormalizedLandmark[]): boolean {
+  if (landmarks.length < 29) return false
+  const lHip = landmarks[LM.LEFT_HIP],   rHip = landmarks[LM.RIGHT_HIP]
+  const lAn  = landmarks[LM.LEFT_ANKLE], rAn  = landmarks[LM.RIGHT_ANKLE]
+  const lSh  = landmarks[LM.LEFT_SHOULDER], rSh = landmarks[LM.RIGHT_SHOULDER]
+  if (!vis(lHip) && !vis(rHip)) return false
+  if (!vis(lAn)  && !vis(rAn))  return false
+  const hipY = ((vis(lHip) ? lHip.y : rHip.y) + (vis(rHip) ? rHip.y : lHip.y)) / 2
+  const anY  = ((vis(lAn)  ? lAn.y  : rAn.y)  + (vis(rAn)  ? rAn.y  : lAn.y))  / 2
+  // Hips close to ankles (difference < 0.25) — hips sitting back on heels
+  if (Math.abs(hipY - anY) > 0.25) return false
+  // Shoulders should be near or below hip level (torso folded)
+  if (vis(lSh) || vis(rSh)) {
+    const shY = ((vis(lSh) ? lSh.y : rSh.y) + (vis(rSh) ? rSh.y : lSh.y)) / 2
+    if (shY < hipY - 0.1) return false  // shoulders way above hips = not child's pose
+  }
+  return true
+}
+
+/**
+ * Hip flexor stretch (low lunge): one knee on the ground, other leg at ~90°.
+ * Detected by checking if knee Y ≈ ankle Y on the back leg (rear knee on floor).
+ */
+function detectHipFlexorStretch(landmarks: NormalizedLandmark[]): boolean {
+  if (landmarks.length < 29) return false
+  const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
+  const lAn = landmarks[LM.LEFT_ANKLE], rAn = landmarks[LM.RIGHT_ANKLE]
+  const lHip = landmarks[LM.LEFT_HIP], rHip = landmarks[LM.RIGHT_HIP]
+  // One knee near ankle level (rear leg on floor), other knee above hip (front leg bent)
+  const leftKneeLow  = vis(lKn) && vis(lAn) && Math.abs(lKn.y - lAn.y) < 0.2
+  const rightKneeLow = vis(rKn) && vis(rAn) && Math.abs(rKn.y - rAn.y) < 0.2
+  const leftKneeHigh  = vis(lKn) && vis(lHip) && lKn.y > lHip.y + 0.05
+  const rightKneeHigh = vis(rKn) && vis(rHip) && rKn.y > rHip.y + 0.05
+  return (leftKneeLow && rightKneeHigh) || (rightKneeLow && leftKneeHigh)
+}
+
+/**
+ * Hamstring stretch: standing or seated forward fold.
+ * Torso bent forward: shoulder Y > hip Y (shoulders drop below hips in image).
+ */
+function detectHamstringStretch(landmarks: NormalizedLandmark[]): boolean {
+  if (landmarks.length < 25) return false
+  const lSh  = landmarks[LM.LEFT_SHOULDER],  rSh  = landmarks[LM.RIGHT_SHOULDER]
+  const lHip = landmarks[LM.LEFT_HIP],       rHip = landmarks[LM.RIGHT_HIP]
+  if (!vis(lSh) && !vis(rSh)) return false
+  if (!vis(lHip) && !vis(rHip)) return false
+  const shY  = ((vis(lSh)  ? lSh.y  : rSh.y)  + (vis(rSh)  ? rSh.y  : lSh.y))  / 2
+  const hipY = ((vis(lHip) ? lHip.y : rHip.y) + (vis(rHip) ? rHip.y : lHip.y)) / 2
+  return shY > hipY + 0.1  // shoulders clearly below hips = forward fold
+}
+
+/**
+ * Generic floor pose: any lower-body landmark is visible — lenient for lying/seated positions.
+ */
+function detectFloorPose(landmarks: NormalizedLandmark[]): boolean {
+  const lower = [
+    LM.LEFT_HIP, LM.RIGHT_HIP,
+    LM.LEFT_KNEE, LM.RIGHT_KNEE,
+    LM.LEFT_ANKLE, LM.RIGHT_ANKLE,
+  ]
+  return lower.some(i => (landmarks[i]?.visibility ?? 0) > 0.2)
+}
+
+/**
  * Cross-body shoulder stretch: one wrist has crossed to the opposite side of the body
  * (near the opposite shoulder), held at roughly chest height.
  */
@@ -175,7 +279,7 @@ export const HOLD_EXERCISES: readonly string[] = [
   'childpose', 'hipflexorstretch', 'hamstringstretch', 'quadstretch',
   'pigeonpose', 'downdogstretch', 'cobrapose', 'seatedspinaltwist',
   'worldsgreateststretch',
-  'catcow', 'anklecircle', 'neckroll', 'wristcircle', 'wristcurl',
+  'anklecircle', 'neckroll', 'wristcircle', 'wristcurl',
 ]
 
 export interface UseHoldTimerReturn {
@@ -225,14 +329,20 @@ export function useHoldTimer(
 
     const ex = exercise.toLowerCase().trim()
     let detected = false
-    if (ex === 'plank')            detected = detectPlank(landmarks)
-    else if (ex === 'wallsit')          detected = detectWallSit(landmarks)
-    else if (ex === 'crossbodystretch') detected = detectCrossBodyStretch(landmarks)
-    else if (ex === 'tricepstretch')    detected = detectTricepStretch(landmarks)
+    if (ex === 'plank')                  detected = detectPlank(landmarks)
+    else if (ex === 'sideplank')         detected = detectSidePlank(landmarks)
+    else if (ex === 'wallsit')           detected = detectWallSit(landmarks)
+    else if (ex === 'crossbodystretch')  detected = detectCrossBodyStretch(landmarks)
+    else if (ex === 'tricepstretch')     detected = detectTricepStretch(landmarks)
+    else if (ex === 'downdogstretch')    detected = detectDownDog(landmarks)
+    else if (ex === 'cobrapose')         detected = detectCobra(landmarks)
+    else if (ex === 'childpose')         detected = detectChildPose(landmarks)
+    else if (ex === 'hipflexorstretch')  detected = detectHipFlexorStretch(landmarks)
+    else if (ex === 'hamstringstretch')  detected = detectHamstringStretch(landmarks)
     else if (HOLD_EXERCISES.includes(exercise)) {
-      // For hold/stretch exercises without specific pose detection (floor poses,
-      // mobility, etc.) run the timer whenever landmarks are visible.
-      detected = landmarks.some(lm => (lm?.visibility ?? 0) > 0.5)
+      // Floor poses and mobility holds: require any lower-body landmark visible.
+      // Use lenient threshold (0.2) since floor positions occlude many landmarks.
+      detected = detectFloorPose(landmarks)
     }
 
     if (detected !== inPositionRef.current) {

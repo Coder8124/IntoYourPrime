@@ -98,8 +98,16 @@ export function LeaderboardPage() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="w-8 h-8 border-2 border-blue-600/30 border-t-blue-500 rounded-full animate-spin" />
+          <div className="space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3.5 rounded-2xl"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', animationDelay: `${i * 50}ms` }}>
+                <div className="w-7 h-4 rounded animate-pulse shrink-0" style={{ background: 'var(--border-2)' }} />
+                <div className="w-8 h-8 rounded-full animate-pulse shrink-0" style={{ background: 'var(--border-2)' }} />
+                <div className="flex-1 h-3 rounded animate-pulse" style={{ background: 'var(--border-2)' }} />
+                <div className="w-10 h-6 rounded animate-pulse shrink-0" style={{ background: 'var(--border-2)' }} />
+              </div>
+            ))}
           </div>
         ) : displayList.length === 0 ? (
           <div className="text-center py-16 space-y-3">

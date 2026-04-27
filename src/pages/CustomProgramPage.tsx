@@ -5,38 +5,46 @@ import { BottomNav } from '../components/BottomNav'
 
 const LEVELS = ['Beginner', 'Intermediate', 'Advanced'] as const
 
+type Section = 'warmup' | 'main'
+
 export function CustomProgramPage() {
   const navigate = useNavigate()
-  const [name, setName]           = useState('')
-  const [description, setDesc]    = useState('')
-  const [level, setLevel]         = useState<WorkoutProgram['level']>('Beginner')
+  const [name, setName]             = useState('')
+  const [description, setDesc]      = useState('')
+  const [level, setLevel]           = useState<WorkoutProgram['level']>('Beginner')
   const [targetReps, setTargetReps] = useState(10)
   const [targetHoldSecs, setTargetHold] = useState(30)
-  const [selectedExercises, setSelected] = useState<string[]>([])
-  const [search, setSearch]       = useState('')
+  const [warmupExercises, setWarmup] = useState<string[]>([])
+  const [mainExercises, setMain]    = useState<string[]>([])
+  const [activeSection, setSection] = useState<Section>('main')
+  const [search, setSearch]         = useState('')
 
   const filtered = EXERCISE_INFO.filter(e =>
     !search || e.name.toLowerCase().includes(search.toLowerCase()) || e.muscles.some(m => m.toLowerCase().includes(search.toLowerCase()))
   )
 
+  const isSelected = (id: string) =>
+    activeSection === 'warmup' ? warmupExercises.includes(id) : mainExercises.includes(id)
+
   const toggleExercise = (id: string) => {
-    setSelected(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    )
+    if (activeSection === 'warmup') {
+      setWarmup(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    } else {
+      setMain(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    }
   }
 
-  const moveUp = (i: number) => {
-    if (i === 0) return
-    setSelected(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a })
-  }
-  const moveDown = (i: number) => {
-    setSelected(prev => {
-      if (i === prev.length - 1) return prev
-      const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a
-    })
+  const moveInList = (list: string[], setList: (v: string[]) => void, i: number, dir: -1 | 1) => {
+    const j = i + dir
+    if (j < 0 || j >= list.length) return
+    const a = [...list];[a[i], a[j]] = [a[j], a[i]]; setList(a)
   }
 
-  const canSave = name.trim().length > 0 && selectedExercises.length > 0
+  const removeFrom = (list: string[], setList: (v: string[]) => void, id: string) =>
+    setList(list.filter(x => x !== id))
+
+  const totalCount = warmupExercises.length + mainExercises.length
+  const canSave = name.trim().length > 0 && mainExercises.length > 0
 
   const handleSave = () => {
     if (!canSave) return
@@ -45,8 +53,9 @@ export function CustomProgramPage() {
       name: name.trim(),
       description: description.trim() || `Custom ${level.toLowerCase()} program`,
       level,
-      duration: `${Math.ceil(selectedExercises.length * 2.5)} min`,
-      exercises: selectedExercises,
+      duration: `${Math.ceil(totalCount * 2.5)} min`,
+      warmup: warmupExercises.length > 0 ? warmupExercises : undefined,
+      exercises: mainExercises,
       tags: ['Custom'],
       emoji: '⭐',
       targetReps,
@@ -55,6 +64,39 @@ export function CustomProgramPage() {
     saveCustomProgram(program)
     navigate('/programs')
   }
+
+  const OrderList = ({
+    list,
+    setList,
+    label,
+    color,
+  }: {
+    list: string[]
+    setList: (v: string[]) => void
+    label: string
+    color: string
+  }) => list.length === 0 ? null : (
+    <div className="space-y-2">
+      <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color }}>{label}</p>
+      {list.map((id, i) => {
+        const info = EXERCISE_INFO.find(e => e.id === id)
+        return (
+          <div key={id} className="flex items-center gap-3 p-2.5 rounded-xl bg-page border border-subtle">
+            <span className="text-[12px] font-black w-5 shrink-0" style={{ color: color + '80' }}>{i + 1}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-white">{info?.name ?? id}</p>
+              {info && <p className="text-[11px] text-gray-600">{info.muscles.slice(0, 3).join(' · ')}</p>}
+            </div>
+            <div className="flex gap-1">
+              <button onClick={() => moveInList(list, setList, i, -1)} className="px-1.5 py-1 text-[10px] text-gray-500 hover:text-white">↑</button>
+              <button onClick={() => moveInList(list, setList, i, 1)} className="px-1.5 py-1 text-[10px] text-gray-500 hover:text-white">↓</button>
+              <button onClick={() => removeFrom(list, setList, id)} className="px-1.5 py-1 text-[10px] text-red-400 hover:text-red-300">✕</button>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-page text-white pb-24">
@@ -139,35 +181,50 @@ export function CustomProgramPage() {
           </div>
         </div>
 
-        {/* Exercise order */}
-        {selectedExercises.length > 0 && (
-          <div className="rounded-2xl bg-panel border border-subtle p-5 space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Exercise Order ({selectedExercises.length})</p>
-            <div className="space-y-2">
-              {selectedExercises.map((id, i) => {
-                const info = EXERCISE_INFO.find(e => e.id === id)
-                return (
-                  <div key={id} className="flex items-center gap-3 p-2.5 rounded-xl bg-page border border-subtle">
-                    <span className="text-[12px] font-black text-blue-600/50 w-5 shrink-0">{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-white">{info?.name ?? id}</p>
-                      {info && <p className="text-[11px] text-gray-600">{info.muscles.slice(0, 3).join(' · ')}</p>}
-                    </div>
-                    <div className="flex gap-1">
-                      <button onClick={() => moveUp(i)} className="px-1.5 py-1 text-[10px] text-gray-500 hover:text-white">↑</button>
-                      <button onClick={() => moveDown(i)} className="px-1.5 py-1 text-[10px] text-gray-500 hover:text-white">↓</button>
-                      <button onClick={() => toggleExercise(id)} className="px-1.5 py-1 text-[10px] text-red-400 hover:text-red-300">✕</button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+        {/* Exercise order summary */}
+        {totalCount > 0 && (
+          <div className="rounded-2xl bg-panel border border-subtle p-5 space-y-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              Exercise Order ({totalCount})
+            </p>
+            <OrderList list={warmupExercises} setList={setWarmup} label="Warmup" color="#f59e0b" />
+            {warmupExercises.length > 0 && mainExercises.length > 0 && (
+              <div className="border-t border-subtle" />
+            )}
+            <OrderList list={mainExercises} setList={setMain} label="Main" color="#3b82f6" />
           </div>
         )}
 
-        {/* Exercise picker */}
+        {/* Section tabs + picker */}
         <div className="rounded-2xl bg-panel border border-subtle p-5 space-y-3">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Add Exercises</p>
+          {/* Tab toggle */}
+          <div className="flex gap-2">
+            {(['warmup', 'main'] as Section[]).map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSection(s)}
+                className="flex-1 py-2 rounded-xl text-[12px] font-bold transition-colors capitalize"
+                style={activeSection === s
+                  ? s === 'warmup'
+                    ? { background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }
+                    : { background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }
+                  : { background: 'var(--surface)', color: '#6b7280', border: '1px solid var(--border-2)' }
+                }
+              >
+                {s === 'warmup'
+                  ? `Warmup${warmupExercises.length > 0 ? ` (${warmupExercises.length})` : ''}`
+                  : `Main${mainExercises.length > 0 ? ` (${mainExercises.length})` : ''}`}
+              </button>
+            ))}
+          </div>
+
+          <p className="text-[11px] text-gray-600">
+            {activeSection === 'warmup'
+              ? 'Add light mobility or warm-up exercises done before the main set.'
+              : 'Add your primary workout exercises.'}
+          </p>
+
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -177,7 +234,10 @@ export function CustomProgramPage() {
           />
           <div className="space-y-2 max-h-72 overflow-y-auto">
             {filtered.map(ex => {
-              const active = selectedExercises.includes(ex.id)
+              const active = isSelected(ex.id)
+              const inOther = activeSection === 'warmup'
+                ? mainExercises.includes(ex.id)
+                : warmupExercises.includes(ex.id)
               return (
                 <button
                   key={ex.id}
@@ -185,20 +245,35 @@ export function CustomProgramPage() {
                   onClick={() => toggleExercise(ex.id)}
                   className="w-full flex items-center gap-3 p-2.5 rounded-xl text-left transition-colors"
                   style={active
-                    ? { background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)' }
+                    ? activeSection === 'warmup'
+                      ? { background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)' }
+                      : { background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)' }
                     : { background: 'var(--bg-2)', border: '1px solid var(--border)' }
                   }
                 >
                   <span className="w-4 h-4 rounded flex items-center justify-center shrink-0 text-[10px] font-black"
                     style={active
-                      ? { background: '#3b82f6', color: 'white' }
+                      ? activeSection === 'warmup'
+                        ? { background: '#f59e0b', color: 'white' }
+                        : { background: '#3b82f6', color: 'white' }
                       : { background: '#1e1e2e', color: '#4b5563' }
                     }>{active ? '✓' : '+'}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-white">{ex.name}</p>
                     <p className="text-[11px] text-gray-600">{ex.muscles.slice(0, 3).join(' · ')}</p>
                   </div>
-                  {ex.isHold && <span className="text-[10px] text-blue-400 font-bold shrink-0">Hold</span>}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {ex.isHold && <span className="text-[10px] text-blue-400 font-bold">Hold</span>}
+                    {inOther && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                        style={activeSection === 'warmup'
+                          ? { background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }
+                          : { background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }
+                        }>
+                        {activeSection === 'warmup' ? 'in main' : 'in warmup'}
+                      </span>
+                    )}
+                  </div>
                 </button>
               )
             })}

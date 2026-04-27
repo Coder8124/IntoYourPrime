@@ -38,6 +38,11 @@ function ExerciseCard({ ex, onSelect }: { ex: ExerciseInfo; onSelect: (id: strin
                 Isometric
               </span>
             )}
+            {ex.isLimitedTracking && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-400 border border-amber-500/30 bg-amber-500/10">
+                Limited AI
+              </span>
+            )}
             <span
               className="px-2 py-0.5 rounded-full text-[10px] font-bold"
               style={{ background: d.bg, border: `1px solid ${d.border}`, color: d.text }}
