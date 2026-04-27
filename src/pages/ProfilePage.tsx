@@ -7,6 +7,11 @@ import { signOutUser } from '../lib/firestoreUser'
 import { upsertFullUserProfile, getUserProfile } from '../lib/firebaseHelpers'
 import { auth } from '../lib/firebase'
 import { ALL_BADGES } from '../lib/badges'
+import {
+  getSubscriptionCache,
+  loadSubscriptionStatus,
+  type SubscriptionStatus,
+} from '../lib/subscriptionStatus'
 
 const FT_OPTIONS  = [4, 5, 6, 7]
 const IN_OPTIONS  = [0,1,2,3,4,5,6,7,8,9,10,11]
@@ -79,6 +84,47 @@ export function ProfilePage() {
   const [showKey,    setShowKey]    = useState(false)
   const [keyHasValue, setKeyHasValue] = useState(hasApiKey)
   const [keySaved,   setKeySaved]   = useState(false)
+
+  const [sub, setSub] = useState<SubscriptionStatus | null>(getSubscriptionCache)
+  const [checkingOut, setCheckingOut] = useState(false)
+
+  useEffect(() => {
+    loadSubscriptionStatus().then(() => setSub(getSubscriptionCache()))
+  }, [])
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('pro') !== 'success') return
+    const poll = setInterval(async () => {
+      await loadSubscriptionStatus()
+      const fresh = getSubscriptionCache()
+      if (fresh?.status === 'active') {
+        setSub(fresh)
+        clearInterval(poll)
+        window.history.replaceState({}, '', '/profile')
+      }
+    }, 2000)
+    setTimeout(() => clearInterval(poll), 30_000)
+  }, [])
+
+  const handleGoPro = async () => {
+    const uid   = auth.currentUser?.uid
+    const email = auth.currentUser?.email
+    if (!uid || !email) return
+    setCheckingOut(true)
+    try {
+      const token = await auth.currentUser!.getIdToken()
+      const res   = await fetch('/api/ls-checkout', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ uid, email }),
+      })
+      if (!res.ok) { setCheckingOut(false); return }
+      const { checkoutUrl } = (await res.json()) as { checkoutUrl: string }
+      window.location.href = checkoutUrl
+    } catch {
+      setCheckingOut(false)
+    }
+  }
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
@@ -241,79 +287,167 @@ export function ProfilePage() {
           </form>
         </div>
 
-        {/* ── AI / API key ──────────────────────────────────────────────── */}
+        {/* ── AI Settings ─────────────────────────────────────────────── */}
         <div className="card-surface p-6 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold tracking-[0.12em] text-gray-500 uppercase">
               AI Settings
             </p>
-            {/* Status pill */}
             <span
               className="text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full"
               style={
-                keyHasValue
+                sub?.status === 'active'
+                  ? { background: 'rgba(var(--accent-rgb),0.12)', color: 'var(--accent)' }
+                  : keyHasValue
                   ? { background: 'rgba(34,197,94,0.12)', color: '#22c55e' }
                   : { background: 'rgba(107,114,128,0.12)', color: '#6b7280' }
               }
             >
-              {keyHasValue ? 'AI enabled' : 'No key — basic mode'}
+              {sub?.status === 'active' ? 'Pro ✓' : keyHasValue ? 'AI enabled' : 'No plan'}
             </span>
           </div>
 
-          <p className="text-[12px] text-gray-500 leading-relaxed">
-            {keyHasValue
-              ? 'OpenAI key is saved. The app will use GPT-4o-mini for visual form coaching, injury risk blending, and personalized cooldowns.'
-              : 'No API key set. The app uses local pose-landmark scoring only — rep counting and basic risk detection still work.'}
-          </p>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.1em]">
-                {keyHasValue ? 'Replace Key' : 'Add Key'}
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowKey(v => !v)}
-                className="text-[11px] text-accent hover:text-accent/80 transition-colors"
+          {/* ── Active subscriber ── */}
+          {sub?.status === 'active' && (
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.1em]">
+                    Monthly usage
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    {sub.currentPeriodEnd
+                      ? `Resets ${new Date(sub.currentPeriodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                      : ''}
+                  </p>
+                </div>
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--border-2)' }}>
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${sub.usagePct}%`,
+                      background:
+                        sub.usagePct >= 90 ? '#ef4444' :
+                        sub.usagePct >= 70 ? '#f59e0b' :
+                        'var(--accent)',
+                    }}
+                  />
+                </div>
+                <p className="text-[10px] text-gray-600 mt-1">{sub.usagePct}% used</p>
+              </div>
+              <a
+                href="https://app.lemonsqueezy.com/my-orders"
+                target="_blank"
+                rel="noreferrer"
+                className="block text-center py-2.5 rounded-xl text-[13px] font-semibold text-gray-400 hover:text-white transition-colors"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
               >
-                {showKey ? 'hide' : 'show'}
+                Manage subscription ↗
+              </a>
+            </div>
+          )}
+
+          {/* ── No sub, no key — show Go Pro CTA ── */}
+          {sub?.status !== 'active' && !keyHasValue && (
+            <div className="space-y-4">
+              <div
+                className="rounded-xl p-4 space-y-2"
+                style={{ background: 'rgba(var(--accent-rgb),0.06)', border: '1px solid rgba(var(--accent-rgb),0.2)' }}
+              >
+                <p className="text-[14px] font-black text-white">✨ Go Pro — $15 / month</p>
+                <p className="text-[12px] text-gray-400 leading-relaxed">
+                  Full AI coaching, injury risk scoring, personalized cooldowns — no API key needed.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleGoPro}
+                  disabled={checkingOut}
+                  className="w-full py-3 rounded-xl font-bold text-[13px] text-white transition-colors bg-accent hover:bg-accent/90 disabled:opacity-50 mt-1"
+                >
+                  {checkingOut ? 'Redirecting…' : 'Subscribe →'}
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                <span className="text-[10px] text-gray-600 uppercase tracking-wider">or</span>
+                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+              </div>
+              <p className="text-[12px] text-gray-500">Use your own OpenAI key:</p>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.1em]">Add Key</label>
+                  <button type="button" onClick={() => setShowKey(v => !v)}
+                    className="text-[11px] text-accent hover:text-accent/80 transition-colors">
+                    {showKey ? 'hide' : 'show'}
+                  </button>
+                </div>
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  placeholder="sk-proj-…"
+                  className="input-dark font-mono text-[13px]"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+              <button type="button" onClick={handleSaveKey} disabled={!apiKey.trim()}
+                className="w-full py-2.5 rounded-xl bg-accent hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-sm text-white transition-colors">
+                Save Key
               </button>
             </div>
-            <input
-              type={showKey ? 'text' : 'password'}
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder="sk-proj-…"
-              className="input-dark font-mono text-[13px]"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </div>
+          )}
 
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={handleSaveKey}
-              disabled={!apiKey.trim()}
-              className="flex-1 py-2.5 rounded-xl bg-accent hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-sm text-white transition-colors"
-            >
-              {keySaved ? 'Saved!' : 'Save Key'}
-            </button>
-            {keyHasValue && (
-              <button
-                type="button"
-                onClick={handleRemoveKey}
-                className="px-4 py-2.5 rounded-xl border border-red-900/50 text-red-400 hover:border-red-700 hover:text-red-300 font-semibold text-sm transition-colors"
+          {/* ── Has own key (no active sub) ── */}
+          {sub?.status !== 'active' && keyHasValue && (
+            <div className="space-y-4">
+              <p className="text-[12px] text-gray-500 leading-relaxed">
+                OpenAI key saved. Using GPT-4o-mini for form coaching, injury risk, and personalized cooldowns.
+              </p>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.1em]">Replace Key</label>
+                  <button type="button" onClick={() => setShowKey(v => !v)}
+                    className="text-[11px] text-accent hover:text-accent/80 transition-colors">
+                    {showKey ? 'hide' : 'show'}
+                  </button>
+                </div>
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  placeholder="sk-proj-…"
+                  className="input-dark font-mono text-[13px]"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={handleSaveKey} disabled={!apiKey.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-accent hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-sm text-white transition-colors">
+                  {keySaved ? 'Saved!' : 'Save Key'}
+                </button>
+                <button type="button" onClick={handleRemoveKey}
+                  className="px-4 py-2.5 rounded-xl border border-red-900/50 text-red-400 hover:border-red-700 hover:text-red-300 font-semibold text-sm transition-colors">
+                  Remove
+                </button>
+              </div>
+              <div
+                className="rounded-xl p-4 space-y-2"
+                style={{ background: 'rgba(var(--accent-rgb),0.04)', border: '1px solid rgba(var(--accent-rgb),0.15)' }}
               >
-                Remove
-              </button>
-            )}
-          </div>
-
-          <p className="text-[11px] text-gray-700 leading-relaxed">
-            Your key is stored only in this browser (localStorage) and sent directly to OpenAI.
-            It is never stored on any server.
-          </p>
+                <p className="text-[12px] font-semibold text-white">Switch to Pro?</p>
+                <p className="text-[11px] text-gray-500">$15/month — no key management, $8.50/mo AI budget included.</p>
+                <button type="button" onClick={handleGoPro} disabled={checkingOut}
+                  className="w-full py-2.5 rounded-xl font-bold text-[13px] text-white transition-colors bg-accent hover:bg-accent/90 disabled:opacity-50">
+                  {checkingOut ? 'Redirecting…' : 'Upgrade to Pro →'}
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-700 leading-relaxed">
+                Your key is stored only in this browser (localStorage) and sent directly to OpenAI. Never stored on any server.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* ── Badges ──────────────────────────────────────────────────────── */}
