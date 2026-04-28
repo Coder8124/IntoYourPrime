@@ -215,8 +215,7 @@ function detectHamstringStretch(landmarks: NormalizedLandmark[]): boolean {
 /**
  * Generic floor pose: any lower-body landmark is visible — lenient for lying/seated positions.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function detectFloorPose(landmarks: NormalizedLandmark[]): boolean {
+export function detectFloorPose(landmarks: NormalizedLandmark[]): boolean {
   const lower = [
     LM.LEFT_HIP, LM.RIGHT_HIP,
     LM.LEFT_KNEE, LM.RIGHT_KNEE,
