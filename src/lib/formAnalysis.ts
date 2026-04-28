@@ -7,8 +7,14 @@
 
 import OpenAI from 'openai'
 import type { FormAnalysisResult, CooldownExercise, Session, DailyLog, UserProfile } from '../types/index'
+import { isProSubscriber } from './subscriptionStatus'
+import { auth } from './firebase'
 
 // ── Key resolution ─────────────────────────────────────────────────────────
+
+async function getProToken(): Promise<string> {
+  return (await auth.currentUser?.getIdToken()) ?? ''
+}
 
 function getApiKey(): string {
   try {
@@ -366,6 +372,27 @@ export const BODY_FOCUS: Record<string, string> = {
 // ── analyzeForm ────────────────────────────────────────────────────────────
 
 export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisResult> {
+  if (isProSubscriber()) {
+    try {
+      const token = await getProToken()
+      const res   = await fetch('/api/analyze', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({
+          frames:      params.frames,
+          exercise:    params.exercise,
+          repCount:    params.repCount ?? 0,
+          userProfile: params.userProfile,
+          phase:       params.phase,
+        }),
+      })
+      if (res.status === 429) return { ...DEFAULT_FORM_RESULT, dominantIssue: '__monthly_limit__' }
+      if (!res.ok) return { ...DEFAULT_FORM_RESULT }
+      return (await res.json()) as FormAnalysisResult
+    } catch {
+      return { ...DEFAULT_FORM_RESULT }
+    }
+  }
   const c = client()
   if (!c) return { ...DEFAULT_FORM_RESULT }
 
@@ -487,6 +514,20 @@ export async function generateCooldown(
   session:     Partial<Session>,
   userProfile: UserProfile,
 ): Promise<CooldownExercise[]> {
+  if (isProSubscriber()) {
+    try {
+      const token = await getProToken()
+      const res   = await fetch('/api/cooldown', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ session, userProfile }),
+      })
+      if (!res.ok) return []
+      return (await res.json()) as CooldownExercise[]
+    } catch {
+      return []
+    }
+  }
   const c = client()
   if (!c) return []
   try {
@@ -526,6 +567,21 @@ export async function generateRecoveryInsight(context: {
   sessions: Session[]
   logs:     DailyLog[]
 }): Promise<string> {
+  if (isProSubscriber()) {
+    try {
+      const token = await getProToken()
+      const res   = await fetch('/api/recovery-insight', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ sessions: context.sessions, logs: context.logs }),
+      })
+      if (!res.ok) return ''
+      const json = (await res.json()) as { insight: string }
+      return json.insight ?? ''
+    } catch {
+      return ''
+    }
+  }
   const c = client()
   if (!c) return ''
   try {
@@ -557,6 +613,29 @@ export async function analyzeClip(params: {
   exercise:    string
   userProfile: { age: number; weight: number; fitnessLevel: string }
 }): Promise<FormAnalysisResult> {
+  if (isProSubscriber()) {
+    try {
+      const token = await getProToken()
+      const res   = await fetch('/api/analyze', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({
+          frames:      params.frames,
+          exercise:    params.exercise,
+          repCount:    0,
+          userProfile: params.userProfile,
+          phase:       'main' as const,
+        }),
+      })
+      if (res.status === 429) return { ...DEFAULT_FORM_RESULT, dominantIssue: '__monthly_limit__' }
+      if (!res.ok) return { ...DEFAULT_FORM_RESULT }
+      const parsed = (await res.json()) as FormAnalysisResult & { notFitness?: boolean }
+      if (parsed.notFitness) return { ...DEFAULT_FORM_RESULT, dominantIssue: '__not_fitness__' }
+      return parsed
+    } catch {
+      return { ...DEFAULT_FORM_RESULT }
+    }
+  }
   const c = client()
   if (!c) return { ...DEFAULT_FORM_RESULT }
 

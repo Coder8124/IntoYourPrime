@@ -102,7 +102,7 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   pushup:        { joints: [LM.LEFT_SHOULDER,   LM.RIGHT_SHOULDER], repOn: 'down_to_up' },
   lunge:         { joints: [LM.LEFT_KNEE,       LM.RIGHT_KNEE],     repOn: 'down_to_up' },
   deadlift:      { joints: [LM.LEFT_HIP,        LM.RIGHT_HIP],      repOn: 'down_to_up' },
-  shoulderpress: { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'down_to_up' },
+  shoulderpress: { joints: [LM.LEFT_WRIST,      LM.RIGHT_WRIST],    repOn: 'up_to_down' },
   // Curl-up: track shoulders — they rise (low Y) at top, rep counted on down→up
   curlup:        { joints: [LM.LEFT_SHOULDER,   LM.RIGHT_SHOULDER], repOn: 'down_to_up' },
   // Bicep curl: track wrists — they rise toward shoulder at top, rep counted on down→up
@@ -119,11 +119,12 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Hold exercises — no reps counted; useHoldTimer handles timing
   plank:           { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
   wallsit:         { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
-  // Tricep extension: elbow angle (shoulder→elbow→wrist). Extended (~160°) = up; bent (~40°) = down.
-  tricepextension: { joints: [LM.LEFT_ELBOW,       LM.RIGHT_ELBOW],    repOn: 'down_to_up' },
+  // Tricep extension: wristY − elbowY. Extended overhead: wrist near/above elbow → diff ≈ 0 or negative.
+  // Bent behind head: wrist drops below elbow → diff grows positive. Rep counted on down→up.
+  tricepextension: { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
   // Lateral raise: wrist Y. Arms at sides (high Y) = "down"; arms at shoulder height (low Y) = "up".
-  // Rep counted on down_to_up = when arms reach the raised position (concentric complete).
-  lateralraise:    { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up',  debounceMs: 900 },
+  // Rep counted on up_to_down = returning to sides after raising.
+  lateralraise:    { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'up_to_down',  debounceMs: 900 },
   // Hammer curl: same elbow-angle signal as bicep curl, neutral grip (indistinguishable by pose).
   hammercurl:      { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
   // Pull-up: elbow angle. Arms fully extended (hanging) = large angle = "down"; chin-over-bar = small angle = "up".
@@ -135,8 +136,8 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   mountainclimber: { joints: [LM.LEFT_KNEE,         LM.RIGHT_KNEE],     repOn: 'up_to_down', debounceMs: 350 },
   // Butt kick: absolute ankle-Y difference. Both level = diff≈0 = "up"; one heel kicked up = diff large = "down".
   buttskick:       { joints: [LM.LEFT_ANKLE,        LM.RIGHT_ANKLE],    repOn: 'up_to_down', debounceMs: 300 },
-  // Calf raise: ankle.y − heel.y diff. Heel on floor: diff ≈ 0 (down). Heel raised: diff large (up).
-  calfraise:       { joints: [LM.LEFT_ANKLE,        LM.RIGHT_ANKLE],    repOn: 'down_to_up', debounceMs: 900 },
+  // Calf raise: average heel Y. Heels on floor (high Y) = "down"; raised on toes (low Y) = "up".
+  calfraise:       { joints: [LM.LEFT_HEEL,         LM.RIGHT_HEEL],     repOn: 'down_to_up', debounceMs: 1000 },
   // Cat-cow: avg hip Y. Cow (back sags, hips drop → high Y) = "down". Cat (spine arches, hips rise → low Y) = "up".
   catcow:          { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'up_to_down', debounceMs: 600 },
   // Sit-up: same hipY−shoulderY signal as curl-up, full range.
@@ -252,6 +253,37 @@ function getElbowAngle(
 }
 
 /**
+ * Overhead tricep-extension signal: average of (wristY − elbowY) across visible arms.
+ * Extended (top): wrist near or above elbow → diff ≈ 0 or negative.
+ * Bent behind head (bottom): wrist drops well below elbow → diff large positive.
+ * Uses a lower wrist-confidence threshold (0.35) because the wrist partially
+ * occludes behind the head at the bottom of the movement.
+ */
+function getTricepExtSignal(
+  landmarks: NormalizedLandmark[],
+): { value: number; confidence: number } | null {
+  const lEl = landmarks[LM.LEFT_ELBOW],  lWr = landmarks[LM.LEFT_WRIST]
+  const rEl = landmarks[LM.RIGHT_ELBOW], rWr = landmarks[LM.RIGHT_WRIST]
+
+  const lElConf = lEl?.visibility ?? 0
+  const lWrConf = lWr?.visibility ?? 0
+  const rElConf = rEl?.visibility ?? 0
+  const rWrConf = rWr?.visibility ?? 0
+
+  const diffs: number[] = []
+  const confs:  number[] = []
+  if (lElConf >= CONFIDENCE_THRESH && lWrConf >= 0.35) { diffs.push(lWr.y - lEl.y); confs.push(Math.min(lElConf, lWrConf)) }
+  if (rElConf >= CONFIDENCE_THRESH && rWrConf >= 0.35) { diffs.push(rWr.y - rEl.y); confs.push(Math.min(rElConf, rWrConf)) }
+  if (diffs.length === 0) return null
+
+  const n = diffs.length
+  return {
+    value:      diffs.reduce((s, v) => s + v, 0) / n,
+    confidence: confs.reduce((s, v) => s + v, 0) / n,
+  }
+}
+
+/**
  * Average knee angle (hip→knee→ankle) across visible legs.
  * Standing: ~160–170°. Bottom of squat: ~80–100°.
  * Large angle = standing (up), small angle = squatting (down).
@@ -326,12 +358,12 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   // ── Posterior chain — hip hinge like deadlift ─────────────────────────
   romaniandeadlift:    'deadlift',
   goodmorning:         'deadlift',
-  hyperextension:      'situp',     // hips anchored on pad — shoulderY rises as torso lifts, same as superman
-  nordicCurl:          'situp',    // shoulder Y change tracks torso fall better than hip Y
-  superman:            'situp',    // prone chest lift: shoulderY drops as chest rises, same hipY-shoulderY signal
+  hyperextension:      'deadlift',
+  nordicCurl:          'deadlift',
+  superman:            'deadlift',
   // ── Glute / hip — dedicated signals ─────────────────────────────────
   // glutebridge, hipthrust, firehydrant are now proper SupportedExercises
-  // donkeykick is now a dedicated SupportedExercise
+  donkeykick:          'buttskick',
   // ── Push — elbow angle like pushup ───────────────────────────────────
   diamondpushup:       'pushup',
   widegripushup:       'pushup',
@@ -345,32 +377,32 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   // ── Shoulder — wrist Y like shoulderpress / lateralraise ─────────────
   arnoldpress:         'shoulderpress',
   frontraise:          'lateralraise',
-  // reverseFly: dedicated SupportedExercise — same |wristX diff| signal as chestfly but repOn up_to_down
+  reverseFly:          'lateralraise',
   // ── Arms — elbow angle like bicepcurl / tricepextension ───────────────
   concentrationcurl:   'bicepcurl',
   zottmancurl:         'bicepcurl',
   skullcrusher:        'tricepextension',
-  wristcurl:           'plank',     // wrist joint flexion — elbow angle never changes; untrackable via pose
+  wristcurl:           'bicepcurl',
   // ── Core — torso signal ───────────────────────────────────────────────
-  // russiantwist is now a dedicated SupportedExercise (wrist X oscillation)
+  russiantwist:        'hipcircle',
   bicycleCrunch:       'mountainclimber',
   // legRaise is now a proper SupportedExercise (dedicated ankle-Y signal)
-  // flutterKick: dedicated SupportedExercise — ankle Y abs diff, 200 ms debounce
+  flutterKick:         'highnees',
   abWheel:             'curlup',
   // ── Cardio / plyometric — jump signal ────────────────────────────────
   boxjump:             'jumpsquat',
   skaterjump:          'jumpsquat',
   tuckjump:            'jumpsquat',
-  starjump:            'jumpingjack', // star jump = jumping jack: arms + legs spread, not a squat jump
+  starjump:            'jumpsquat',
   broadjump:           'jumpsquat',
-  shadowboxing:        'chestpress',  // punches extend the elbow — chestpress elbow-angle signal works
+  shadowboxing:        'jumpingjack',
   // ── Isometric / mobility — map to plank (hold timer handles them) ─────
   sideplank:           'plank',
   deadbug:             'plank',
   birddog:             'plank',
   hollowbody:          'plank',
   vSit:                'plank',
-  // catcow: dedicated SupportedExercise — uses hip Y oscillation
+  catcow:              'plank',
   childpose:           'plank',
   worldsgreateststretch: 'plank',
   hipflexorstretch:    'plank',
@@ -381,10 +413,10 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   cobrapose:           'plank',
   seatedspinaltwist:   'plank',
   // ── Circles / rotations ───────────────────────────────────────────────
-  anklecircle:         'plank',     // ankle rotation — hold timer handles, wrist Y irrelevant
-  neckroll:            'plank',     // neck rotation — hold timer handles, wrist Y irrelevant
-  // shoulderroll: dedicated SupportedExercise — shoulder Y (wrist Y from armcircle barely changes)
-  wristcircle:         'plank',     // arms held horizontal during wrist rotation — Y barely changes
+  anklecircle:         'armcircle',
+  neckroll:            'armcircle',
+  shoulderroll:        'armcircle',
+  wristcircle:         'armcircle',
 }
 
 export function useRepCounter(
@@ -558,16 +590,14 @@ export function useRepCounter(
       rawSignal    = result.value
       invertSignal = false
     } else if (exerciseKey === 'tricepextension') {
-      // Elbow angle (shoulder→elbow→wrist).
-      // Arm extended overhead: ~160-170° = "up". Forearm bent behind head: ~40-60° = "down".
-      // invertSignal: large angle (extended) → low normalised → "up" phase.
-      // Rep counted on down→up (arm returns to full extension).
-      // More reliable than wrist-Y diff because the elbow stays visible even when
-      // the wrist disappears behind the head at the bottom of the movement.
-      const result = getElbowAngle(landmarks)
-      if (!result || result.confidence < 0.35) return
+      // wristY − elbowY. Extended overhead: wrist near/above elbow → diff ≈ 0 or negative.
+      // Bent behind head: wrist drops below elbow → diff grows positive.
+      // No inversion: large diff = "down" (bent); small diff = "up" (extended).
+      // Rep counted on down→up (returning to full extension).
+      const result = getTricepExtSignal(landmarks)
+      if (!result) return
       rawSignal    = result.value
-      invertSignal = true
+      invertSignal = false
     } else if (exerciseKey === 'curlup') {
       // hipY − shoulderY. Near-zero when flat, positive when curled up.
       // No inversion: high value = curled up = "up" phase naturally maps to low normalised.

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import OpenAI from 'openai'
 import type { Session, UserProfile } from '../src/types/index.js'
+import { verifyAndGate, trackUsage } from './lib/subscriptionGate'
 
 // ── Handler ────────────────────────────────────────────────────────────────
 
@@ -8,6 +9,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
+
+  const gate = await verifyAndGate(req.headers.authorization)
+  if (gate.error) return res.status(gate.error.status).json({ error: gate.error.message })
 
   const { session, userProfile } = req.body as {
     session:     Partial<Session>
@@ -52,6 +56,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     )
 
     clearTimeout(timeout)
+
+    const { prompt_tokens = 0, completion_tokens = 0 } = completion.usage ?? {}
+    await trackUsage(gate.uid, 'gpt-4o', prompt_tokens, completion_tokens)
 
     const raw     = completion.choices[0]?.message?.content ?? ''
     const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim()

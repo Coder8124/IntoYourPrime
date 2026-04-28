@@ -215,6 +215,7 @@ function detectHamstringStretch(landmarks: NormalizedLandmark[]): boolean {
 /**
  * Generic floor pose: any lower-body landmark is visible — lenient for lying/seated positions.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function detectFloorPose(landmarks: NormalizedLandmark[]): boolean {
   const lower = [
     LM.LEFT_HIP, LM.RIGHT_HIP,
@@ -340,9 +341,9 @@ export function useHoldTimer(
     else if (ex === 'hipflexorstretch')  detected = detectHipFlexorStretch(landmarks)
     else if (ex === 'hamstringstretch')  detected = detectHamstringStretch(landmarks)
     else if (HOLD_EXERCISES.includes(exercise)) {
-      // Floor poses and mobility holds: require any lower-body landmark visible.
-      // Use lenient threshold (0.2) since floor positions occlude many landmarks.
-      detected = detectFloorPose(landmarks)
+      // For hold/stretch exercises without specific pose detection (floor poses,
+      // mobility, etc.) run the timer whenever landmarks are visible.
+      detected = landmarks.some(lm => (lm?.visibility ?? 0) > 0.5)
     }
 
     if (detected !== inPositionRef.current) {
