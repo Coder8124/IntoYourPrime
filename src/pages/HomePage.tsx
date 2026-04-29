@@ -574,14 +574,16 @@ export function HomePage() {
             ) : (
               <div className="px-5 py-4 space-y-2">
                 {[
-                  { icon: '🏋️', label: 'Custom Workout',      desc: 'Any exercise, AI-coached',        to: '/workout' },
-                  { icon: '📋', label: 'Structured Program',   desc: 'Follow a preset training plan',   to: '/programs' },
-                  { icon: '✨', label: 'AI Workout Generator', desc: 'Describe a goal, get a program',  to: '/programs/generate' },
+                  { icon: '🏋️', label: 'Custom Workout',      desc: 'Any exercise, AI-coached',         to: '/workout' },
+                  { icon: '📋', label: 'Structured Program',   desc: 'Follow a preset training plan',    to: '/programs' },
+                  { icon: '🤖', label: 'AI Trainer Chat',      desc: 'Ask anything about training',      to: '/chat' },
+                  { icon: '📅', label: 'Workout Calendar',     desc: 'History + AI schedule suggestion', to: '/calendar' },
+                  { icon: '✨', label: 'AI Workout Generator', desc: 'Describe a goal, get a program',   to: '/programs/generate' },
                   { icon: '🔧', label: 'Build Your Program',   desc: 'Pick exercises, set reps & order', to: '/programs/builder' },
-                  { icon: '📖', label: 'Exercise Library',     desc: 'Browse all 30+ exercises',        to: '/library' },
-                  { icon: '🏀', label: 'Basketball',           desc: 'Shooting form + BEEF scoring',    to: '/basketball' },
-                  { icon: '🏆', label: 'Squad Leaderboard',    desc: 'See how you rank vs friends',     to: '/friends' },
-                  { icon: '📈', label: 'Progress',             desc: 'Sessions, reps & form trends',    to: '/progress' },
+                  { icon: '📖', label: 'Exercise Library',     desc: 'Browse all 30+ exercises',         to: '/library' },
+                  { icon: '🏀', label: 'Basketball',           desc: 'Shooting form + BEEF scoring',     to: '/basketball' },
+                  { icon: '🏆', label: 'Squad Leaderboard',    desc: 'See how you rank vs friends',      to: '/friends' },
+                  { icon: '📈', label: 'Progress',             desc: 'Sessions, reps & form trends',     to: '/progress' },
                 ].map(opt => (
                   <Link key={opt.to} to={opt.to}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all hover:brightness-110"

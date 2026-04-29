@@ -27,6 +27,8 @@ const AIWorkoutPage      = lazy(() => import('./pages/AIWorkoutPage').then(m => 
 const PublicProfilePage  = lazy(() => import('./pages/PublicProfilePage').then(m => ({ default: m.PublicProfilePage })))
 const LeaderboardPage    = lazy(() => import('./pages/LeaderboardPage').then(m => ({ default: m.LeaderboardPage })))
 const MeasurementsPage   = lazy(() => import('./pages/MeasurementsPage').then(m => ({ default: m.MeasurementsPage })))
+const ChatPage           = lazy(() => import('./pages/ChatPage').then(m => ({ default: m.ChatPage })))
+const CalendarPage       = lazy(() => import('./pages/CalendarPage').then(m => ({ default: m.CalendarPage })))
 const NotFoundPage       = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
 
 function PageLoader() {
@@ -87,6 +89,8 @@ export default function App() {
             <Route path="/profile/:uid"      element={<PublicProfilePage />} />
             <Route path="/leaderboard"       element={<LeaderboardPage />} />
             <Route path="/measurements"      element={<MeasurementsPage />} />
+            <Route path="/chat"              element={<ChatPage />} />
+            <Route path="/calendar"          element={<CalendarPage />} />
             <Route path="*"                  element={<NotFoundPage />} />
           </Routes>
         </RouteFade>
