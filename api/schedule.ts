@@ -7,8 +7,8 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const gate = await verifyAndGate(req, res, 'gpt-4o-mini')
-  if (!gate) return
+  const gate = await verifyAndGate(req.headers.authorization)
+  if (gate.error) return res.status(gate.error.status).json({ error: gate.error.message })
 
   const { recentSessions, fitnessLevel } = req.body as {
     recentSessions: { date: string; exercises: string[]; durationMinutes: number; avgRiskScore: number }[]
@@ -30,7 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       max_tokens: 150,
     })
 
-    const { prompt_tokens, completion_tokens } = response.usage!
+    const { prompt_tokens = 0, completion_tokens = 0 } = response.usage ?? {}
     await trackUsage(gate.uid, 'gpt-4o-mini', prompt_tokens, completion_tokens)
 
     const content = response.choices[0].message.content ?? '{}'
