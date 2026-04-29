@@ -1030,7 +1030,6 @@ export const EXERCISE_INFO: ExerciseInfo[] = [
       '10–15 cycles minimum for a proper warm-up effect',
     ],
     riskNote: 'Extremely low injury risk. AI monitors the completeness of both flexion and extension.',
-    isHold: true,
     isNew: true,
     isLimitedTracking: true,
   },

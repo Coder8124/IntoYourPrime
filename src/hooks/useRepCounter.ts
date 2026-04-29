@@ -134,7 +134,7 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Mountain climber: absolute knee-Y difference. Both legs extended = diff≈0 = "up".
   // One knee drives to chest = diff grows = "down". Rep on up_to_down (each knee drive).
   mountainclimber: { joints: [LM.LEFT_KNEE,         LM.RIGHT_KNEE],     repOn: 'up_to_down', debounceMs: 350 },
-  // Butt kick: absolute ankle-Y difference. Both level = diff≈0 = "up"; one heel kicked up = diff large = "down".
+  // Butt kick: min knee angle across legs. Neutral (~160°) = "down"; heel to butt (~50°) = "up". Rep on return.
   buttskick:       { joints: [LM.LEFT_ANKLE,        LM.RIGHT_ANKLE],    repOn: 'up_to_down', debounceMs: 300 },
   // Calf raise: average heel Y. Heels on floor (high Y) = "down"; raised on toes (low Y) = "up".
   calfraise:       { joints: [LM.LEFT_HEEL,         LM.RIGHT_HEEL],     repOn: 'down_to_up', debounceMs: 1000 },
@@ -362,8 +362,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   nordicCurl:          'deadlift',
   superman:            'deadlift',
   // ── Glute / hip — dedicated signals ─────────────────────────────────
-  // glutebridge, hipthrust, firehydrant are now proper SupportedExercises
-  donkeykick:          'buttskick',
+  // glutebridge, hipthrust, firehydrant, donkeykick are now proper SupportedExercises
   // ── Push — elbow angle like pushup ───────────────────────────────────
   diamondpushup:       'pushup',
   widegripushup:       'pushup',
@@ -377,17 +376,16 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   // ── Shoulder — wrist Y like shoulderpress / lateralraise ─────────────
   arnoldpress:         'shoulderpress',
   frontraise:          'lateralraise',
-  reverseFly:          'lateralraise',
+  // reverseFly is now a proper SupportedExercise with dedicated X-diff signal
   // ── Arms — elbow angle like bicepcurl / tricepextension ───────────────
   concentrationcurl:   'bicepcurl',
   zottmancurl:         'bicepcurl',
   skullcrusher:        'tricepextension',
   wristcurl:           'bicepcurl',
   // ── Core — torso signal ───────────────────────────────────────────────
-  russiantwist:        'hipcircle',
+  // russiantwist is now a proper SupportedExercise with dedicated wrist-X signal
   bicycleCrunch:       'mountainclimber',
-  // legRaise is now a proper SupportedExercise (dedicated ankle-Y signal)
-  flutterKick:         'highnees',
+  // legRaise and flutterKick are now proper SupportedExercises (dedicated signals)
   abWheel:             'curlup',
   // ── Cardio / plyometric — jump signal ────────────────────────────────
   boxjump:             'jumpsquat',
@@ -402,7 +400,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   birddog:             'plank',
   hollowbody:          'plank',
   vSit:                'plank',
-  catcow:              'plank',
+  // catcow is now a proper SupportedExercise that counts rep cycles
   childpose:           'plank',
   worldsgreateststretch: 'plank',
   hipflexorstretch:    'plank',
@@ -415,7 +413,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   // ── Circles / rotations ───────────────────────────────────────────────
   anklecircle:         'armcircle',
   neckroll:            'armcircle',
-  shoulderroll:        'armcircle',
+  // shoulderroll is now a proper SupportedExercise with dedicated shoulder-Y signal
   wristcircle:         'armcircle',
 }
 
@@ -600,12 +598,11 @@ export function useRepCounter(
       invertSignal = false
     } else if (exerciseKey === 'curlup') {
       // hipY − shoulderY. Near-zero when flat, positive when curled up.
-      // No inversion: high value = curled up = "up" phase naturally maps to low normalised.
-      // Actually: high diff = "up" position, so we invert so that "up" → low normalised.
+      // Invert: large diff (curled, shoulder above hip) → low normalised → "up" phase.
       const result = getCurlupSignal(landmarks)
       if (!result || result.confidence < CONFIDENCE_THRESH) return
       rawSignal    = result.value
-      invertSignal = true   // large diff (curled) → low normalised → "up" phase
+      invertSignal = true
     } else if (exerciseKey === 'jumpingjack') {
       // Average wrist Y position. Arms at sides: wrists low (high Y). Arms overhead: wrists high (low Y).
       // Lower confidence threshold (0.35) — wrists can lose confidence when fully overhead.
@@ -635,7 +632,7 @@ export function useRepCounter(
       // Use elbow angle (shoulder→elbow→wrist).
       // Rack position (~90°) = "down". Fully pressed overhead (~165°) = "up".
       // invertSignal: large angle (overhead) → low normalised → "up" phase.
-      // Rep counted on down_to_up: arms reach overhead = concentric complete.
+      // Rep counted on up_to_down: arms return to rack after each press.
       const result = getElbowAngle(landmarks)
       if (!result || result.confidence < 0.4) return
       rawSignal    = result.value
