@@ -50,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     clearTimeout(timeout)
 
     const { prompt_tokens = 0, completion_tokens = 0 } = completion.usage ?? {}
-    await trackUsage(gate.uid, 'gpt-4o-mini', prompt_tokens, completion_tokens)
+    await trackUsage(gate.uid, 'gpt-4o', prompt_tokens, completion_tokens)
 
     const insight = completion.choices[0]?.message?.content ?? ''
     return res.status(200).json({ insight })

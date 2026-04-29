@@ -50,7 +50,7 @@ export function CalendarPage() {
     const init = async () => {
       await loadSubscriptionStatus()
       setIsPro(isProSubscriber())
-      setApiKey(localStorage.getItem('openai_api_key'))
+      setApiKey(localStorage.getItem('formAI_openai_key'))
 
       const user = auth.currentUser
       if (!user) { setLoading(false); return }
