@@ -1684,17 +1684,171 @@ export function WorkoutPage() {
           </div>
         )}
 
-        {/* ── THREE COLUMNS ───────────────────────────────────────────── */}
-        <div className="flex-1 flex overflow-hidden min-h-0">
+        {/* ── PIP CAMERA + SINGLE COLUMN LAYOUT ───────────────────────── */}
+        <div className="flex-1 overflow-hidden relative min-h-0">
 
-          {/* ── LEFT PANEL ───────────────────────────────────────────── */}
-          <aside
+          {/* ── Fixed PIP Camera ─────────────────────────────────────────
+              videoRef + canvasRef live here. MediaPipe processes the video
+              stream directly — display size has no effect on landmark
+              detection or rep counting. */}
+          <div
+            ref={cameraShellRef}
             className={[
-              'shrink-0 flex flex-col gap-3 border-r border-subtle overflow-y-auto',
-              wideCameraLayout ? 'p-3' : 'p-4',
-              wideCameraLayout ? 'w-[min(13.5rem,22vw)]' : 'w-[30%]',
+              'z-40 overflow-hidden bg-[#050508]',
+              cameraFullscreen ? 'fixed inset-0' : 'fixed rounded-xl shadow-2xl',
             ].join(' ')}
+            style={cameraFullscreen ? {} : {
+              top: 60, right: 8,
+              width: 156, height: 117,
+              border: '1px solid rgba(255,255,255,0.14)',
+            }}
           >
+            {/* Video + skeleton canvas */}
+            <div
+              className="absolute inset-0 will-change-transform overflow-hidden"
+              style={{ transform: `scale(${cameraZoom})`, transformOrigin: 'center center' }}
+            >
+              <video
+                ref={videoRef}
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+                playsInline muted autoPlay
+              />
+              <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+            </div>
+
+            {/* Loading spinner */}
+            {cameraLoading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#050508] z-10">
+                <div className="w-6 h-6 border-2 border-blue-600/30 border-t-blue-500 rounded-full animate-spin" />
+                {cameraFullscreen && <span className="text-gray-600 text-[12px]">Initializing camera…</span>}
+              </div>
+            )}
+
+            {/* No pose detected — fullscreen only */}
+            {cameraFullscreen && !cameraLoading && cameraStarted && !isTracking && (
+              <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none z-10">
+                <div className="px-4 py-2.5 bg-black/70 backdrop-blur-md rounded-full border border-white/[0.07]">
+                  <span className="text-gray-400 text-[13px]">No pose detected — step into frame</span>
+                </div>
+              </div>
+            )}
+
+            {/* Reference photo prompt — fullscreen only */}
+            {cameraFullscreen && !cameraLoading && cameraStarted && !refCaptured && (
+              <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                <div
+                  className="mx-4 w-full max-w-sm rounded-2xl p-5 text-center pointer-events-auto"
+                  style={{ background: 'rgba(10,10,20,0.88)', border: '1px solid rgba(59,130,246,0.35)', backdropFilter: 'blur(12px)' }}
+                >
+                  <div className="text-3xl mb-3">📸</div>
+                  <p className="font-black text-white text-[16px] mb-1">Set your reference</p>
+                  <p className="text-gray-400 text-[12px] leading-relaxed mb-4">
+                    Stand in frame so we can identify you. The AI will focus on you even if others walk through.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={captureReferencePhoto}
+                    className="w-full py-3.5 rounded-xl bg-accent hover:bg-accent/90 font-bold text-[15px] text-white transition-colors"
+                    style={{ boxShadow: '0 0 24px rgba(59,130,246,0.4)' }}
+                  >
+                    That's me — capture photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRefCaptured(true)}
+                    className="mt-2 w-full py-2 text-[12px] text-gray-600 hover:text-gray-400 transition-colors"
+                  >
+                    Skip
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Reference captured badge — fullscreen only */}
+            {cameraFullscreen && refCaptured && referenceFrameRef.current && (
+              <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full pointer-events-none"
+                style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }}>
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                <span className="text-[11px] font-semibold text-green-400">Reference set</span>
+              </div>
+            )}
+
+            {/* PIP controls (small mode) */}
+            {!cameraFullscreen && (
+              <>
+                {/* Tracking dot */}
+                <div
+                  className="absolute top-1.5 left-1.5 z-20 w-2 h-2 rounded-full"
+                  style={{
+                    background: isTracking ? '#22c55e' : '#374151',
+                    boxShadow: isTracking ? '0 0 4px #22c55e' : 'none',
+                  }}
+                />
+                {/* Expand to fullscreen */}
+                <button
+                  type="button"
+                  onClick={toggleCameraFullscreen}
+                  className="absolute top-1 right-1 z-20 w-6 h-6 flex items-center justify-center rounded-md bg-black/70 text-white hover:bg-white/10"
+                  title="Expand camera"
+                >
+                  <Maximize2 className="h-3 w-3" />
+                </button>
+                {/* Camera switch */}
+                <button
+                  type="button"
+                  onClick={() => void switchCamera()}
+                  className="absolute bottom-1 right-1 z-20 w-6 h-6 flex items-center justify-center rounded-md bg-black/70 text-gray-300 text-[10px] hover:bg-white/10"
+                  title="Switch camera"
+                >⇄</button>
+              </>
+            )}
+
+            {/* Fullscreen controls */}
+            {cameraFullscreen && !cameraLoading && cameraStarted && (
+              <div className="absolute right-2 top-2 z-20 flex flex-col gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void switchCamera()}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-gray-200 backdrop-blur-md transition hover:bg-white/10"
+                  title={facingMode === 'user' ? 'Switch to back camera' : 'Switch to front camera'}
+                >
+                  <span className="text-[15px]">⇄</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleCameraFullscreen}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-gray-200 backdrop-blur-md transition hover:bg-white/10"
+                  title="Exit fullscreen"
+                >
+                  <Minimize2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => nudgeCameraZoom(-CAMERA_ZOOM_STEP)}
+                  disabled={cameraZoom <= CAMERA_ZOOM_MIN}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-gray-200 backdrop-blur-md transition hover:bg-white/10 disabled:opacity-30"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => nudgeCameraZoom(CAMERA_ZOOM_STEP)}
+                  disabled={cameraZoom >= CAMERA_ZOOM_MAX}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-gray-200 backdrop-blur-md transition hover:bg-white/10 disabled:opacity-30"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Scrollable workout content ──────────────────────────────── */}
+          <div
+            className="h-full overflow-y-auto px-4 pt-3 pb-4 space-y-3"
+            style={{ paddingRight: cameraFullscreen ? 16 : 172 }}
+          >
+
 
             {/* Program mode banner */}
             {activeProgram && (
@@ -2156,186 +2310,6 @@ export function WorkoutPage() {
                 )}
               </div>
             </div>
-          </aside>
-
-          {/* ── CENTER (40%) ───────────────────────────────────────────── */}
-          <main className={`flex-1 flex flex-col min-w-0 overflow-hidden ${wideCameraLayout ? 'p-3' : 'p-4'}`}>
-            <div
-              ref={cameraShellRef}
-              className={[
-                'relative flex-1 overflow-hidden bg-[#050508] min-h-0 shadow-[0_0_0_1px_#1e1e2e]',
-                cameraFullscreen ? 'rounded-none' : 'rounded-xl',
-              ].join(' ')}
-              onWheel={onCameraPreviewWheel}
-            >
-
-              {/* Camera initialising */}
-              {cameraLoading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#050508] z-10">
-                  <div className="w-10 h-10 border-2 border-blue-600/30 border-t-blue-500 rounded-full animate-spin" />
-                  <span className="text-gray-600 text-[13px]">Initializing camera…</span>
-                </div>
-              )}
-
-              {/* No pose detected overlay */}
-              {!cameraLoading && cameraStarted && !isTracking && (
-                <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none z-10">
-                  <div className="px-4 py-2.5 bg-black/70 backdrop-blur-md rounded-full border border-white/[0.07]">
-                    <span className="text-gray-400 text-[13px]">No pose detected — step into frame</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Reference photo prompt — shown as soon as camera starts */}
-              {!cameraLoading && cameraStarted && !refCaptured && (
-                <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-                  <div
-                    className="mx-4 w-full max-w-sm rounded-2xl p-5 text-center pointer-events-auto"
-                    style={{ background: 'rgba(10,10,20,0.88)', border: '1px solid rgba(59,130,246,0.35)', backdropFilter: 'blur(12px)' }}
-                  >
-                    <div className="text-3xl mb-3">📸</div>
-                    <p className="font-black text-white text-[16px] mb-1">Set your reference</p>
-                    <p className="text-gray-400 text-[12px] leading-relaxed mb-4">
-                      Stand in frame so we can identify you. The AI will focus on you even if others walk through.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={captureReferencePhoto}
-                      className="w-full py-3.5 rounded-xl bg-accent hover:bg-accent/90 font-bold text-[15px] text-white transition-colors"
-                      style={{ boxShadow: '0 0 24px rgba(59,130,246,0.4)' }}
-                    >
-                      That's me — capture photo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRefCaptured(true)}
-                      className="mt-2 w-full py-2 text-[12px] text-gray-600 hover:text-gray-400 transition-colors"
-                    >
-                      Skip
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Reference captured confirmation — fades after 2s */}
-              {refCaptured && referenceFrameRef.current && (
-                <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full pointer-events-none"
-                  style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }}>
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                  <span className="text-[11px] font-semibold text-green-400">Reference set</span>
-                </div>
-              )}
-
-              {/* Scaled preview (crop to center when zoomed in) */}
-              <div className="absolute inset-0 overflow-hidden">
-                <div
-                  className="absolute inset-0 will-change-transform"
-                  style={{
-                    transform: `scale(${cameraZoom})`,
-                    transformOrigin: 'center center',
-                  }}
-                >
-                  <video
-                    ref={videoRef}
-                    className="absolute inset-0 h-full w-full object-cover"
-                    style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
-                    playsInline
-                    muted
-                    autoPlay
-                  />
-                  <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
-                </div>
-              </div>
-
-              {/* Display + magnify controls */}
-              {!cameraLoading && cameraStarted && (
-                <>
-                  <div className="absolute right-2 top-2 z-20 flex flex-col gap-1.5">
-                    {/* Camera switch (front/back) */}
-                    <button
-                      type="button"
-                      onClick={() => switchCamera()}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-gray-200 backdrop-blur-md transition hover:bg-white/10"
-                      title={facingMode === 'user' ? 'Switch to back camera' : 'Switch to front camera'}
-                      aria-label="Switch camera"
-                    >
-                      <span className="text-[15px]">🔄</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={toggleCameraFullscreen}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-gray-200 backdrop-blur-md transition hover:bg-white/10"
-                      title={cameraFullscreen ? 'Exit fullscreen' : 'Fullscreen camera'}
-                      aria-label={cameraFullscreen ? 'Exit fullscreen' : 'Fullscreen camera'}
-                    >
-                      {cameraFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setWideCameraLayout((w) => !w)}
-                      className={[
-                        'rounded-lg border px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide backdrop-blur-md transition',
-                        wideCameraLayout
-                          ? 'border-blue-500/50 bg-blue-600/30 text-blue-100'
-                          : 'border-white/15 bg-black/70 text-gray-300 hover:bg-white/10',
-                      ].join(' ')}
-                      title="Give the camera column more space (narrow side panels)"
-                    >
-                      {wideCameraLayout ? 'Wide on' : 'Wide view'}
-                    </button>
-                  </div>
-
-                  <div className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-col items-center gap-1.5 sm:max-w-none">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500">
-                      Magnify center (optional)
-                    </span>
-                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/65 px-2 py-1.5 backdrop-blur-md">
-                      <button
-                        type="button"
-                        aria-label="Magnify less"
-                        disabled={cameraZoom <= CAMERA_ZOOM_MIN}
-                        onClick={() => nudgeCameraZoom(-CAMERA_ZOOM_STEP)}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-300 transition hover:bg-white/10 disabled:opacity-30"
-                      >
-                        <ZoomOut className="h-4 w-4" />
-                      </button>
-                      <input
-                        type="range"
-                        aria-label="Magnify center"
-                        min={CAMERA_ZOOM_MIN}
-                        max={CAMERA_ZOOM_MAX}
-                        step={CAMERA_ZOOM_STEP}
-                        value={cameraZoom}
-                        onChange={(e) => setCameraZoom(Number(e.target.value))}
-                        className="h-1 w-[72px] cursor-pointer accent-blue-500 sm:w-[120px]"
-                      />
-                      <button
-                        type="button"
-                        aria-label="Magnify more"
-                        disabled={cameraZoom >= CAMERA_ZOOM_MAX}
-                        onClick={() => nudgeCameraZoom(CAMERA_ZOOM_STEP)}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-300 transition hover:bg-white/10 disabled:opacity-30"
-                      >
-                        <ZoomIn className="h-4 w-4" />
-                      </button>
-                      <span className="hidden min-w-[2.5rem] pr-0.5 text-center font-mono text-[10px] text-gray-400 sm:inline">
-                        {cameraZoom.toFixed(2)}×
-                      </span>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </main>
-
-          {/* ── RIGHT PANEL ─────────────────────────────────────────────── */}
-          <aside
-            className={[
-              'shrink-0 flex flex-col gap-3 border-l border-subtle overflow-hidden',
-              wideCameraLayout ? 'p-3' : 'p-4',
-              wideCameraLayout ? 'w-[min(13.5rem,22vw)]' : 'w-[30%]',
-            ].join(' ')}
-          >
 
             {/* Risk gauge */}
             <div className="card-surface p-5 flex flex-col items-center">
@@ -2517,7 +2491,7 @@ export function WorkoutPage() {
                 <a href="https://gymvisual.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-500">gymvisual.com</a>
               </p>
             </div>
-          </aside>
+          </div>
         </div>
 
         {/* ── BOTTOM BAR ──────────────────────────────────────────────── */}
