@@ -163,19 +163,25 @@ function detectCobra(landmarks: NormalizedLandmark[]): boolean {
  */
 function detectChildPose(landmarks: NormalizedLandmark[]): boolean {
   if (landmarks.length < 29) return false
+  // Low threshold (0.15) — floor poses occlude many landmarks from a front camera
+  const v = (lm: NormalizedLandmark | undefined) => vis(lm, 0.15)
   const lHip = landmarks[LM.LEFT_HIP],   rHip = landmarks[LM.RIGHT_HIP]
   const lAn  = landmarks[LM.LEFT_ANKLE], rAn  = landmarks[LM.RIGHT_ANKLE]
   const lSh  = landmarks[LM.LEFT_SHOULDER], rSh = landmarks[LM.RIGHT_SHOULDER]
-  if (!vis(lHip) && !vis(rHip)) return false
-  if (!vis(lAn)  && !vis(rAn))  return false
-  const hipY = ((vis(lHip) ? lHip.y : rHip.y) + (vis(rHip) ? rHip.y : lHip.y)) / 2
-  const anY  = ((vis(lAn)  ? lAn.y  : rAn.y)  + (vis(rAn)  ? rAn.y  : lAn.y))  / 2
-  // Hips close to ankles (difference < 0.25) — hips sitting back on heels
-  if (Math.abs(hipY - anY) > 0.25) return false
-  // Shoulders should be near or below hip level (torso folded)
-  if (vis(lSh) || vis(rSh)) {
-    const shY = ((vis(lSh) ? lSh.y : rSh.y) + (vis(rSh) ? rSh.y : lSh.y)) / 2
-    if (shY < hipY - 0.1) return false  // shoulders way above hips = not child's pose
+  // If any lower-body landmark is visible at all, accept — child's pose landmarks are unreliable
+  if (!v(lHip) && !v(rHip) && !v(lAn) && !v(rAn)) return false
+  const hasHip = v(lHip) || v(rHip)
+  const hasAn  = v(lAn)  || v(rAn)
+  if (hasHip && hasAn) {
+    const hipY = ((v(lHip) ? lHip.y : rHip.y) + (v(rHip) ? rHip.y : lHip.y)) / 2
+    const anY  = ((v(lAn)  ? lAn.y  : rAn.y)  + (v(rAn)  ? rAn.y  : lAn.y))  / 2
+    // Hips close to ankles (sitting back on heels)
+    if (Math.abs(hipY - anY) > 0.35) return false
+    // Shoulders should not be clearly above hips (torso folded forward)
+    if ((v(lSh) || v(rSh)) && hasHip) {
+      const shY = ((v(lSh) ? lSh.y : rSh.y) + (v(rSh) ? rSh.y : lSh.y)) / 2
+      if (shY < hipY - 0.15) return false
+    }
   }
   return true
 }

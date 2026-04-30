@@ -63,6 +63,7 @@ export type SupportedExercise =
   | 'flutterKick'
   | 'shoulderroll'
   | 'reverseFly'
+  | 'broadjump'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -87,14 +88,10 @@ export interface UseRepCounterReturn {
 
 interface ExerciseConfig {
   joints: [number, number]
-  /**
-   * Which phase transition completes a rep.
-   * 'down_to_up' — squat/pushup/deadlift/lunge: bottom → top = rep done
-   * 'up_to_down' — shoulderpress: overhead (up) → back down = rep done
-   */
   repOn: 'down_to_up' | 'up_to_down'
-  /** Override the global DEBOUNCE_MS for fast exercises like high knees or jumping jacks */
   debounceMs?: number
+  /** Override the global MIN_RANGE for exercises with inherently small movement arcs */
+  minRange?: number
 }
 
 const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
@@ -134,10 +131,11 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Mountain climber: absolute knee-Y difference. Both legs extended = diff≈0 = "up".
   // One knee drives to chest = diff grows = "down". Rep on up_to_down (each knee drive).
   mountainclimber: { joints: [LM.LEFT_KNEE,         LM.RIGHT_KNEE],     repOn: 'up_to_down', debounceMs: 350 },
-  // Butt kick: min knee angle across legs. Neutral (~160°) = "down"; heel to butt (~50°) = "up". Rep on return.
-  buttskick:       { joints: [LM.LEFT_ANKLE,        LM.RIGHT_ANKLE],    repOn: 'up_to_down', debounceMs: 300 },
-  // Calf raise: average heel Y. Heels on floor (high Y) = "down"; raised on toes (low Y) = "up".
-  calfraise:       { joints: [LM.LEFT_HEEL,         LM.RIGHT_HEEL],     repOn: 'down_to_up', debounceMs: 1000 },
+  // Butt kick: abs ankle Y diff. One ankle kicks up = large diff = "down"; both level = "up".
+  // Same approach as flutterKick/highnees — alternating peaks, each kick fires a rep.
+  buttskick:       { joints: [LM.LEFT_ANKLE,        LM.RIGHT_ANKLE],    repOn: 'up_to_down', debounceMs: 220 },
+  // Calf raise: ankle Y — whole ankle rises on tiptoes. Small range but reliable from front camera.
+  calfraise:       { joints: [LM.LEFT_ANKLE,        LM.RIGHT_ANKLE],    repOn: 'down_to_up', debounceMs: 900, minRange: 0.02 },
   // Cat-cow: avg hip Y. Cow (back sags, hips drop → high Y) = "down". Cat (spine arches, hips rise → low Y) = "up".
   catcow:          { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'up_to_down', debounceMs: 600 },
   // Sit-up: same hipY−shoulderY signal as curl-up, full range.
@@ -166,6 +164,9 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   chestfly:         { joints: [LM.LEFT_WRIST,        LM.RIGHT_WRIST],    repOn: 'down_to_up', debounceMs: 1000 },
   // Jump squat: same knee-angle signal as squat, faster debounce for explosive movement.
   jumpsquat:        { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'down_to_up', debounceMs: 800 },
+  // Broad jump: crouch → jump forward → land → reset. Same knee-angle signal but longer debounce
+  // to accommodate the travel + landing + reset cycle (~1.5-2s per rep).
+  broadjump:        { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'down_to_up', debounceMs: 1500 },
   // Burpee (3-phase): average body height via shoulder+hip Y. Standing = low Y = "up". Crouching/plank = high Y = "down".
   // Rep counted when returning to standing. Long debounce — full burpee cycle takes 2-3 s.
   burpee:           { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'down_to_up', debounceMs: 2500 },
@@ -392,7 +393,6 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   skaterjump:          'jumpsquat',
   tuckjump:            'jumpsquat',
   starjump:            'jumpsquat',
-  broadjump:           'jumpsquat',
   shadowboxing:        'jumpingjack',
   // ── Isometric / mobility — map to plank (hold timer handles them) ─────
   sideplank:           'plank',
@@ -661,47 +661,26 @@ export function useRepCounter(
       rawSignal    = joint.y
       invertSignal = false
     } else if (exerciseKey === 'buttskick') {
-      // Knee angle (hip→knee→ankle). Neutral running: ~140-170°. Heel kicked to butt: ~40-70°.
-      // Min across both legs catches whichever leg is currently kicking.
-      // No invert: low angle (kick) → low normalised → "up"; high angle (straight) → "down".
-      // Rep on up_to_down: counts when kicked leg straightens back (kick → neutral).
-      //
-      // Ankle confidence is intentionally lower (0.15) — during the kick the heel travels
-      // behind the body and becomes partially occluded from a front-facing camera.
-      // Hip and knee stay visible and anchor the angle calculation.
-      const lHip = landmarks[LM.LEFT_HIP],  lKn = landmarks[LM.LEFT_KNEE],  lAn = landmarks[LM.LEFT_ANKLE]
-      const rHip = landmarks[LM.RIGHT_HIP], rKn = landmarks[LM.RIGHT_KNEE], rAn = landmarks[LM.RIGHT_ANKLE]
-      const angles: number[] = []
-      const lHipConf = lHip?.visibility ?? 0, lKnConf = lKn?.visibility ?? 0, lAnConf = lAn?.visibility ?? 0
-      const rHipConf = rHip?.visibility ?? 0, rKnConf = rKn?.visibility ?? 0, rAnConf = rAn?.visibility ?? 0
-      if (lHipConf >= 0.35 && lKnConf >= 0.35 && lAnConf >= 0.15) angles.push(calcAngle(lHip, lKn, lAn))
-      if (rHipConf >= 0.35 && rKnConf >= 0.35 && rAnConf >= 0.15) angles.push(calcAngle(rHip, rKn, rAn))
-      if (angles.length === 0) return
-      rawSignal    = Math.min(...angles)
-      invertSignal = false
+      // Abs ankle Y diff — same approach as flutterKick/highnees.
+      // Both ankles level = diff ≈ 0 = "up" (between kicks).
+      // One ankle kicks up behind body = diff grows = "down" (kick peak).
+      // Rep fires on up_to_down: each time an ankle reaches its peak kick height.
+      // Lower confidence threshold (0.2) because the kicking ankle travels behind the body.
+      const lAnBK = landmarks[LM.LEFT_ANKLE], rAnBK = landmarks[LM.RIGHT_ANKLE]
+      if ((lAnBK?.visibility ?? 0) < 0.2 || (rAnBK?.visibility ?? 0) < 0.2) return
+      rawSignal    = Math.abs(lAnBK.y - rAnBK.y)
+      invertSignal = false  // large diff (one ankle up) → high norm → "down" phase; reps on up_to_down
     } else if (exerciseKey === 'calfraise') {
-      // ankle.y − heel.y gives a reliable large-range signal:
-      // flat-footed → diff ≈ 0 (heel near ankle in Y) → "down" phase
-      // on tiptoes → heel rises, diff grows → "up" phase
-      // invertSignal = true so large diff → low normalised → "up" (UP_THRESHOLD < 0.35)
-      const CALF_CONF = 0.15
-      const lAn   = landmarks[LM.LEFT_ANKLE],  rAn   = landmarks[LM.RIGHT_ANKLE]
-      const lHeel = landmarks[LM.LEFT_HEEL],    rHeel = landmarks[LM.RIGHT_HEEL]
-      const diffs: number[] = []
-      if ((lAn?.visibility ?? 0) >= CALF_CONF && (lHeel?.visibility ?? 0) >= CALF_CONF)
-        diffs.push(lAn.y - lHeel.y)
-      if ((rAn?.visibility ?? 0) >= CALF_CONF && (rHeel?.visibility ?? 0) >= CALF_CONF)
-        diffs.push(rAn.y - rHeel.y)
-      if (diffs.length === 0) {
-        // Fallback: knee Y (whole body rises slightly on tiptoes)
-        const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
-        if ((lKn?.visibility ?? 0) < CALF_CONF || (rKn?.visibility ?? 0) < CALF_CONF) return
-        rawSignal    = (lKn.y + rKn.y) / 2
-        invertSignal = false
-      } else {
-        rawSignal    = diffs.reduce((s, v) => s + v, 0) / diffs.length
-        invertSignal = true  // large diff = tiptoes = "up" phase
-      }
+      // Average ankle Y — the whole body (including ankles) rises a few cm on tiptoes.
+      // Flat-footed: ankle near floor = high Y. Tiptoes: ankle rises = lower Y.
+      // invertSignal = false: high Y = "down"; low Y = "up". Per-exercise minRange = 0.02 in config.
+      const lAnC = landmarks[LM.LEFT_ANKLE], rAnC = landmarks[LM.RIGHT_ANKLE]
+      const ys: number[] = []
+      if ((lAnC?.visibility ?? 0) >= 0.3) ys.push(lAnC.y)
+      if ((rAnC?.visibility ?? 0) >= 0.3) ys.push(rAnC.y)
+      if (ys.length === 0) return
+      rawSignal    = ys.reduce((s, v) => s + v, 0) / ys.length
+      invertSignal = false  // high Y (flat) = "down"; low Y (tiptoes) = "up"
     } else if (exerciseKey === 'situp') {
       // Same signal as curl-up: hipY−shoulderY. Full sit-up has larger range than curl-up.
       // Large diff (torso upright) = "up" position. Flat (diff≈0) = "down" position.
@@ -778,9 +757,9 @@ export function useRepCounter(
       if ((lWrR?.visibility ?? 0) < 0.4 || (rWrR?.visibility ?? 0) < 0.4) return
       rawSignal    = Math.abs(lWrR.x - rWrR.x)
       invertSignal = false  // large diff (raised) → high norm → "down"; rep fires on up_to_down (arms raised)
-    } else if (exerciseKey === 'jumpsquat') {
-      // Same pre-normalised knee-angle signal as squat. Explosive movement → faster debounce.
-      // Standing (large angle) → squat (small angle) → jump/land → rep counted on return to "up".
+    } else if (exerciseKey === 'jumpsquat' || exerciseKey === 'broadjump') {
+      // Knee-angle signal: standing (large angle) → crouch/jump (small angle) → rep on return to standing.
+      // broadjump uses same signal but with a longer debounce (1500ms) set in config.
       const kneeJ = getKneeAngle(landmarks, 0.35)
       if (kneeJ && kneeJ.confidence >= 0.3) {
         const KNEE_MIN = 60, KNEE_MAX = 175
@@ -930,8 +909,9 @@ export function useRepCounter(
     calibratedMax.current = Math.max(calibratedMax.current, y)
 
     const range = calibratedMax.current - calibratedMin.current
+    const effectiveMinRange = config.minRange ?? MIN_RANGE
 
-    if (range < MIN_RANGE) {
+    if (range < effectiveMinRange) {
       // Still not enough movement — if this has been going on too long,
       // reset so calibration restarts fresh on the next landmark.
       if (now - calibrationEnd.current > RECAL_AFTER_MS) {

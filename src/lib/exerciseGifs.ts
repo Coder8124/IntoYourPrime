@@ -71,6 +71,7 @@ export const EXERCISE_GIFS: Record<string, string> = {
   // ── Mobility / stretches ─────────────────────────────────────────────────
   catcow:                 'https://fitnessprogramer.com/wp-content/uploads/2021/02/cat-cow.gif',
   childpose:              'https://fitnessprogramer.com/wp-content/uploads/2022/05/Balasana-Child-Pose.gif',
+  worldsgreateststretch:  'https://fitnessprogramer.com/wp-content/uploads/2021/06/World-Greatest-Stretch.gif',
   hipflexorstretch:       'https://fitnessprogramer.com/wp-content/uploads/2021/08/Kneeling-Hip-Flexor-Stretch.gif',
   hamstringstretch:       'https://fitnessprogramer.com/wp-content/uploads/2021/05/Standing-Hamstring-Stretch.gif',
   quadstretch:            'https://fitnessprogramer.com/wp-content/uploads/2021/08/Standing-Quadriceps-Stretch.gif',
