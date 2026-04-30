@@ -779,7 +779,6 @@ export function WorkoutPage() {
   const [cameraStarted, setCameraStarted] = useState(false)
   const [voiceMuted,    setVoiceMuted]    = useState(true)
   const [cameraZoom,       setCameraZoom]       = useState(1)
-  const [wideCameraLayout, setWideCameraLayout] = useState(false)
   const [cameraFullscreen, setCameraFullscreen] = useState(false)
   const [refCaptured,      setRefCaptured]      = useState(false)   // whether reference photo has been taken
   const [milestoneMsg,  setMilestoneMsg]  = useState<string | null>(null)
@@ -919,15 +918,6 @@ export function WorkoutPage() {
     })
   }, [])
 
-  const onCameraPreviewWheel = useCallback(
-    (e: React.WheelEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      const step = e.ctrlKey || e.metaKey ? CAMERA_ZOOM_STEP * 1.5 : CAMERA_ZOOM_STEP
-      nudgeCameraZoom(e.deltaY > 0 ? -step : step)
-    },
-    [nudgeCameraZoom],
-  )
 
   useEffect(() => {
     const sync = () => {
