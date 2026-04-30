@@ -4,6 +4,7 @@ import type { NormalizedLandmark } from '@mediapipe/pose'
 // ── MediaPipe landmark indices ─────────────────────────────────────────────
 
 const LM = {
+  NOSE:           0,
   LEFT_EAR:       7,
   RIGHT_EAR:      8,
   LEFT_SHOULDER:  11,
@@ -147,10 +148,9 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   armcircle:       { joints: [LM.LEFT_WRIST,        LM.RIGHT_WRIST],    repOn: 'up_to_down', debounceMs: 700 },
   // Shoulder roll: shoulder Y oscillation. Raised = "up"; lowered = "down". Rep per full roll.
   shoulderroll:    { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'up_to_down', debounceMs: 700 },
-  // Neck roll: abs ear Y diff. Head neutral = ears level = diff ≈ 0 = "up".
-  // Head tilted to either side = one ear rises, other drops = large diff = "down".
-  // Rep fires up_to_down: each time head reaches a tilted extreme (2 per full circle).
-  neckroll:        { joints: [LM.LEFT_EAR,           LM.RIGHT_EAR],      repOn: 'up_to_down', debounceMs: 900 },
+  // Neck roll: nose Y. Chin to chest = nose drops (high Y) = "down". Chin up/neutral = nose rises (low Y) = "up".
+  // Rep fires up_to_down (chin reaches lowest point) — 1 rep per full forward tilt in the circle.
+  neckroll:        { joints: [LM.NOSE,               LM.NOSE],           repOn: 'up_to_down', debounceMs: 1500 },
   // Reverse fly: bent-over, arms spread horizontally. |wrist X diff| grows as arms raise outward.
   // Arms hanging = small diff = "up" (start). Arms raised to sides = large diff = "down".
   // Rep counted on up_to_down: arms reach raised position (concentric complete).
@@ -712,18 +712,21 @@ export function useRepCounter(
       rawSignal    = ys.reduce((s, v) => s + v, 0) / ys.length
       invertSignal = false  // high Y (down) = "down"; low Y (raised) = "up"
     } else if (exerciseKey === 'neckroll') {
-      // Abs ear Y diff — left and right ears alternate rising/dropping as head tilts side-to-side.
-      // Both ears level (head forward) = diff ≈ 0 = "up" phase.
-      // Head tilted to either side = one ear rises, one drops = large diff = "down" phase.
-      // Rep fires up_to_down: each time the head reaches a lateral tilt extreme (2 per full circle).
-      // Low confidence threshold (0.2) — ears lose visibility on the far tilt side.
-      const lEar = landmarks[LM.LEFT_EAR], rEar = landmarks[LM.RIGHT_EAR]
-      if ((lEar?.visibility ?? 0) < 0.2 && (rEar?.visibility ?? 0) < 0.2) return
-      // If only one ear is visible use it as proxy (head fully turned to opposite side)
-      const lY = (lEar?.visibility ?? 0) >= 0.2 ? lEar.y : rEar.y
-      const rY = (rEar?.visibility ?? 0) >= 0.2 ? rEar.y : lEar.y
-      rawSignal    = Math.abs(lY - rY)
-      invertSignal = false  // small diff (forward) = "up"; large diff (tilted) = "down"
+      // Nose Y tracks chin position reliably from front camera.
+      // Chin tucked to chest: nose drops = high Y = "down" phase.
+      // Head neutral/chin up: nose rises = low Y = "up" phase.
+      // Rep fires up_to_down: each forward tilt of the chin = 1 rep per full circle.
+      // Nose is almost always high-confidence from front camera.
+      const nose = landmarks[LM.NOSE]
+      if ((nose?.visibility ?? 0) < 0.3) return
+      // Normalise relative to shoulder midpoint so body sway doesn't pollute the signal
+      const lSh = landmarks[LM.LEFT_SHOULDER], rSh = landmarks[LM.RIGHT_SHOULDER]
+      const shY = (((lSh?.visibility ?? 0) >= 0.3 ? lSh.y : 0) +
+                   ((rSh?.visibility ?? 0) >= 0.3 ? rSh.y : 0)) /
+                  (((lSh?.visibility ?? 0) >= 0.3 ? 1 : 0) +
+                   ((rSh?.visibility ?? 0) >= 0.3 ? 1 : 0) || 1)
+      rawSignal    = shY > 0 ? nose.y - shY : nose.y  // nose Y relative to shoulders
+      invertSignal = false  // high value (nose near shoulders = chin down) = "down" phase
     } else if (exerciseKey === 'hipcircle') {
       // Hip center X oscillates left/right as hips rotate in a circle.
       // One side extreme (left or right) = 1 rep counted on up_to_down transition.
