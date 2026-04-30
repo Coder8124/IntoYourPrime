@@ -2,6 +2,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import OpenAI from 'openai'
 import { verifyAndGate, trackUsage } from './lib/subscriptionGate'
 
+// ── Types ──────────────────────────────────────────────────────────────────
+
 interface AnalyzeBody {
   frames:      string[]
   exercise:    string

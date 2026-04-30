@@ -3,6 +3,8 @@ import OpenAI from 'openai'
 import type { Session, DailyLog } from '../src/types/index.js'
 import { verifyAndGate, trackUsage } from './lib/subscriptionGate'
 
+// ── Handler ────────────────────────────────────────────────────────────────
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 

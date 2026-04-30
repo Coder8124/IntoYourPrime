@@ -36,7 +36,12 @@ function ProgramCard({ program, onStart }: { program: WorkoutProgram; onStart: (
                 {program.level}
               </span>
             </div>
-            <p className="text-[12px] text-gray-500">{program.duration} · {program.exercises.length} exercises</p>
+            <p className="text-[12px] text-gray-500">
+              {program.duration} · {(program.warmup?.length ?? 0) + program.exercises.length} exercises
+              {program.warmup && program.warmup.length > 0 && (
+                <span className="ml-1 text-amber-500/70">({program.warmup.length} warmup)</span>
+              )}
+            </p>
           </div>
         </div>
 
@@ -57,11 +62,30 @@ function ProgramCard({ program, onStart }: { program: WorkoutProgram; onStart: (
           onClick={() => setExpanded(v => !v)}
           className="text-[12px] text-accent hover:text-accent/80 transition-colors"
         >
-          {expanded ? 'Hide exercises ↑' : `See ${program.exercises.length} exercises ↓`}
+          {expanded ? 'Hide exercises ↑' : `See ${(program.warmup?.length ?? 0) + program.exercises.length} exercises ↓`}
         </button>
 
         {expanded && (
           <div className="space-y-2 pt-1">
+            {program.warmup && program.warmup.length > 0 && (
+              <>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500/70 pt-1">Warmup</p>
+                {program.warmup.map((ex, i) => {
+                  const info = EXERCISE_INFO.find(e => e.id === ex)
+                  return (
+                    <div key={`w-${ex}-${i}`} className="flex items-center gap-3 p-2.5 rounded-xl bg-page border border-subtle">
+                      <span className="text-[12px] font-black w-5 shrink-0" style={{ color: 'rgba(245,158,11,0.5)' }}>{i + 1}</span>
+                      <div className="flex-1">
+                        <p className="text-[13px] font-semibold text-white">{exerciseName(ex)}</p>
+                        {info && <p className="text-[11px] text-gray-600">{info.muscles.slice(0, 3).join(' · ')}</p>}
+                      </div>
+                      {info?.isHold && <span className="text-[10px] text-blue-400 font-bold">Hold</span>}
+                    </div>
+                  )
+                })}
+                <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500/70 pt-1">Main</p>
+              </>
+            )}
             {program.exercises.map((ex, i) => {
               const info = EXERCISE_INFO.find(e => e.id === ex)
               return (

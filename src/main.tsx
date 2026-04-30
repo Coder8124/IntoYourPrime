@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import './index.css'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import { registerServiceWorker, checkStreakOnLoad } from './lib/notifications'
 
 registerServiceWorker()
@@ -12,7 +13,9 @@ checkStreakOnLoad()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
       <Toaster
         position="top-center"
         toastOptions={{
@@ -26,3 +29,4 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </StrictMode>,
 )
+

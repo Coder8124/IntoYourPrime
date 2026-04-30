@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useWorkoutStore, type SuggestionEntry, type WorkoutPhase } from '../stores/workoutStore'
+import { EXERCISE_INFO } from '../lib/programs'
 import { saveSession, updateStreak, postActivityItem, updateWorkoutStats, awardBadges, getUserProfile, saveWeeklyProgress, getFriends } from '../lib/firebaseHelpers'
 import { computeWorkoutScore, scoreGrade } from '../lib/workoutScore'
 import { checkNewBadges, BADGE_MAP } from '../lib/badges'
@@ -29,6 +30,10 @@ interface SessionSnapshot {
   lastExercise: string
   cooldownExercises: CooldownExercise[]
   cooldownCompleted: boolean
+}
+
+function fmtExerciseName(id: string): string {
+  return EXERCISE_INFO.find(e => e.id === id)?.name ?? id.replace(/([A-Z])/g, ' $1').trim()
 }
 
 function fmtDuration(sec: number) {
@@ -514,6 +519,81 @@ export function SessionSummaryPage() {
           </div>
         </section>
 
+        {/* Share card — always dark regardless of theme, text pinned via .dark-card */}
+        <section
+          className="rounded-2xl overflow-hidden dark-card"
+          style={{ background: 'linear-gradient(135deg, #0a0f1e 0%, #0d1428 50%, #0a0e1c 100%)', border: '1px solid rgba(59,130,246,0.25)' }}
+        >
+          {/* Card content — designed to look great as a screenshot */}
+          <div className="p-6 space-y-5">
+            {/* Branding */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white"
+                  style={{ background: 'linear-gradient(135deg,#3b82f6,#7c3aed)' }}>I</div>
+                <span className="text-[12px] font-black tracking-tight text-gray-400">IntoYourPrime</span>
+              </div>
+              <span className="text-[11px] text-gray-600">{fmtClock(snapshot.sessionEndedAt)}</span>
+            </div>
+
+            {/* Score hero */}
+            <div className="flex items-center gap-5">
+              <div
+                className="w-16 h-16 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: `${grade.color}18`, border: `2px solid ${grade.color}50` }}
+              >
+                <span className="font-black text-[28px]" style={{ color: grade.color }}>{grade.grade}</span>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-gray-500 mb-0.5">Workout Score</p>
+                <span className="font-black leading-none text-[40px]" style={{ color: grade.color }}>{workoutScore}</span>
+                <span className="text-gray-500 text-[13px] ml-1">/100</span>
+                <p className="text-[12px] font-semibold mt-0.5" style={{ color: grade.color }}>{grade.label}</p>
+              </div>
+            </div>
+
+            {/* Stat grid */}
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Duration', value: fmtDuration(durationSec) },
+                { label: 'Total Reps', value: String(totalReps) },
+                { label: 'Form Score', value: `${Math.max(0, 100 - Math.round(avgRisk))}` },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <p className="text-[18px] font-black text-white">{value}</p>
+                  <p className="text-[9px] uppercase tracking-wider text-gray-600 mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Top exercises */}
+            {exercisesWithReps.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {exercisesWithReps.slice(0, 4).map(([ex, count]) => (
+                  <span key={ex} className="px-2.5 py-1 rounded-full text-[11px] font-semibold text-gray-300"
+                    style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.2)' }}>
+                    {fmtExerciseName(ex)} ×{count}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Share button row */}
+          <div className="border-t px-6 py-4 flex items-center justify-between gap-3"
+            style={{ borderColor: 'rgba(59,130,246,0.15)', background: 'rgba(59,130,246,0.04)' }}>
+            <p className="text-[11px] text-gray-600">Screenshot this card or tap Share</p>
+            <button
+              type="button"
+              onClick={handleShare}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl text-[13px] font-bold transition-all hover:scale-[1.02] active:scale-[0.98]"
+              style={{ background: 'linear-gradient(135deg,#3b82f6,#7c3aed)', color: '#fff', boxShadow: '0 0 20px rgba(59,130,246,0.3)' }}
+            >
+              {shareStatus === 'copied' ? '✓ Copied!' : '↗ Share Workout'}
+            </button>
+          </div>
+        </section>
+
         {/* New badges earned */}
         {newBadges.length > 0 && (
           <section className="rounded-2xl p-5 space-y-3"
@@ -552,8 +632,8 @@ export function SessionSummaryPage() {
           <div className="card-surface p-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Total reps</p>
             <p className="mt-2 text-3xl font-black text-white">{totalReps}</p>
-            <p className="mt-1 text-[11px] capitalize text-gray-600">
-              Last exercise: {snapshot.lastExercise}
+            <p className="mt-1 text-[11px] text-gray-600">
+              Last exercise: {fmtExerciseName(snapshot.lastExercise)}
             </p>
           </div>
           <div className="card-surface p-5">
@@ -640,7 +720,7 @@ export function SessionSummaryPage() {
                     key={name}
                     className="flex items-center justify-between rounded-lg border border-subtle bg-panel px-3 py-2.5"
                   >
-                    <span className="text-[13px] font-semibold capitalize text-white">{name}</span>
+                    <span className="text-[13px] font-semibold text-white">{fmtExerciseName(name)}</span>
                     <div className="flex items-center gap-3">
                       {weight != null && weight > 0 && (
                         <span className="text-[12px] font-mono text-amber-400 font-bold">{weight}kg</span>
@@ -689,7 +769,7 @@ export function SessionSummaryPage() {
                 return (
                   <li key={exName} className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-white capitalize">{exName}</p>
+                      <p className="text-[13px] font-semibold text-white">{fmtExerciseName(exName)}</p>
                       <p className="text-[12px] text-gray-500 mt-0.5">{message}</p>
                     </div>
                     <div className="shrink-0 flex items-center gap-1.5">

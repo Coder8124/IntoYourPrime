@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 const TABS = [
   { to: '/home',        label: 'Home',      icon: '🏠' },
   { to: '/workout',     label: 'Workout',   icon: '💪' },
+  { to: '/chat',        label: 'AI',        icon: '🤖' },
   { to: '/leaderboard', label: 'Ranked',    icon: '🏆' },
   { to: '/progress',    label: 'Progress',  icon: '📈' },
   { to: '/profile',     label: 'Profile',   icon: '👤' },

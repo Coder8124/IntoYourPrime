@@ -362,10 +362,12 @@ export function HomePage() {
                 ⚡ Add AI Key
               </button>
             ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold"
+              <button
+                onClick={() => setShowApiInput(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-all"
                 style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', color: '#4ade80' }}>
                 ✓ AI Active
-              </div>
+              </button>
             )}
             <Link to="/profile"
               className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black text-white"
@@ -497,19 +499,28 @@ export function HomePage() {
                 <div key={label} className="rounded-2xl p-4"
                   style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 mb-1">{label}</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-[30px] font-black text-white leading-none">
-                      {loading ? '—' : value ?? '—'}
-                    </span>
-                    {diff != null && (
-                      <span className="text-[12px] font-bold" style={{ color: trendColor }}>
-                        {diff > 0 ? '+' : ''}{diff}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-2">
-                    <MiniSparkline values={spark} color={color} invert={!higherBetter} />
-                  </div>
+                  {loading ? (
+                    <div className="space-y-2 mt-1">
+                      <div className="h-8 w-16 rounded-lg animate-pulse" style={{ background: 'var(--border-2)' }} />
+                      <div className="h-10 w-full rounded-lg animate-pulse" style={{ background: 'var(--border)' }} />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-[30px] font-black text-white leading-none">
+                          {value ?? '—'}
+                        </span>
+                        {diff != null && (
+                          <span className="text-[12px] font-bold" style={{ color: trendColor }}>
+                            {diff > 0 ? '+' : ''}{diff}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2">
+                        <MiniSparkline values={spark} color={color} invert={!higherBetter} />
+                      </div>
+                    </>
+                  )}
                 </div>
               )
             })}
@@ -563,14 +574,16 @@ export function HomePage() {
             ) : (
               <div className="px-5 py-4 space-y-2">
                 {[
-                  { icon: '🏋️', label: 'Custom Workout',      desc: 'Any exercise, AI-coached',        to: '/workout' },
-                  { icon: '📋', label: 'Structured Program',   desc: 'Follow a preset training plan',   to: '/programs' },
-                  { icon: '✨', label: 'AI Workout Generator', desc: 'Describe a goal, get a program',  to: '/programs/generate' },
+                  { icon: '🏋️', label: 'Custom Workout',      desc: 'Any exercise, AI-coached',         to: '/workout' },
+                  { icon: '📋', label: 'Structured Program',   desc: 'Follow a preset training plan',    to: '/programs' },
+                  { icon: '🤖', label: 'AI Trainer Chat',      desc: 'Ask anything about training',      to: '/chat' },
+                  { icon: '📅', label: 'Workout Calendar',     desc: 'History + AI schedule suggestion', to: '/calendar' },
+                  { icon: '✨', label: 'AI Workout Generator', desc: 'Describe a goal, get a program',   to: '/programs/generate' },
                   { icon: '🔧', label: 'Build Your Program',   desc: 'Pick exercises, set reps & order', to: '/programs/builder' },
-                  { icon: '📖', label: 'Exercise Library',     desc: 'Browse all 30+ exercises',        to: '/library' },
-                  { icon: '🏀', label: 'Basketball',           desc: 'Shooting form + BEEF scoring',    to: '/basketball' },
-                  { icon: '🏆', label: 'Squad Leaderboard',    desc: 'See how you rank vs friends',     to: '/friends' },
-                  { icon: '📈', label: 'Progress',             desc: 'Sessions, reps & form trends',    to: '/progress' },
+                  { icon: '📖', label: 'Exercise Library',     desc: 'Browse all 30+ exercises',         to: '/library' },
+                  { icon: '🏀', label: 'Basketball',           desc: 'Shooting form + BEEF scoring',     to: '/basketball' },
+                  { icon: '🏆', label: 'Squad Leaderboard',    desc: 'See how you rank vs friends',      to: '/friends' },
+                  { icon: '📈', label: 'Progress',             desc: 'Sessions, reps & form trends',     to: '/progress' },
                 ].map(opt => (
                   <Link key={opt.to} to={opt.to}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all hover:brightness-110"
@@ -636,11 +649,24 @@ export function HomePage() {
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Streak</p>
               <Flame className="w-4 h-4 text-amber-400" />
             </div>
-            <div className="flex items-baseline gap-2 mb-4">
-              <span className="text-[40px] font-black text-white leading-none">{streak}</span>
-              <span className="text-[14px] text-gray-500">days</span>
-            </div>
-            <StreakBars sessions={allSessions} streak={streak} />
+            {loading ? (
+              <div className="space-y-3">
+                <div className="h-10 w-20 rounded-xl animate-pulse" style={{ background: 'var(--border-2)' }} />
+                <div className="flex items-end gap-1.5">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="w-5 rounded-sm animate-pulse" style={{ height: i % 3 === 0 ? 28 : 6, background: 'rgba(255,255,255,0.07)', animationDelay: `${i * 60}ms` }} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-baseline gap-2 mb-4">
+                  <span className="text-[40px] font-black text-white leading-none">{streak}</span>
+                  <span className="text-[14px] text-gray-500">days</span>
+                </div>
+                <StreakBars sessions={allSessions} streak={streak} />
+              </>
+            )}
           </div>
 
           {/* Squad */}
@@ -651,7 +677,18 @@ export function HomePage() {
                 {squadBoard.length} active →
               </Link>
             </div>
-            {squadBoard.length === 0 ? (
+            {loading ? (
+              <ul>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <li key={i} className="flex items-center gap-3 px-5 py-3 border-b border-subtle last:border-0">
+                    <div className="w-4 h-3 rounded animate-pulse shrink-0" style={{ background: 'rgba(255,255,255,0.07)', animationDelay: `${i * 80}ms` }} />
+                    <div className="w-7 h-7 rounded-full animate-pulse shrink-0" style={{ background: 'rgba(255,255,255,0.07)', animationDelay: `${i * 80}ms` }} />
+                    <div className="flex-1 h-3 rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.07)', animationDelay: `${i * 80}ms` }} />
+                    <div className="w-8 h-5 rounded animate-pulse shrink-0" style={{ background: 'rgba(255,255,255,0.07)', animationDelay: `${i * 80}ms` }} />
+                  </li>
+                ))}
+              </ul>
+            ) : squadBoard.length === 0 ? (
               <div className="px-5 py-6 text-center">
                 <p className="text-[12px] text-gray-600">No squad activity yet.</p>
                 <Link to="/friends" className="text-[12px] text-accent hover:text-accent/80 font-semibold mt-1 block">Add friends →</Link>

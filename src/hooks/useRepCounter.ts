@@ -57,6 +57,12 @@ export type SupportedExercise =
   | 'firehydrant'
   | 'glutebridge'
   | 'hipthrust'
+  | 'donkeykick'
+  | 'russiantwist'
+  | 'catcow'
+  | 'flutterKick'
+  | 'shoulderroll'
+  | 'reverseFly'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -107,13 +113,17 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // High knees: use absolute knee-Y difference. Both level = diff≈0 = "up"; one raised = diff large = "down".
   // Rep counted on up_to_down: when diff grows (knee rising) = 1 rep per raise.
   highnees:        { joints: [LM.LEFT_KNEE,        LM.RIGHT_KNEE],     repOn: 'up_to_down',  debounceMs: 500 },
+  // Flutter kick: lying on back, alternating straight-leg kicks. abs(lAn.y - rAn.y).
+  // One ankle raised = diff large = "down". Both level = "up". Each kick = 1 rep.
+  flutterKick:     { joints: [LM.LEFT_ANKLE,       LM.RIGHT_ANKLE],    repOn: 'up_to_down',  debounceMs: 200 },
   // Hold exercises — no reps counted; useHoldTimer handles timing
   plank:           { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
   wallsit:         { joints: [LM.LEFT_HIP,         LM.RIGHT_HIP],      repOn: 'down_to_up' },
-  // Tricep extension: elbow angle. Extended overhead (~160°) = up; bent behind head (~40°) = down.
-  // invertSignal=true: large angle (extended) → low normalised → "up" phase.
+  // Tricep extension: wristY − elbowY. Extended overhead: wrist near/above elbow → diff ≈ 0 or negative.
+  // Bent behind head: wrist drops below elbow → diff grows positive. Rep counted on down→up.
   tricepextension: { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
   // Lateral raise: wrist Y. Arms at sides (high Y) = "down"; arms at shoulder height (low Y) = "up".
+  // Rep counted on up_to_down = returning to sides after raising.
   lateralraise:    { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'up_to_down',  debounceMs: 900 },
   // Hammer curl: same elbow-angle signal as bicep curl, neutral grip (indistinguishable by pose).
   hammercurl:      { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
@@ -124,14 +134,22 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Mountain climber: absolute knee-Y difference. Both legs extended = diff≈0 = "up".
   // One knee drives to chest = diff grows = "down". Rep on up_to_down (each knee drive).
   mountainclimber: { joints: [LM.LEFT_KNEE,         LM.RIGHT_KNEE],     repOn: 'up_to_down', debounceMs: 350 },
-  // Butt kick: absolute ankle-Y difference. Both level = diff≈0 = "up"; one heel kicked up = diff large = "down".
+  // Butt kick: min knee angle across legs. Neutral (~160°) = "down"; heel to butt (~50°) = "up". Rep on return.
   buttskick:       { joints: [LM.LEFT_ANKLE,        LM.RIGHT_ANKLE],    repOn: 'up_to_down', debounceMs: 300 },
   // Calf raise: average heel Y. Heels on floor (high Y) = "down"; raised on toes (low Y) = "up".
   calfraise:       { joints: [LM.LEFT_HEEL,         LM.RIGHT_HEEL],     repOn: 'down_to_up', debounceMs: 1000 },
+  // Cat-cow: avg hip Y. Cow (back sags, hips drop → high Y) = "down". Cat (spine arches, hips rise → low Y) = "up".
+  catcow:          { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'up_to_down', debounceMs: 600 },
   // Sit-up: same hipY−shoulderY signal as curl-up, full range.
   situp:           { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'down_to_up' },
   // Arm circle: average wrist Y. Arms overhead (low Y) = "up". Rep on up_to_down (arms return down).
   armcircle:       { joints: [LM.LEFT_WRIST,        LM.RIGHT_WRIST],    repOn: 'up_to_down', debounceMs: 700 },
+  // Shoulder roll: shoulder Y oscillation. Raised = "up"; lowered = "down". Rep per full roll.
+  shoulderroll:    { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'up_to_down', debounceMs: 700 },
+  // Reverse fly: bent-over, arms spread horizontally. |wrist X diff| grows as arms raise outward.
+  // Arms hanging = small diff = "up" (start). Arms raised to sides = large diff = "down".
+  // Rep counted on up_to_down: arms reach raised position (concentric complete).
+  reverseFly:      { joints: [LM.LEFT_WRIST,        LM.RIGHT_WRIST],    repOn: 'up_to_down', debounceMs: 1000 },
   // Scapula squeeze: shoulder width (|lSh.x - rSh.x|). Wide/relaxed = "down". Squeezed/narrow = "up".
   // Rep counted on squeeze (down→up). Slow debounce — squeeze for 2–3 s, then release.
   scapulasqueeze:  { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'down_to_up', debounceMs: 1500 },
@@ -160,6 +178,10 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Glute bridge / hip thrust: hip Y rises as hips extend from floor. Uses hip Y signal same as squat fallback.
   glutebridge:      { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'down_to_up', debounceMs: 1500 },
   hipthrust:        { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'down_to_up', debounceMs: 1500 },
+  // Donkey kick: on all fours, ankle kicks UP toward/above hip level. hip-ankle Y diff = glute signal.
+  donkeykick:       { joints: [LM.LEFT_ANKLE,         LM.RIGHT_ANKLE],    repOn: 'down_to_up', debounceMs: 1200 },
+  // Russian twist: seated, torso rotates left-right. Wrists sweep side to side — track wrist center X.
+  russiantwist:     { joints: [LM.LEFT_WRIST,          LM.RIGHT_WRIST],    repOn: 'up_to_down', debounceMs: 700 },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -250,7 +272,6 @@ function getTricepExtSignal(
 
   const diffs: number[] = []
   const confs:  number[] = []
-  // Require elbow clearly visible; wrist can lose confidence behind the head
   if (lElConf >= CONFIDENCE_THRESH && lWrConf >= 0.35) { diffs.push(lWr.y - lEl.y); confs.push(Math.min(lElConf, lWrConf)) }
   if (rElConf >= CONFIDENCE_THRESH && rWrConf >= 0.35) { diffs.push(rWr.y - rEl.y); confs.push(Math.min(rElConf, rWrConf)) }
   if (diffs.length === 0) return null
@@ -341,8 +362,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   nordicCurl:          'deadlift',
   superman:            'deadlift',
   // ── Glute / hip — dedicated signals ─────────────────────────────────
-  // glutebridge, hipthrust, firehydrant are now proper SupportedExercises
-  donkeykick:          'buttskick',
+  // glutebridge, hipthrust, firehydrant, donkeykick are now proper SupportedExercises
   // ── Push — elbow angle like pushup ───────────────────────────────────
   diamondpushup:       'pushup',
   widegripushup:       'pushup',
@@ -356,17 +376,16 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   // ── Shoulder — wrist Y like shoulderpress / lateralraise ─────────────
   arnoldpress:         'shoulderpress',
   frontraise:          'lateralraise',
-  reverseFly:          'lateralraise',
+  // reverseFly is now a proper SupportedExercise with dedicated X-diff signal
   // ── Arms — elbow angle like bicepcurl / tricepextension ───────────────
   concentrationcurl:   'bicepcurl',
   zottmancurl:         'bicepcurl',
   skullcrusher:        'tricepextension',
   wristcurl:           'bicepcurl',
   // ── Core — torso signal ───────────────────────────────────────────────
-  russiantwist:        'hipcircle',
+  // russiantwist is now a proper SupportedExercise with dedicated wrist-X signal
   bicycleCrunch:       'mountainclimber',
-  // legRaise is now a proper SupportedExercise (dedicated ankle-Y signal)
-  flutterKick:         'highnees',
+  // legRaise and flutterKick are now proper SupportedExercises (dedicated signals)
   abWheel:             'curlup',
   // ── Cardio / plyometric — jump signal ────────────────────────────────
   boxjump:             'jumpsquat',
@@ -381,7 +400,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   birddog:             'plank',
   hollowbody:          'plank',
   vSit:                'plank',
-  catcow:              'plank',
+  // catcow is now a proper SupportedExercise that counts rep cycles
   childpose:           'plank',
   worldsgreateststretch: 'plank',
   hipflexorstretch:    'plank',
@@ -394,7 +413,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   // ── Circles / rotations ───────────────────────────────────────────────
   anklecircle:         'armcircle',
   neckroll:            'armcircle',
-  shoulderroll:        'armcircle',
+  // shoulderroll is now a proper SupportedExercise with dedicated shoulder-Y signal
   wristcircle:         'armcircle',
 }
 
@@ -407,7 +426,9 @@ export function useRepCounter(
   const exerciseKey: SupportedExercise =
     (raw as SupportedExercise) in EXERCISE_CONFIG
       ? (raw as SupportedExercise)
-      : SIGNAL_ALIAS[raw] ?? SIGNAL_ALIAS[exercise] ?? 'squat'
+      : (exercise as SupportedExercise) in EXERCISE_CONFIG  // catch mixed-case IDs like 'legRaise'
+        ? (exercise as SupportedExercise)
+        : SIGNAL_ALIAS[raw] ?? SIGNAL_ALIAS[exercise] ?? 'squat'
 
   const config = EXERCISE_CONFIG[exerciseKey]
 
@@ -571,19 +592,17 @@ export function useRepCounter(
       // Bent behind head: wrist drops below elbow → diff grows positive.
       // No inversion: large diff = "down" (bent); small diff = "up" (extended).
       // Rep counted on down→up (returning to full extension).
-      // Lower wrist-confidence threshold (0.35) so occlusion behind the head doesn't drop the signal.
       const result = getTricepExtSignal(landmarks)
       if (!result) return
       rawSignal    = result.value
       invertSignal = false
     } else if (exerciseKey === 'curlup') {
       // hipY − shoulderY. Near-zero when flat, positive when curled up.
-      // No inversion: high value = curled up = "up" phase naturally maps to low normalised.
-      // Actually: high diff = "up" position, so we invert so that "up" → low normalised.
+      // Invert: large diff (curled, shoulder above hip) → low normalised → "up" phase.
       const result = getCurlupSignal(landmarks)
       if (!result || result.confidence < CONFIDENCE_THRESH) return
       rawSignal    = result.value
-      invertSignal = true   // large diff (curled) → low normalised → "up" phase
+      invertSignal = true
     } else if (exerciseKey === 'jumpingjack') {
       // Average wrist Y position. Arms at sides: wrists low (high Y). Arms overhead: wrists high (low Y).
       // Lower confidence threshold (0.35) — wrists can lose confidence when fully overhead.
@@ -602,11 +621,18 @@ export function useRepCounter(
       if (lConf < 0.3 || rConf < 0.3) return  // need both visible to compute a meaningful diff
       rawSignal    = Math.abs(lKn.y - rKn.y)
       invertSignal = false  // large diff (one knee up) → high normalised → "down" phase
+    } else if (exerciseKey === 'flutterKick') {
+      // Lying on back, alternating straight-leg raises. Use ankle Y abs diff.
+      // Low confidence threshold — lying on ground occludes some landmarks.
+      const lAnF = landmarks[LM.LEFT_ANKLE], rAnF = landmarks[LM.RIGHT_ANKLE]
+      if ((lAnF?.visibility ?? 0) < 0.2 || (rAnF?.visibility ?? 0) < 0.2) return
+      rawSignal    = Math.abs(lAnF.y - rAnF.y)
+      invertSignal = false  // large diff (one ankle up) → "down" phase
     } else if (exerciseKey === 'shoulderpress') {
       // Use elbow angle (shoulder→elbow→wrist).
       // Rack position (~90°) = "down". Fully pressed overhead (~165°) = "up".
       // invertSignal: large angle (overhead) → low normalised → "up" phase.
-      // Rep counted on up_to_down: returning to rack from overhead = one rep.
+      // Rep counted on up_to_down: arms return to rack after each press.
       const result = getElbowAngle(landmarks)
       if (!result || result.confidence < 0.4) return
       rawSignal    = result.value
@@ -654,26 +680,28 @@ export function useRepCounter(
       rawSignal    = Math.min(...angles)
       invertSignal = false
     } else if (exerciseKey === 'calfraise') {
-      // Average heel/ankle Y. Works even without face visible — only lower-body landmarks needed.
-      // Lower confidence threshold (0.15) so partial-frame shots still register.
+      // ankle.y − heel.y gives a reliable large-range signal:
+      // flat-footed → diff ≈ 0 (heel near ankle in Y) → "down" phase
+      // on tiptoes → heel rises, diff grows → "up" phase
+      // invertSignal = true so large diff → low normalised → "up" (UP_THRESHOLD < 0.35)
       const CALF_CONF = 0.15
-      const lHeel = landmarks[LM.LEFT_HEEL], rHeel = landmarks[LM.RIGHT_HEEL]
-      const lHeelConf = lHeel?.visibility ?? 0, rHeelConf = rHeel?.visibility ?? 0
-      if (lHeelConf >= CALF_CONF && rHeelConf >= CALF_CONF) {
-        rawSignal = (lHeel.y + rHeel.y) / 2
+      const lAn   = landmarks[LM.LEFT_ANKLE],  rAn   = landmarks[LM.RIGHT_ANKLE]
+      const lHeel = landmarks[LM.LEFT_HEEL],    rHeel = landmarks[LM.RIGHT_HEEL]
+      const diffs: number[] = []
+      if ((lAn?.visibility ?? 0) >= CALF_CONF && (lHeel?.visibility ?? 0) >= CALF_CONF)
+        diffs.push(lAn.y - lHeel.y)
+      if ((rAn?.visibility ?? 0) >= CALF_CONF && (rHeel?.visibility ?? 0) >= CALF_CONF)
+        diffs.push(rAn.y - rHeel.y)
+      if (diffs.length === 0) {
+        // Fallback: knee Y (whole body rises slightly on tiptoes)
+        const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
+        if ((lKn?.visibility ?? 0) < CALF_CONF || (rKn?.visibility ?? 0) < CALF_CONF) return
+        rawSignal    = (lKn.y + rKn.y) / 2
+        invertSignal = false
       } else {
-        const lAn = landmarks[LM.LEFT_ANKLE], rAn = landmarks[LM.RIGHT_ANKLE]
-        const laConf = lAn?.visibility ?? 0, raConf = rAn?.visibility ?? 0
-        if (laConf >= CALF_CONF && raConf >= CALF_CONF) {
-          rawSignal = (lAn.y + rAn.y) / 2
-        } else {
-          // Knee Y as last resort — whole body rises slightly on tiptoes
-          const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
-          if ((lKn?.visibility ?? 0) < CALF_CONF || (rKn?.visibility ?? 0) < CALF_CONF) return
-          rawSignal = (lKn.y + rKn.y) / 2
-        }
+        rawSignal    = diffs.reduce((s, v) => s + v, 0) / diffs.length
+        invertSignal = true  // large diff = tiptoes = "up" phase
       }
-      invertSignal = false  // high Y (heels down) = "down" phase naturally
     } else if (exerciseKey === 'situp') {
       // Same signal as curl-up: hipY−shoulderY. Full sit-up has larger range than curl-up.
       // Large diff (torso upright) = "up" position. Flat (diff≈0) = "down" position.
@@ -688,6 +716,16 @@ export function useRepCounter(
       if (!joint || joint.confidence < 0.35) return  // wrists can lose conf overhead
       rawSignal    = joint.y
       invertSignal = false  // high Y = "down", low Y = "up"
+    } else if (exerciseKey === 'shoulderroll') {
+      // Shoulder Y oscillates as shoulders roll forward/backward in a circle.
+      // Raised = low Y = "up". Dropped = high Y = "down". Rep on return from raised position.
+      const lShR = landmarks[LM.LEFT_SHOULDER], rShR = landmarks[LM.RIGHT_SHOULDER]
+      const ys: number[] = []
+      if ((lShR?.visibility ?? 0) >= 0.4) ys.push(lShR.y)
+      if ((rShR?.visibility ?? 0) >= 0.4) ys.push(rShR.y)
+      if (ys.length === 0) return
+      rawSignal    = ys.reduce((s, v) => s + v, 0) / ys.length
+      invertSignal = false  // high Y (down) = "down"; low Y (raised) = "up"
     } else if (exerciseKey === 'hipcircle') {
       // Hip center X oscillates left/right as hips rotate in a circle.
       // One side extreme (left or right) = 1 rep counted on up_to_down transition.
@@ -732,6 +770,14 @@ export function useRepCounter(
       if ((lWrF?.visibility ?? 0) < 0.4 || (rWrF?.visibility ?? 0) < 0.4) return
       rawSignal    = Math.abs(lWrF.x - rWrF.x)
       invertSignal = false
+    } else if (exerciseKey === 'reverseFly') {
+      // Bent-over rear delt raise. Same |wrist X diff| as chestfly, opposite phase direction:
+      // Arms hanging (start) = small X diff = "up". Arms raised to sides = large diff = "down".
+      // Rep counted on up_to_down: arms reach the raised/peak position (concentric complete).
+      const lWrR = landmarks[LM.LEFT_WRIST], rWrR = landmarks[LM.RIGHT_WRIST]
+      if ((lWrR?.visibility ?? 0) < 0.4 || (rWrR?.visibility ?? 0) < 0.4) return
+      rawSignal    = Math.abs(lWrR.x - rWrR.x)
+      invertSignal = false  // large diff (raised) → high norm → "down"; rep fires on up_to_down (arms raised)
     } else if (exerciseKey === 'jumpsquat') {
       // Same pre-normalised knee-angle signal as squat. Explosive movement → faster debounce.
       // Standing (large angle) → squat (small angle) → jump/land → rep counted on return to "up".
@@ -757,16 +803,34 @@ export function useRepCounter(
       rawSignal    = ys.reduce((s, v) => s + v, 0) / ys.length
       invertSignal = false  // high Y (legs down) = "down"; low Y (legs up) = "up"
     } else if (exerciseKey === 'firehydrant') {
-      // Hip abduction on hands and knees. One knee lifts laterally → that knee's Y drops.
-      // Min knee Y captures the lifting leg. Low Y = lifted = "up". High Y = neutral = "down".
-      const lKn = landmarks[LM.LEFT_KNEE], rKn = landmarks[LM.RIGHT_KNEE]
-      const lConf = lKn?.visibility ?? 0, rConf = rKn?.visibility ?? 0
+      // Hip abduction on hands and knees. One knee lifts laterally → rises toward hip level.
+      // Use max(hipY - kneeY): when knee is neutral both are similar (small diff);
+      // when knee is lifted the gap grows (large diff = "up" position).
+      // invertSignal: large diff → low normalised → "up" phase.
+      const lKn = landmarks[LM.LEFT_KNEE], lHip = landmarks[LM.LEFT_HIP]
+      const rKn = landmarks[LM.RIGHT_KNEE], rHip = landmarks[LM.RIGHT_HIP]
+      const lConf = Math.min(lKn?.visibility ?? 0, lHip?.visibility ?? 0)
+      const rConf = Math.min(rKn?.visibility ?? 0, rHip?.visibility ?? 0)
       if (lConf < 0.3 && rConf < 0.3) return
-      const ys: number[] = []
-      if (lConf >= 0.3) ys.push(lKn.y)
-      if (rConf >= 0.3) ys.push(rKn.y)
-      rawSignal    = Math.min(...ys)
-      invertSignal = false  // low Y (knee raised) = "up"; high Y = "down"
+      const diffs: number[] = []
+      if (lConf >= 0.3) diffs.push(lHip.y - lKn.y)
+      if (rConf >= 0.3) diffs.push(rHip.y - rKn.y)
+      rawSignal    = Math.max(...diffs)  // most-lifted knee drives signal
+      invertSignal = true  // large diff (knee above hip) → low normalised → "up"
+    } else if (exerciseKey === 'donkeykick') {
+      // On all fours: ankle kicks backward and upward toward hip level.
+      // hip-ankle Y diff: neutral (ankle near floor) = small diff; kicked (ankle near hip) = large diff.
+      // invertSignal: large diff → low normalised → "up" phase.
+      const lAn = landmarks[LM.LEFT_ANKLE], lHip = landmarks[LM.LEFT_HIP]
+      const rAn = landmarks[LM.RIGHT_ANKLE], rHip = landmarks[LM.RIGHT_HIP]
+      const lConf = Math.min(lAn?.visibility ?? 0, lHip?.visibility ?? 0)
+      const rConf = Math.min(rAn?.visibility ?? 0, rHip?.visibility ?? 0)
+      if (lConf < 0.3 && rConf < 0.3) return
+      const diffs: number[] = []
+      if (lConf >= 0.3) diffs.push(lHip.y - lAn.y)
+      if (rConf >= 0.3) diffs.push(rHip.y - rAn.y)
+      rawSignal    = Math.max(...diffs)
+      invertSignal = true  // ankle rises toward/above hip → "up"
     } else if (exerciseKey === 'glutebridge' || exerciseKey === 'hipthrust') {
       // Person lying supine. Hips start near the floor (high Y) and rise during the bridge (low Y).
       // Knee angle stays roughly constant at ~90° throughout — use hip Y directly.
@@ -778,6 +842,42 @@ export function useRepCounter(
       if (rConf >= 0.3) ys.push(rHip.y)
       rawSignal    = ys.reduce((s, v) => s + v, 0) / ys.length
       invertSignal = false  // high Y (hips on floor) = "down"; low Y (hips raised) = "up"
+    } else if (exerciseKey === 'russiantwist') {
+      // Seated torso rotation. Hips stay planted — hip X is static.
+      // Wrists hold the weight and sweep left→right with the torso.
+      // Track average wrist X: oscillates as torso rotates side to side.
+      const lWr = landmarks[LM.LEFT_WRIST], rWr = landmarks[LM.RIGHT_WRIST]
+      const lConf = lWr?.visibility ?? 0, rConf = rWr?.visibility ?? 0
+      if (lConf < 0.3 && rConf < 0.3) return
+      const xs: number[] = []
+      if (lConf >= 0.3) xs.push(lWr.x)
+      if (rConf >= 0.3) xs.push(rWr.x)
+      rawSignal    = xs.reduce((s, v) => s + v, 0) / xs.length
+      invertSignal = false  // X oscillates left (small) ↔ right (large); each crossing = half a twist
+    } else if (exerciseKey === 'deadlift') {
+      // Hip-hinge: hips start bent/low (high Y) and extend to standing (low Y).
+      // Lower confidence threshold (0.3) — forward lean partially occludes hips from a front camera.
+      const lHipD = landmarks[LM.LEFT_HIP], rHipD = landmarks[LM.RIGHT_HIP]
+      const lConfD = lHipD?.visibility ?? 0, rConfD = rHipD?.visibility ?? 0
+      if (lConfD < 0.3 && rConfD < 0.3) return
+      const hipYsD: number[] = []
+      if (lConfD >= 0.3) hipYsD.push(lHipD.y)
+      if (rConfD >= 0.3) hipYsD.push(rHipD.y)
+      rawSignal    = hipYsD.reduce((s, v) => s + v, 0) / hipYsD.length
+      invertSignal = false  // high Y (bent over) = "down"; low Y (standing) = "up"
+    } else if (exerciseKey === 'catcow') {
+      // On hands and knees: hip Y oscillates as spine flexes (cat) and extends (cow).
+      // Cow (back sags, hips drop) → hip Y large → "down".  Cat (spine arches, hips rise) → hip Y small → "up".
+      // Rep counted on up_to_down (cat→cow cycle = 1 rep).
+      // Low confidence threshold — camera often sees only partial body in floor poses.
+      const CAT_CONF = 0.2
+      const lHipC = landmarks[LM.LEFT_HIP], rHipC = landmarks[LM.RIGHT_HIP]
+      const hipYs: number[] = []
+      if ((lHipC?.visibility ?? 0) >= CAT_CONF) hipYs.push(lHipC.y)
+      if ((rHipC?.visibility ?? 0) >= CAT_CONF) hipYs.push(rHipC.y)
+      if (hipYs.length === 0) return
+      rawSignal    = hipYs.reduce((s, v) => s + v, 0) / hipYs.length
+      invertSignal = false  // high Y (hips drop in cow) = "down" naturally
     } else if (exerciseKey === 'burpee') {
       // Body height via average of (shoulder + hip) Y.
       // Standing: all landmarks high in frame → low Y → "up".
@@ -855,9 +955,12 @@ export function useRepCounter(
 
     // ── Rep counting: direction depends on exercise ───────────────────
     const isRepTransition =
-      config.repOn === 'down_to_up'
-        ? phaseChanged && newPhase === 'up'   && phaseRef.current === 'down'
-        : phaseChanged && newPhase === 'down' && phaseRef.current === 'up'
+      // Russian twist: each side = 1 rep — count both L→R and R→L crossings
+      exerciseKey === 'russiantwist'
+        ? phaseChanged && phaseRef.current !== 'unknown'
+        : config.repOn === 'down_to_up'
+          ? phaseChanged && newPhase === 'up'   && phaseRef.current === 'down'
+          : phaseChanged && newPhase === 'down' && phaseRef.current === 'up'
 
     if (isRepTransition) {
       const timeSinceLast = lastRepTime.current ? now - lastRepTime.current : Infinity
@@ -871,6 +974,40 @@ export function useRepCounter(
           ...prev,
           { exercise: exerciseKey, timestamp: now, phase: newPhase },
         ])
+
+        // ── Side detection for unilateral exercises ───────────────────────
+        const SIDE_EXERCISES = new Set([
+          'lunge', 'sidelunge', 'donkeykick', 'firehydrant', 'flutterKick',
+        ])
+        if (SIDE_EXERCISES.has(exerciseKey)) {
+          let side: 'left' | 'right' = 'left'
+          const lHipS  = landmarks[LM.LEFT_HIP],   rHipS  = landmarks[LM.RIGHT_HIP]
+          const lKnS   = landmarks[LM.LEFT_KNEE],  rKnS   = landmarks[LM.RIGHT_KNEE]
+          const lAnS   = landmarks[LM.LEFT_ANKLE], rAnS   = landmarks[LM.RIGHT_ANKLE]
+
+          if (exerciseKey === 'lunge' || exerciseKey === 'sidelunge') {
+            // Whichever knee is more bent (smaller angle) = that leg did the lunge
+            const lA = (lHipS && lKnS && lAnS) ? calcAngle(lHipS, lKnS, lAnS) : 180
+            const rA = (rHipS && rKnS && rAnS) ? calcAngle(rHipS, rKnS, rAnS) : 180
+            side = lA <= rA ? 'left' : 'right'
+          } else if (exerciseKey === 'donkeykick') {
+            // Whichever hip-ankle Y diff is larger = that leg is kicking back
+            const lD = lHipS && lAnS ? lHipS.y - lAnS.y : -Infinity
+            const rD = rHipS && rAnS ? rHipS.y - rAnS.y : -Infinity
+            side = lD >= rD ? 'left' : 'right'
+          } else if (exerciseKey === 'firehydrant') {
+            // Whichever hip-knee Y diff is larger = that leg is lifting
+            const lD = lHipS && lKnS ? lHipS.y - lKnS.y : -Infinity
+            const rD = rHipS && rKnS ? rHipS.y - rKnS.y : -Infinity
+            side = lD >= rD ? 'left' : 'right'
+          } else if (exerciseKey === 'flutterKick') {
+            // Whichever ankle is higher (lower Y) = that leg kicked
+            const lAnY = lAnS?.y ?? 1, rAnY = rAnS?.y ?? 1
+            side = lAnY <= rAnY ? 'left' : 'right'
+          }
+
+          setArmReps(prev => ({ ...prev, [side]: prev[side] + 1 }))
+        }
       }
     }
 

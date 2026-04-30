@@ -1144,6 +1144,16 @@ export function WorkoutPage() {
     return () => clearInterval(id)
   }, [sessionStartTime])
 
+  // ── Warn before leaving mid-session ───────────────────────────────────
+  useEffect(() => {
+    if (!sessionStartTime || phase === 'cooldown') return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [sessionStartTime, phase])
+
   // ── Canvas size → match rendered size ─────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current
@@ -1975,8 +1985,17 @@ export function WorkoutPage() {
                   )}
                   <span className="text-[11px] text-gray-600 mt-1">{EXERCISE_LABELS[currentExercise] ?? currentExercise}</span>
 
-                  {/* Per-arm counts for bicep / hammer curl */}
-                  {(currentExercise === 'bicepcurl' || currentExercise === 'hammercurl') && (
+                  {EXERCISE_INFO.find(e => e.id === currentExercise)?.isLimitedTracking && (
+                    <div className="mt-2 px-3 py-1.5 rounded-lg text-[11px] text-amber-400 border border-amber-500/25 bg-amber-500/8 flex items-center gap-1.5">
+                      <span>⚠</span>
+                      <span>Rep counting limited from front camera for this exercise</span>
+                    </div>
+                  )}
+
+                  {/* Per-side counts for unilateral exercises */}
+                  {(['bicepcurl','hammercurl','lunge','sidelunge','donkeykick','firehydrant',
+                     'flutterKick','reverseLunge','curtsylunge','stepup','bulgariansplitsquat',
+                     'concentrationcurl','zottmancurl'].includes(currentExercise)) && (
                     <div className="mt-3 flex items-center gap-4">
                       {(['left', 'right'] as const).map(side => (
                         <div key={side} className="flex flex-col items-center" style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '6px 14px', border: '1px solid var(--border)' }}>
