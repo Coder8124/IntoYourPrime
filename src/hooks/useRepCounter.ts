@@ -68,6 +68,7 @@ export type SupportedExercise =
   | 'reverseFly'
   | 'broadjump'
   | 'neckroll'
+  | 'wristcircle'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -190,6 +191,9 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   donkeykick:       { joints: [LM.LEFT_ANKLE,         LM.RIGHT_ANKLE],    repOn: 'down_to_up', debounceMs: 1200 },
   // Russian twist: seated, torso rotates left-right. Wrists sweep side to side — track wrist center X.
   russiantwist:     { joints: [LM.LEFT_WRIST,          LM.RIGHT_WRIST],    repOn: 'up_to_down', debounceMs: 700 },
+  // Wrist circle: forearm held out, wrist traces a circle. Track wrist Y relative to elbow —
+  // oscillates as wrist goes up/down through the circle. Very small movement arc → minRange: 0.01.
+  wristcircle:      { joints: [LM.LEFT_WRIST,          LM.RIGHT_WRIST],    repOn: 'up_to_down', debounceMs: 800, minRange: 0.01 },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -419,8 +423,7 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   seatedspinaltwist:   'plank',
   // ── Circles / rotations ───────────────────────────────────────────────
   anklecircle:         'armcircle',
-  // shoulderroll is now a proper SupportedExercise with dedicated shoulder-Y signal
-  wristcircle:         'armcircle',
+  // shoulderroll and wristcircle are now proper SupportedExercises
 }
 
 export function useRepCounter(
@@ -879,6 +882,19 @@ export function useRepCounter(
       if (hipYs.length === 0) return
       rawSignal    = hipYs.reduce((s, v) => s + v, 0) / hipYs.length
       invertSignal = false  // high Y (hips drop in cow) = "down" naturally
+    } else if (exerciseKey === 'wristcircle') {
+      // Wrist Y relative to elbow tracks the vertical component of the forearm vector.
+      // As the wrist traces a circle, this oscillates up/down: 1 full oscillation = 1 rep.
+      const lWrWC = landmarks[LM.LEFT_WRIST],  lElWC = landmarks[LM.LEFT_ELBOW]
+      const rWrWC = landmarks[LM.RIGHT_WRIST], rElWC = landmarks[LM.RIGHT_ELBOW]
+      const diffsWC: number[] = []
+      if ((lWrWC?.visibility ?? 0) >= 0.3 && (lElWC?.visibility ?? 0) >= 0.3)
+        diffsWC.push(lWrWC.y - lElWC.y)
+      if ((rWrWC?.visibility ?? 0) >= 0.3 && (rElWC?.visibility ?? 0) >= 0.3)
+        diffsWC.push(rWrWC.y - rElWC.y)
+      if (diffsWC.length === 0) return
+      rawSignal    = diffsWC.reduce((s, v) => s + v, 0) / diffsWC.length
+      invertSignal = false  // wrist below elbow (positive) = "down"; wrist above elbow (negative) = "up"
     } else if (exerciseKey === 'burpee') {
       // Body height via average of (shoulder + hip) Y.
       // Standing: all landmarks high in frame → low Y → "up".

@@ -67,11 +67,12 @@ export const EXERCISE_GIFS: Record<string, string> = {
   skaterjump:             'https://fitnessprogramer.com/wp-content/uploads/2021/02/Skater.gif',
   tuckjump:               'https://fitnessprogramer.com/wp-content/uploads/2021/09/Tuck-Jump.gif',
   broadjump:              'https://fitnessprogramer.com/wp-content/uploads/2021/05/Single-Leg-Broad-Jump.gif',
+  starjump:               'https://fitnessprogramer.com/wp-content/uploads/2021/05/Jumping-jack.gif',
   shadowboxing:           'https://fitnessprogramer.com/wp-content/uploads/2023/09/shadow-boxing-workout.gif',
   // ── Mobility / stretches ─────────────────────────────────────────────────
   catcow:                 'https://fitnessprogramer.com/wp-content/uploads/2021/02/cat-cow.gif',
   childpose:              'https://fitnessprogramer.com/wp-content/uploads/2022/05/Balasana-Child-Pose.gif',
-  worldsgreateststretch:  'https://fitnessprogramer.com/wp-content/uploads/2021/06/World-Greatest-Stretch.gif',
+  worldsgreateststretch:  'https://fitnessprogramer.com/wp-content/uploads/2021/08/Kneeling-Hip-Flexor-Stretch.gif',
   hipflexorstretch:       'https://fitnessprogramer.com/wp-content/uploads/2021/08/Kneeling-Hip-Flexor-Stretch.gif',
   hamstringstretch:       'https://fitnessprogramer.com/wp-content/uploads/2021/05/Standing-Hamstring-Stretch.gif',
   quadstretch:            'https://fitnessprogramer.com/wp-content/uploads/2021/08/Standing-Quadriceps-Stretch.gif',
