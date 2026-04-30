@@ -4,6 +4,8 @@ import type { NormalizedLandmark } from '@mediapipe/pose'
 // ── MediaPipe landmark indices ─────────────────────────────────────────────
 
 const LM = {
+  LEFT_EAR:       7,
+  RIGHT_EAR:      8,
   LEFT_SHOULDER:  11,
   RIGHT_SHOULDER: 12,
   LEFT_ELBOW:     13,
@@ -64,6 +66,7 @@ export type SupportedExercise =
   | 'shoulderroll'
   | 'reverseFly'
   | 'broadjump'
+  | 'neckroll'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -144,6 +147,10 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   armcircle:       { joints: [LM.LEFT_WRIST,        LM.RIGHT_WRIST],    repOn: 'up_to_down', debounceMs: 700 },
   // Shoulder roll: shoulder Y oscillation. Raised = "up"; lowered = "down". Rep per full roll.
   shoulderroll:    { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'up_to_down', debounceMs: 700 },
+  // Neck roll: abs ear Y diff. Head neutral = ears level = diff ≈ 0 = "up".
+  // Head tilted to either side = one ear rises, other drops = large diff = "down".
+  // Rep fires up_to_down: each time head reaches a tilted extreme (2 per full circle).
+  neckroll:        { joints: [LM.LEFT_EAR,           LM.RIGHT_EAR],      repOn: 'up_to_down', debounceMs: 900 },
   // Reverse fly: bent-over, arms spread horizontally. |wrist X diff| grows as arms raise outward.
   // Arms hanging = small diff = "up" (start). Arms raised to sides = large diff = "down".
   // Rep counted on up_to_down: arms reach raised position (concentric complete).
@@ -412,7 +419,6 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   seatedspinaltwist:   'plank',
   // ── Circles / rotations ───────────────────────────────────────────────
   anklecircle:         'armcircle',
-  neckroll:            'armcircle',
   // shoulderroll is now a proper SupportedExercise with dedicated shoulder-Y signal
   wristcircle:         'armcircle',
 }
@@ -705,6 +711,19 @@ export function useRepCounter(
       if (ys.length === 0) return
       rawSignal    = ys.reduce((s, v) => s + v, 0) / ys.length
       invertSignal = false  // high Y (down) = "down"; low Y (raised) = "up"
+    } else if (exerciseKey === 'neckroll') {
+      // Abs ear Y diff — left and right ears alternate rising/dropping as head tilts side-to-side.
+      // Both ears level (head forward) = diff ≈ 0 = "up" phase.
+      // Head tilted to either side = one ear rises, one drops = large diff = "down" phase.
+      // Rep fires up_to_down: each time the head reaches a lateral tilt extreme (2 per full circle).
+      // Low confidence threshold (0.2) — ears lose visibility on the far tilt side.
+      const lEar = landmarks[LM.LEFT_EAR], rEar = landmarks[LM.RIGHT_EAR]
+      if ((lEar?.visibility ?? 0) < 0.2 && (rEar?.visibility ?? 0) < 0.2) return
+      // If only one ear is visible use it as proxy (head fully turned to opposite side)
+      const lY = (lEar?.visibility ?? 0) >= 0.2 ? lEar.y : rEar.y
+      const rY = (rEar?.visibility ?? 0) >= 0.2 ? rEar.y : lEar.y
+      rawSignal    = Math.abs(lY - rY)
+      invertSignal = false  // small diff (forward) = "up"; large diff (tilted) = "down"
     } else if (exerciseKey === 'hipcircle') {
       // Hip center X oscillates left/right as hips rotate in a circle.
       // One side extreme (left or right) = 1 rep counted on up_to_down transition.
