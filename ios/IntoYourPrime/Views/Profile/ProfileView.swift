@@ -364,13 +364,6 @@ struct SubscriptionPanelView: View {
     }
 }
 
-private func sectionLabel(_ text: String) -> some View {
-    Text(text)
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundColor(.gray)
-        .textCase(.uppercase)
-        .tracking(1)
-}
 
 struct LabeledTextField: View {
     let label:    String
