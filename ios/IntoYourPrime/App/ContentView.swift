@@ -9,6 +9,8 @@ struct RootView: View {
                 LoadingView()
             } else if appState.currentUser == nil {
                 AuthView()
+            } else if !OnboardingState.isComplete {
+                OnboardingView()
             } else {
                 MainTabView()
             }
@@ -30,7 +32,7 @@ struct MainTabView: View {
                 .tabItem { Label("Workout", systemImage: "figure.run") }
                 .tag(1)
 
-            ProgressView()
+            ProgressDashboardView()
                 .tabItem { Label("Progress", systemImage: "chart.bar.fill") }
                 .tag(2)
 
@@ -43,5 +45,14 @@ struct MainTabView: View {
                 .tag(4)
         }
         .tint(Color("Accent"))
+    }
+}
+
+enum OnboardingState {
+    static var isComplete: Bool {
+        UserDefaults.standard.bool(forKey: "onboardingComplete")
+    }
+    static func markComplete() {
+        UserDefaults.standard.set(true, forKey: "onboardingComplete")
     }
 }

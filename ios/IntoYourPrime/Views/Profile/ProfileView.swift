@@ -12,12 +12,18 @@ struct ProfileView: View {
 
     private let levels = ["beginner", "intermediate", "advanced"]
 
+    private var earnedBadges: [BadgeDef] {
+        let ids = (UserDefaults.standard.array(forKey: "earnedBadges") as? [String]) ?? []
+        return ALL_BADGES.filter { ids.contains($0.id) }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     avatarHeader
                     subscriptionPanel
+                    if !earnedBadges.isEmpty { badgesSection }
                     profileForm
                     signOutButton
                 }
@@ -65,6 +71,27 @@ struct ProfileView: View {
 
     private var subscriptionPanel: some View {
         SubscriptionPanelView()
+    }
+
+    private var badgesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionLabel("Badges Earned (\(earnedBadges.count))")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 12) {
+                ForEach(earnedBadges) { badge in
+                    VStack(spacing: 4) {
+                        Text(badge.icon).font(.system(size: 26))
+                        Text(badge.name)
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity).padding(8)
+                    .background(Color("Accent").opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+            }
+        }
+        .padding().background(Color("Surface")).clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private var profileForm: some View {

@@ -7,7 +7,7 @@ final class FirestoreService {
 
     // MARK: - Sessions
 
-    func saveSes​sion(_ session: WorkoutSession, uid: String) async throws {
+    func saveSession(_ session: WorkoutSession, uid: String) async throws {
         let encoder = Firestore.Encoder()
         let data    = try encoder.encode(session)
         try await db.collection("users").document(uid)
