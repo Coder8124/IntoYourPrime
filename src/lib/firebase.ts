@@ -6,7 +6,7 @@
  */
 import { initializeApp, type FirebaseOptions } from 'firebase/app'
 import { getAnalytics, type Analytics } from 'firebase/analytics'
-import { getAuth } from 'firebase/auth'
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig: FirebaseOptions = {
@@ -26,6 +26,9 @@ if (measurementId) {
 export const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getFirestore(app)
+
+// Explicitly persist the session across browser restarts (survives tab close, Safari ITP, etc.)
+setPersistence(auth, browserLocalPersistence).catch(() => {})
 
 /** Google Analytics (GA4) — only in the browser; requires `measurementId` in config. */
 export const analytics: Analytics | null =

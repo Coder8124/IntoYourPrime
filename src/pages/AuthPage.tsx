@@ -114,7 +114,7 @@ export function AuthPage() {
         try {
           const fp = await Promise.race([
             getUserProfile(uid),
-            new Promise<null>(resolve => setTimeout(() => resolve(null), 4000)),
+            new Promise<null>(resolve => setTimeout(() => resolve(null), 12000)),
           ])
           if (fp?.displayName && fp.biologicalSex) {
             const local = JSON.stringify(firestoreProfileToLocal(fp))

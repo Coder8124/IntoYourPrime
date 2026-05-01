@@ -50,7 +50,7 @@ export function RootRedirect() {
       try {
         const profile = await Promise.race([
           getUserProfile(user.uid),
-          new Promise<null>(r => setTimeout(() => r(null), 5000)),
+          new Promise<null>(r => setTimeout(() => r(null), 12000)),
         ])
         if (profile?.displayName && profile.age && profile.biologicalSex) {
           const local = firestoreProfileToLocal(profile)
