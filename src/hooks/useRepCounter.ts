@@ -69,6 +69,7 @@ export type SupportedExercise =
   | 'broadjump'
   | 'neckroll'
   | 'wristcircle'
+  | 'deadbug'
 
 export type MovementPhase = 'up' | 'down' | 'unknown'
 
@@ -160,8 +161,8 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Rep counted on squeeze (down→up). Slow debounce — squeeze for 2–3 s, then release.
   scapulasqueeze:  { joints: [LM.LEFT_SHOULDER,     LM.RIGHT_SHOULDER], repOn: 'down_to_up', debounceMs: 1500 },
   // Hold exercises — timer-only, no reps (useHoldTimer handles them)
-  crossbodystretch: { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
-  tricepstretch:    { joints: [LM.LEFT_ELBOW,        LM.RIGHT_ELBOW],    repOn: 'down_to_up' },
+  crossbodystretch:    { joints: [LM.LEFT_WRIST,       LM.RIGHT_WRIST],    repOn: 'down_to_up' },
+  tricepstretch:       { joints: [LM.LEFT_ELBOW,        LM.RIGHT_ELBOW],    repOn: 'down_to_up' },
   // Hip circles: hip center X oscillates left/right as hips rotate. Count each pass through one extreme.
   hipcircle:        { joints: [LM.LEFT_HIP,          LM.RIGHT_HIP],      repOn: 'up_to_down', debounceMs: 1200 },
   // Chest press: elbow angle, same signal as pushup/benchpress (standing press forward).
@@ -194,6 +195,9 @@ const EXERCISE_CONFIG: Record<SupportedExercise, ExerciseConfig> = {
   // Wrist circle: forearm held out, wrist traces a circle. Track wrist Y relative to elbow —
   // oscillates as wrist goes up/down through the circle. Very small movement arc → minRange: 0.01.
   wristcircle:      { joints: [LM.LEFT_WRIST,          LM.RIGHT_WRIST],    repOn: 'up_to_down', debounceMs: 800, minRange: 0.01 },
+  // Dead bug: lying on back, alternating arm/leg extensions. One arm lowers (high Y) while
+  // other stays vertical (low Y). Abs wrist Y diff peaks at each full extension → 1 rep.
+  deadbug:          { joints: [LM.LEFT_WRIST,          LM.RIGHT_WRIST],    repOn: 'up_to_down', debounceMs: 1200, minRange: 0.02 },
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -406,8 +410,8 @@ const SIGNAL_ALIAS: Record<string, SupportedExercise> = {
   starjump:            'jumpsquat',
   shadowboxing:        'jumpingjack',
   // ── Isometric / mobility — map to plank (hold timer handles them) ─────
+  overheadtricepstretch: 'tricepstretch',
   sideplank:           'plank',
-  deadbug:             'plank',
   birddog:             'plank',
   hollowbody:          'plank',
   vSit:                'plank',
@@ -882,6 +886,15 @@ export function useRepCounter(
       if (hipYs.length === 0) return
       rawSignal    = hipYs.reduce((s, v) => s + v, 0) / hipYs.length
       invertSignal = false  // high Y (hips drop in cow) = "down" naturally
+    } else if (exerciseKey === 'deadbug') {
+      // Lying on back, alternating arm/leg extension. One arm lowers toward floor (high Y)
+      // while the other stays vertical (low Y). Abs wrist Y diff peaks at full extension.
+      // Same alternating-diff pattern as flutterKick/highnees. Low confidence threshold
+      // because lying on back reduces MediaPipe confidence for many landmarks.
+      const lWrDB = landmarks[LM.LEFT_WRIST], rWrDB = landmarks[LM.RIGHT_WRIST]
+      if ((lWrDB?.visibility ?? 0) < 0.2 || (rWrDB?.visibility ?? 0) < 0.2) return
+      rawSignal    = Math.abs(lWrDB.y - rWrDB.y)
+      invertSignal = false  // large diff (one arm lowered) → "down"; both up = "up"
     } else if (exerciseKey === 'wristcircle') {
       // Wrist Y relative to elbow tracks the vertical component of the forearm vector.
       // As the wrist traces a circle, this oscillates up/down: 1 full oscillation = 1 rep.

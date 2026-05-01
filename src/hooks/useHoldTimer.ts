@@ -281,10 +281,11 @@ export type HoldExercise = 'plank' | 'wallsit' | 'crossbodystretch' | 'tricepstr
 
 export const HOLD_EXERCISES: readonly string[] = [
   'plank', 'wallsit', 'crossbodystretch', 'tricepstretch',
-  'sideplank', 'deadbug', 'birddog', 'hollowbody', 'vSit',
+  'sideplank', 'birddog', 'hollowbody', 'vSit',
   'childpose', 'hipflexorstretch', 'hamstringstretch', 'quadstretch',
   'pigeonpose', 'downdogstretch', 'cobrapose', 'seatedspinaltwist',
   'worldsgreateststretch',
+  'overheadtricepstretch',
   'anklecircle', 'wristcurl',
 ]
 
@@ -339,7 +340,7 @@ export function useHoldTimer(
     else if (ex === 'sideplank')         detected = detectSidePlank(landmarks)
     else if (ex === 'wallsit')           detected = detectWallSit(landmarks)
     else if (ex === 'crossbodystretch')  detected = detectCrossBodyStretch(landmarks)
-    else if (ex === 'tricepstretch')     detected = detectTricepStretch(landmarks)
+    else if (ex === 'tricepstretch' || ex === 'overheadtricepstretch') detected = detectTricepStretch(landmarks)
     else if (ex === 'downdogstretch')    detected = detectDownDog(landmarks)
     else if (ex === 'cobrapose')         detected = detectCobra(landmarks)
     else if (ex === 'childpose')         detected = detectChildPose(landmarks)
