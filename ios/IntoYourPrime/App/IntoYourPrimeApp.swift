@@ -3,7 +3,8 @@ import Firebase
 
 @main
 struct IntoYourPrimeApp: App {
-    @StateObject private var appState = AppState()
+    @StateObject private var appState   = AppState()
+    @StateObject private var themeManager = ThemeManager()
 
     init() {
         FirebaseApp.configure()
@@ -13,7 +14,9 @@ struct IntoYourPrimeApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(appState)
-                .preferredColorScheme(.dark)
+                .environmentObject(themeManager)
+                .tint(themeManager.accent)
+                .preferredColorScheme(themeManager.colorScheme)
         }
     }
 }

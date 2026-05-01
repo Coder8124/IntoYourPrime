@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct ProfileView: View {
-    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var appState:   AppState
+    @EnvironmentObject private var themeManager: ThemeManager
     @StateObject private var sub = SubscriptionService.shared
     @State private var profile: UserProfile?
     @State private var name     = ""
@@ -24,6 +25,7 @@ struct ProfileView: View {
                     avatarHeader
                     subscriptionPanel
                     if !earnedBadges.isEmpty { badgesSection }
+                    themePanel
                     profileForm
                     signOutButton
                 }
@@ -124,6 +126,65 @@ struct ProfileView: View {
                     .padding(.vertical, 14)
                     .background(saved ? Color.green : Color("Accent"))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .padding()
+        .background(Color("Surface"))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: - Theme panel
+
+    private var themePanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                sectionLabel("Appearance")
+                Spacer()
+                Toggle("", isOn: $themeManager.isDark)
+                    .labelsHidden()
+                    .tint(themeManager.accent)
+                Text(themeManager.isDark ? "Dark" : "Light")
+                    .font(.system(size: 12)).foregroundColor(.gray)
+            }
+
+            sectionLabel("Accent Color")
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 10) {
+                ForEach(ALL_THEMES) { theme in
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            themeManager.themeId = theme.id
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            // Conic gradient swatch
+                            Circle()
+                                .fill(
+                                    AngularGradient(
+                                        colors: [theme.primary, theme.secondary, theme.primary],
+                                        center: .center, startAngle: .degrees(200), endAngle: .degrees(560)
+                                    )
+                                )
+                                .frame(width: 22, height: 22)
+                                .shadow(color: theme.primary.opacity(themeManager.themeId == theme.id ? 0.6 : 0), radius: 6)
+                            Text(theme.name)
+                                .font(.system(size: 11, weight: themeManager.themeId == theme.id ? .bold : .regular))
+                                .foregroundColor(themeManager.themeId == theme.id ? .white : .gray)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10).padding(.vertical, 8)
+                        .background(
+                            themeManager.themeId == theme.id
+                                ? theme.primary.opacity(0.15)
+                                : Color("Background")
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(themeManager.themeId == theme.id ? theme.primary.opacity(0.5) : Color.clear, lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
             }
         }
         .padding()
