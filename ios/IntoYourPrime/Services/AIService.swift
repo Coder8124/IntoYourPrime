@@ -64,7 +64,7 @@ final class AIService {
             "userProfile": ["age": userProfile.age, "weight": userProfile.weight, "fitnessLevel": userProfile.fitnessLevel],
         ]
         let resp: [String: String] = try await post(path: "/api/chat", body: body, token: token)
-        return resp["message"] ?? ""
+        return resp["reply"] ?? ""
     }
 
     // MARK: - AI Workout generation
