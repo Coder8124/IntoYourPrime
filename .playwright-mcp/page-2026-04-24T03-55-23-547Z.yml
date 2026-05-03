@@ -1,0 +1,20 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "← Back" [ref=e7] [cursor=pointer]:
+        - /url: /
+      - heading "🏀 Shooting Form" [level=1] [ref=e8]
+    - generic [ref=e9]:
+      - generic [ref=e10]: ⏳ Loading…
+      - button "Right hand" [ref=e11] [cursor=pointer]
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e19]:
+          - paragraph [ref=e20]: Starting camera…
+          - paragraph [ref=e21]: Stand perpendicular to the camera — shooting arm facing it. Back up so your full body is in frame.
+        - generic [ref=e22]: IDLE
+      - paragraph [ref=e23]: Ball tracker loading — BEEF form scores are available immediately.
+    - generic [ref=e25]:
+      - paragraph [ref=e26]: Recent shots
+      - paragraph [ref=e28]: Take your first shot — scores will appear here.

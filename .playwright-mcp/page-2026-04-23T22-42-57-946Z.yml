@@ -1,0 +1,119 @@
+- generic [ref=e4]:
+  - link "← Home" [ref=e6] [cursor=pointer]:
+    - /url: /home
+  - heading "Daily recovery log" [level=1] [ref=e7]
+  - paragraph [ref=e8]: 2026-04-23 · one entry per day (updates overwrite)
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - heading "Sleep" [level=2] [ref=e11]
+      - generic [ref=e12]:
+        - generic [ref=e13]: Hours (4–12, step 0.5)
+        - spinbutton [ref=e14]: "7"
+      - generic [ref=e15]:
+        - generic [ref=e16]: Quality (1–5)
+        - generic [ref=e17]:
+          - button "Sleep quality 1" [ref=e18] [cursor=pointer]:
+            - img [ref=e19]
+          - button "Sleep quality 2" [ref=e21] [cursor=pointer]:
+            - img [ref=e22]
+          - button "Sleep quality 3" [ref=e24] [cursor=pointer]:
+            - img [ref=e25]
+          - button "Sleep quality 4" [ref=e27] [cursor=pointer]:
+            - img [ref=e28]
+          - button "Sleep quality 5" [ref=e30] [cursor=pointer]:
+            - img [ref=e31]
+    - generic [ref=e33]:
+      - heading "Energy level" [level=2] [ref=e34]
+      - generic [ref=e35]:
+        - button "😫 1" [ref=e36] [cursor=pointer]:
+          - generic [ref=e37]: 😫
+          - generic [ref=e38]: "1"
+        - button "😕 2" [ref=e39] [cursor=pointer]:
+          - generic [ref=e40]: 😕
+          - generic [ref=e41]: "2"
+        - button "😐 3" [ref=e42] [cursor=pointer]:
+          - generic [ref=e43]: 😐
+          - generic [ref=e44]: "3"
+        - button "🙂 4" [ref=e45] [cursor=pointer]:
+          - generic [ref=e46]: 🙂
+          - generic [ref=e47]: "4"
+        - button "🔥 5" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]: 🔥
+          - generic [ref=e50]: "5"
+    - generic [ref=e51]:
+      - heading "Mood" [level=2] [ref=e52]
+      - generic [ref=e53]:
+        - button "😣 1" [ref=e54] [cursor=pointer]:
+          - generic [ref=e55]: 😣
+          - generic [ref=e56]: "1"
+        - button "😔 2" [ref=e57] [cursor=pointer]:
+          - generic [ref=e58]: 😔
+          - generic [ref=e59]: "2"
+        - button "😐 3" [ref=e60] [cursor=pointer]:
+          - generic [ref=e61]: 😐
+          - generic [ref=e62]: "3"
+        - button "😊 4" [ref=e63] [cursor=pointer]:
+          - generic [ref=e64]: 😊
+          - generic [ref=e65]: "4"
+        - button "🌟 5" [ref=e66] [cursor=pointer]:
+          - generic [ref=e67]: 🌟
+          - generic [ref=e68]: "5"
+    - generic [ref=e69]:
+      - heading "Today's training" [level=2] [ref=e70]
+      - combobox [ref=e71]:
+        - option "Upper"
+        - option "Lower"
+        - option "Full body" [selected]
+        - option "Cardio"
+        - option "Rest day"
+        - option "Other"
+      - generic [ref=e72]:
+        - generic [ref=e73]:
+          - generic [ref=e74]: Session RPE (1–10)
+          - generic [ref=e75]: "5"
+        - slider [ref=e76]: "5"
+        - paragraph [ref=e77]: Challenging
+    - generic [ref=e78]:
+      - heading "Soreness map" [level=2] [ref=e79]
+      - generic [ref=e80]:
+        - paragraph [ref=e81]: Tap a region to cycle soreness 0–5 (0 = none).
+        - generic [ref=e82]:
+          - generic [ref=e83]:
+            - generic [ref=e84]: Front
+            - img [ref=e85]:
+              - button [ref=e87] [cursor=pointer]
+              - button [ref=e88] [cursor=pointer]
+              - button [ref=e89] [cursor=pointer]
+              - button [ref=e90] [cursor=pointer]
+              - button [ref=e91] [cursor=pointer]
+              - button [ref=e92] [cursor=pointer]
+              - button [ref=e93] [cursor=pointer]
+              - button [ref=e94] [cursor=pointer]
+              - button [ref=e95] [cursor=pointer]
+          - generic [ref=e96]:
+            - generic [ref=e97]: Back
+            - img [ref=e98]:
+              - button [ref=e100] [cursor=pointer]
+              - button [ref=e101] [cursor=pointer]
+              - button [ref=e102] [cursor=pointer]
+              - button [ref=e103] [cursor=pointer]
+              - button [ref=e104] [cursor=pointer]
+              - button [ref=e105] [cursor=pointer]
+              - button [ref=e106] [cursor=pointer]
+              - button [ref=e107] [cursor=pointer]
+              - button [ref=e108] [cursor=pointer]
+        - list [ref=e109]:
+          - listitem [ref=e110]: "chest: 2"
+          - listitem [ref=e111]: "back: 0"
+          - listitem [ref=e112]: "shoulders: 1"
+          - listitem [ref=e113]: "biceps: 1"
+          - listitem [ref=e114]: "triceps: 0"
+          - listitem [ref=e115]: "quads: 3"
+          - listitem [ref=e116]: "hamstrings: 2"
+          - listitem [ref=e117]: "glutes: 0"
+          - listitem [ref=e118]: "calves: 1"
+          - listitem [ref=e119]: "core: 0"
+    - generic [ref=e120]:
+      - heading "Notes (optional)" [level=2] [ref=e121]
+      - textbox "Anything else about today…" [ref=e122]
+    - button "Save log" [ref=e123] [cursor=pointer]

@@ -1,0 +1,32 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - img
+    - img
+    - generic:
+      - generic: · NEURAL LINK STABLE ·
+      - generic: move · tap · awaiting input
+  - generic [ref=e8]:
+    - img [ref=e9]
+    - generic [ref=e12]: IntoYourPrime
+  - generic: v2.6 · AI coach online · 33 landmarks · 30 fps
+  - generic [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e16]: AI coach online
+      - generic [ref=e17]: v2.6
+    - heading "Step onto the platform." [level=1] [ref=e18]
+    - paragraph [ref=e19]: Sign in to sync your sessions, streaks, and shot scores across devices.
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: Email
+        - textbox "Email" [ref=e23]:
+          - /placeholder: you@example.com
+      - generic [ref=e24]:
+        - generic [ref=e25]: Password
+        - textbox "Password" [ref=e26]:
+          - /placeholder: ••••••••
+    - button "Sign in →" [disabled] [ref=e27]
+    - generic [ref=e30]: or
+    - button "Continue as guest" [ref=e32] [cursor=pointer]
+    - paragraph [ref=e33]:
+      - text: No account yet?
+      - button "Create one" [ref=e34] [cursor=pointer]

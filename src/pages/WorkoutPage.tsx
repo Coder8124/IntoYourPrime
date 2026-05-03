@@ -1,0 +1,2633 @@
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react'
+import { usePoseDetection } from '../hooks/usePoseDetection'
+import { useRepCounter } from '../hooks/useRepCounter'
+import { useHoldTimer, HOLD_EXERCISES } from '../hooks/useHoldTimer'
+import { useBurpeeCounter } from '../hooks/useBurpeeCounter'
+import type { BurpeePhase } from '../hooks/useBurpeeCounter'
+import { useWorkoutStore } from '../stores/workoutStore'
+import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI, cancelTTS } from '../lib/formAnalysis'
+import { getActiveProgram, advanceProgramExercise, clearActiveProgram, EXERCISE_INFO, type ActiveProgram } from '../lib/programs'
+import { EXERCISE_GIFS } from '../lib/exerciseGifs'
+import type { CooldownExercise, UserProfile } from '../types/index'
+
+// ── Alignment-based risk (landmark geometry, runs every frame) ────────────
+
+interface Lm { x: number; y: number; visibility?: number }
+function vis(lm: Lm, t = 0.5) { return (lm.visibility ?? 0) >= t }
+function ptLineDist(ax: number, ay: number, bx: number, by: number, px: number, py: number) {
+  const dx = bx - ax, dy = by - ay
+  const len = Math.sqrt(dx * dx + dy * dy)
+  return len === 0 ? 0 : Math.abs(dy * px - dx * py + bx * ay - by * ax) / len
+}
+
+function computeAlignmentRisk(lms: Lm[], exercise: string): number {
+  if (lms.length < 29) return 0
+  const lSh = lms[11], rSh = lms[12]
+  const lEl = lms[13], rEl = lms[14]
+  const lWr = lms[15], rWr = lms[16]
+  const lHip = lms[23], rHip = lms[24]
+  const lKn = lms[25], rKn = lms[26]
+  const lAn = lms[27], rAn = lms[28]
+  const ex = exercise.toLowerCase()
+
+  if (ex === 'pushup') {
+    if (!vis(lSh) || !vis(rSh) || !vis(lHip) || !vis(rHip) || !vis(lAn) || !vis(rAn)) return 0
+    // Hip sag / pike: deviation of hips from shoulder–ankle straight line
+    const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
+    const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
+    const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
+    const sagPike = ptLineDist(shX, shY, anX, anY, hipX, hipY)
+    // Elbow flare: elbows wider than 1.4× shoulder width = shoulder strain
+    let flare = 0
+    if (vis(lEl) && vis(rEl)) {
+      const shW = Math.abs(lSh.x - rSh.x)
+      flare = Math.max(0, Math.abs(lEl.x - rEl.x) - shW * 1.4) * 2.5
+    }
+    return Math.min(100, 10 + Math.round(sagPike * 850 + flare * 120))
+  }
+
+  if (ex === 'mountainclimber') {
+    if (!vis(lSh) || !vis(rSh) || !vis(lHip) || !vis(rHip) || !vis(lAn) || !vis(rAn)) return 0
+    // Hip sag/pike from shoulder–ankle line (same geometry as plank, but hips move during the exercise)
+    // Use a wider tolerance (0.08 vs plank's 0) since hips naturally rise slightly as the knee drives
+    const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
+    const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
+    const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
+    const sag = Math.max(0, ptLineDist(shX, shY, anX, anY, hipX, hipY) - 0.08)
+    return Math.min(100, 10 + Math.round(sag * 750))
+  }
+
+  if (ex === 'benchpress') {
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3) || !vis(lEl, 0.3) || !vis(rEl, 0.3)) return 10
+    // Elbow flare: elbows should stay at ~45-75° from torso, not flaring past shoulders
+    const shW = Math.abs(lSh.x - rSh.x)
+    const elW = Math.abs(lEl.x - rEl.x)
+    const flare = Math.max(0, elW - shW * 1.5)
+    // Wrist asymmetry: both wrists should be at similar heights (y values)
+    let asymmetry = 0
+    if (vis(lWr, 0.3) && vis(rWr, 0.3)) {
+      asymmetry = Math.abs(lWr.y - rWr.y)
+    }
+    return Math.min(100, 10 + Math.round(flare * 400 + asymmetry * 350))
+  }
+
+  if (ex === 'squat') {
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    // Knee valgus: knees should stay at or outside ankle width (left knee x >= left ankle x)
+    const lValgus = Math.max(0, lAn.x - lKn.x)   // left knee caving inward
+    const rValgus = Math.max(0, rKn.x - rAn.x)   // right knee caving inward
+    const valgus  = Math.max(lValgus, rValgus)
+    // Excessive forward torso lean
+    let lean = 0
+    if (vis(lSh) && vis(rSh) && vis(lHip) && vis(rHip)) {
+      const shMx = (lSh.x + rSh.x) / 2, hipMx = (lHip.x + rHip.x) / 2
+      lean = Math.max(0, Math.abs(shMx - hipMx) - 0.06)
+    }
+    return Math.min(100, 10 + Math.round(valgus * 650 + lean * 380))
+  }
+
+  if (ex === 'deadlift') {
+    if (!vis(lSh) || !vis(rSh) || !vis(lHip) || !vis(rHip)) return 0
+    const shMy = (lSh.y + rSh.y) / 2, hipMy = (lHip.y + rHip.y) / 2
+    const vertDist = Math.abs(shMy - hipMy)
+    if (vertDist < 0.05) return 10  // standing — spine neutral
+    // Spine rounding: shoulder forward of hip relative to how bent-over they are
+    const shMx = (lSh.x + rSh.x) / 2, hipMx = (lHip.x + rHip.x) / 2
+    const spineRound = Math.abs(shMx - hipMx) / Math.max(vertDist, 0.1)
+    // Deadlift is highest-injury exercise — score more aggressively
+    return Math.min(100, 10 + Math.round(spineRound * 220))
+  }
+
+  if (ex === 'lunge') {
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    // Front knee is HIGHER in frame (lower Y value) — the back knee drops to the floor (higher Y).
+    // e.g. right-leg-forward lunge: right knee Y ≈ 0.55, left (back) knee Y ≈ 0.75
+    const frontKn = lKn.y < rKn.y ? lKn : rKn
+    const frontAn = lKn.y < rKn.y ? lAn : rAn
+    const kneeTrack = Math.max(0, Math.abs(frontKn.x - frontAn.x) - 0.06)
+    // Torso upright — shoulder should stay over hip
+    let torsoLean = 0
+    if (vis(lSh) && vis(rSh) && vis(lHip) && vis(rHip)) {
+      torsoLean = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.07)
+    }
+    return Math.min(100, 10 + Math.round(kneeTrack * 500 + torsoLean * 380))
+  }
+
+  if (ex === 'shoulderpress') {
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3) || !vis(lWr, 0.3) || !vis(rWr, 0.3)) return 10
+    // L/R asymmetry: both wrists should travel equal distances
+    const asymmetry = Math.abs((lSh.y - lWr.y) - (rSh.y - rWr.y))
+    // Wrist flare: wrists naturally sit outside shoulders — wider tolerance
+    const lFlare = Math.max(0, Math.abs(lWr.x - lSh.x) - 0.16)
+    const rFlare = Math.max(0, Math.abs(rWr.x - rSh.x) - 0.16)
+    return Math.min(100, 10 + Math.round(asymmetry * 280 + Math.max(lFlare, rFlare) * 200))
+  }
+
+  if (ex === 'curlup') {
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    // Shoulder asymmetry — uneven rise stresses the neck on one side
+    const asymmetry = Math.abs(lSh.y - rSh.y)
+    // Hip flexor dominance proxy: if hips are lifting off (knees visible, ankles near hips)
+    let hipLift = 0
+    if (vis(lKn, 0.3) && vis(lHip, 0.3)) {
+      hipLift = Math.max(0, 0.12 - Math.abs(lKn.y - lHip.y)) * 2
+    }
+    return Math.min(100, 10 + Math.round(asymmetry * 650 + hipLift * 200))
+  }
+
+  if (ex === 'bicepcurl') {
+    if (!vis(lEl, 0.3) || !vis(rEl, 0.3) || !vis(lHip, 0.3)) return 10
+    // Elbow drift: elbow should stay close to hip/torso, not swing forward
+    const lDrift = Math.max(0, Math.abs(lEl.x - lHip.x) - 0.07)
+    const rDrift = Math.max(0, Math.abs(rEl.x - rHip.x) - 0.07)
+    // Body sway: shoulder should stay over hip (no momentum cheating)
+    let sway = 0
+    if (vis(lSh) && vis(rSh)) {
+      sway = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.04)
+    }
+    return Math.min(100, 10 + Math.round(Math.max(lDrift, rDrift) * 480 + sway * 360))
+  }
+
+  if (ex === 'tricepextension') {
+    if (!vis(lEl, 0.3) || !vis(rEl, 0.3) || !vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    // Elbow flare: elbows should stay close together overhead, not drifting wide
+    const elbowWidth = Math.abs(lEl.x - rEl.x)
+    const shWidth    = Math.abs(lSh.x - rSh.x)
+    const flare      = Math.max(0, elbowWidth - shWidth * 1.1)
+    // Upper arm drift: elbows should stay above shoulders, not swinging forward
+    const lUpperArmDrift = Math.max(0, Math.abs(lEl.x - lSh.x) - 0.06)
+    const rUpperArmDrift = Math.max(0, Math.abs(rEl.x - rSh.x) - 0.06)
+    return Math.min(100, 10 + Math.round(flare * 500 + Math.max(lUpperArmDrift, rUpperArmDrift) * 380))
+  }
+
+  if (ex === 'lateralraise') {
+    if (!vis(lWr, 0.3) || !vis(rWr, 0.3) || !vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    // Wrist asymmetry: both arms should rise to the same height
+    const asymmetry = Math.abs(lWr.y - rWr.y)
+    // Forward reach: wrists should stay roughly in line with shoulders, not in front
+    const lFwd = Math.max(0, Math.abs(lWr.x - lSh.x) - 0.08)
+    const rFwd = Math.max(0, Math.abs(rWr.x - rSh.x) - 0.08)
+    return Math.min(100, 10 + Math.round(asymmetry * 500 + Math.max(lFwd, rFwd) * 340))
+  }
+
+  if (ex === 'hammercurl') {
+    // Same form risks as bicep curl: elbow drift and body sway
+    if (!vis(lEl, 0.3) || !vis(rEl, 0.3) || !vis(lHip, 0.3)) return 10
+    const lDrift = Math.max(0, Math.abs(lEl.x - lHip.x) - 0.07)
+    const rDrift = Math.max(0, Math.abs(rEl.x - rHip.x) - 0.07)
+    let sway = 0
+    if (vis(lSh) && vis(rSh)) {
+      sway = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.04)
+    }
+    return Math.min(100, 10 + Math.round(Math.max(lDrift, rDrift) * 480 + sway * 360))
+  }
+
+  if (ex === 'pullup') {
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    // Shoulder asymmetry: both shoulders should rise evenly
+    const shAsym = Math.abs(lSh.y - rSh.y)
+    // Elbow flare: elbows should stay roughly under wrists, not flaring out excessively
+    let flare = 0
+    if (vis(lEl, 0.3) && vis(rEl, 0.3) && vis(lWr, 0.3) && vis(rWr, 0.3)) {
+      const lElFl = Math.max(0, Math.abs(lEl.x - lWr.x) - 0.07)
+      const rElFl = Math.max(0, Math.abs(rEl.x - rWr.x) - 0.07)
+      flare = Math.max(lElFl, rElFl)
+    }
+    return Math.min(100, 10 + Math.round(shAsym * 500 + flare * 380))
+  }
+
+  const BASE = 10
+
+  if (ex === 'jumpingjack') {
+    // Check arm symmetry — both wrists should be at similar heights
+    if (!vis(lWr, 0.3) || !vis(rWr, 0.3)) return 0
+    const asymmetry = Math.abs(lWr.y - rWr.y)
+    return Math.min(100, BASE + Math.round(asymmetry * 600))
+  }
+
+  if (ex === 'highnees') {
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 0
+    // Torso sway: shoulders should stay centred over hips, not leaning side-to-side
+    let sway = 0
+    if (vis(lHip, 0.3) && vis(rHip, 0.3)) {
+      const shMx  = (lSh.x + rSh.x) / 2
+      const hipMx = (lHip.x + rHip.x) / 2
+      sway = Math.max(0, Math.abs(shMx - hipMx) - 0.04)
+    }
+    // Shoulder symmetry: hunching to one side stresses the neck
+    const shAsym = Math.abs(lSh.y - rSh.y)
+    return Math.min(100, BASE + Math.round(sway * 420 + shAsym * 380))
+  }
+
+  if (ex === 'plank') {
+    if (!vis(lSh) || !vis(rSh) || !vis(lHip) || !vis(rHip) || !vis(lAn) || !vis(rAn)) return 0
+    // Hip sag/pike from shoulder–ankle straight line (same as push-up)
+    const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
+    const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
+    const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
+    const sagPike = ptLineDist(shX, shY, anX, anY, hipX, hipY)
+    return Math.min(100, BASE + Math.round(sagPike * 850))
+  }
+
+  if (ex === 'wallsit') {
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    // Only flag severe knee valgus — wall sit doesn't need perfect tracking
+    const lValgus = Math.max(0, lAn.x - lKn.x - 0.05)
+    const rValgus = Math.max(0, rKn.x - rAn.x - 0.05)
+    const valgus  = Math.max(lValgus, rValgus)
+    return Math.min(100, BASE + Math.round(valgus * 400))
+  }
+
+  if (ex === 'buttskick') {
+    // Low injury risk. Check torso stays upright — shoulders over hips, not leaning back.
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 0
+    let lean = 0
+    if (vis(lHip, 0.3) && vis(rHip, 0.3)) {
+      lean = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.05)
+    }
+    return Math.min(100, BASE + Math.round(lean * 400))
+  }
+
+  if (ex === 'calfraise') {
+    // Check knee alignment and body sway. Knee should track over toes, no side-to-side sway.
+    if (!vis(lKn, 0.3) || !vis(rKn, 0.3)) return 0
+    let sway = 0
+    if (vis(lSh, 0.3) && vis(rSh, 0.3) && vis(lHip, 0.3) && vis(rHip, 0.3)) {
+      sway = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.05)
+    }
+    const kneeAsym = Math.abs(lKn.y - rKn.y)
+    return Math.min(100, BASE + Math.round(sway * 380 + kneeAsym * 300))
+  }
+
+  if (ex === 'situp') {
+    // Same checks as curl-up but penalizes neck pull less since full range is expected.
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    const asymmetry = Math.abs(lSh.y - rSh.y)
+    return Math.min(100, BASE + Math.round(asymmetry * 550))
+  }
+
+  if (ex === 'armcircle') {
+    // Arm circles are a low-risk mobility exercise. Wrists are intentionally at
+    // different heights mid-circle, so instantaneous asymmetry is meaningless.
+    // Only flag if one arm is completely stationary (not circling at all).
+    if (!vis(lWr, 0.3) || !vis(rWr, 0.3)) return 0
+    return BASE  // always low-risk
+  }
+
+  if (ex === 'hipcircle') {
+    // Low injury risk. Flag excessive torso lean — hips should drive the circle, not the shoulders.
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3) || !vis(lHip, 0.3) || !vis(rHip, 0.3)) return 0
+    const shMx = (lSh.x + rSh.x) / 2, hipMx = (lHip.x + rHip.x) / 2
+    const lean = Math.max(0, Math.abs(shMx - hipMx) - 0.1)
+    return Math.min(100, BASE + Math.round(lean * 350))
+  }
+
+  if (ex === 'chestpress') {
+    // Same checks as pushup: body alignment and elbow flare
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    let sway = 0
+    if (vis(lHip, 0.3) && vis(rHip, 0.3)) {
+      sway = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.05)
+    }
+    const elW = vis(lEl, 0.3) && vis(rEl, 0.3) ? Math.abs(lEl.x - rEl.x) : 0
+    const shW = Math.abs(lSh.x - rSh.x)
+    const flare = Math.max(0, elW - shW * 1.5)
+    return Math.min(100, BASE + Math.round(sway * 300 + flare * 350))
+  }
+
+  if (ex === 'sidelunge') {
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    // Same front-knee valgus check as lunge — the bending knee must track over toes
+    const frontKn = lKn.y < rKn.y ? lKn : rKn
+    const frontAn = lKn.y < rKn.y ? lAn : rAn
+    const kneeTrack = Math.max(0, Math.abs(frontKn.x - frontAn.x) - 0.06)
+    let torsoLean = 0
+    if (vis(lSh) && vis(rSh) && vis(lHip) && vis(rHip)) {
+      torsoLean = Math.max(0, Math.abs((lSh.x + rSh.x) / 2 - (lHip.x + rHip.x) / 2) - 0.07)
+    }
+    return Math.min(100, BASE + Math.round(kneeTrack * 500 + torsoLean * 380))
+  }
+
+  if (ex === 'chestfly') {
+    if (!vis(lWr, 0.3) || !vis(rWr, 0.3) || !vis(lSh, 0.3) || !vis(rSh, 0.3)) return 10
+    // Arm symmetry: both wrists should be at the same height during the arc
+    const asymmetry = Math.abs(lWr.y - rWr.y)
+    // Elbow bend: wrists should stay roughly level with or slightly below elbows — no drooping
+    let elbowDrop = 0
+    if (vis(lEl, 0.3) && vis(rEl, 0.3)) {
+      elbowDrop = Math.max(0, Math.max(lWr.y - lEl.y, rWr.y - rEl.y) - 0.06)
+    }
+    return Math.min(100, BASE + Math.round(asymmetry * 500 + elbowDrop * 400))
+  }
+
+  if (ex === 'jumpsquat') {
+    // Same checks as squat (knee valgus + torso lean) — explosiveness doesn't change alignment requirements
+    if (!vis(lKn) || !vis(lAn) || !vis(rKn) || !vis(rAn)) return 0
+    const lValgus = Math.max(0, lAn.x - lKn.x)
+    const rValgus = Math.max(0, rKn.x - rAn.x)
+    const valgus  = Math.max(lValgus, rValgus)
+    let lean = 0
+    if (vis(lSh) && vis(rSh) && vis(lHip) && vis(rHip)) {
+      const shMx = (lSh.x + rSh.x) / 2, hipMx = (lHip.x + rHip.x) / 2
+      lean = Math.max(0, Math.abs(shMx - hipMx) - 0.06)
+    }
+    return Math.min(100, BASE + Math.round(valgus * 650 + lean * 380))
+  }
+
+  if (ex === 'burpee') {
+    // During the squat-down phase: knee valgus. During plank phase: hip sag.
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 0
+    let hipSag = 0
+    if (vis(lHip, 0.3) && vis(rHip, 0.3) && vis(lAn, 0.3) && vis(rAn, 0.3)) {
+      const shX = (lSh.x + rSh.x) / 2, shY = (lSh.y + rSh.y) / 2
+      const anX = (lAn.x + rAn.x) / 2, anY = (lAn.y + rAn.y) / 2
+      const hipX = (lHip.x + rHip.x) / 2, hipY = (lHip.y + rHip.y) / 2
+      hipSag = Math.max(0, ptLineDist(shX, shY, anX, anY, hipX, hipY) - 0.07)
+    }
+    let valgus = 0
+    if (vis(lKn, 0.3) && vis(lAn, 0.3) && vis(rKn, 0.3) && vis(rAn, 0.3)) {
+      valgus = Math.max(Math.max(0, lAn.x - lKn.x), Math.max(0, rKn.x - rAn.x))
+    }
+    return Math.min(100, BASE + Math.round(hipSag * 700 + valgus * 500))
+  }
+
+  if (ex === 'crossbodystretch' || ex === 'tricepstretch') {
+    // Very low injury risk — just flag neck tension (shoulder hike)
+    if (!vis(lSh, 0.3) || !vis(rSh, 0.3)) return 0
+    const shAsym = Math.abs(lSh.y - rSh.y)
+    return Math.min(100, BASE + Math.round(shAsym * 400))
+  }
+
+  if (ex === 'scapulasqueeze') {
+    if (!vis(lSh, 0.4) || !vis(rSh, 0.4)) return 0
+    // Shoulder height asymmetry: one shoulder hiking up (shrugging) during the squeeze = neck tension
+    const shAsym = Math.abs(lSh.y - rSh.y)
+    // Forward head / chest collapse: if elbows are visible, they should not drift forward past shoulders
+    let elbowFwd = 0
+    if (vis(lEl, 0.3) && vis(rEl, 0.3)) {
+      elbowFwd = Math.max(0, Math.abs((lEl.x + rEl.x) / 2 - (lSh.x + rSh.x) / 2) - 0.08)
+    }
+    return Math.min(100, BASE + Math.round(shAsym * 600 + elbowFwd * 300))
+  }
+
+  return 0
+}
+
+// ── Constants ──────────────────────────────────────────────────────────────
+
+// All exercise IDs — derived from EXERCISE_INFO so new exercises are auto-included
+const EXERCISES: string[] = EXERCISE_INFO.map(e => e.id)
+
+// Labels derived from EXERCISE_INFO names
+const EXERCISE_LABELS: Record<string, string> = Object.fromEntries(
+  EXERCISE_INFO.map(e => [e.id, e.name])
+)
+
+const EXERCISE_CATEGORY_MAP: Record<string, string> = {
+  // ── Lower Body ──
+  squat: 'Lower Body', lunge: 'Lower Body', deadlift: 'Lower Body',
+  calfraise: 'Lower Body', wallsit: 'Lower Body', sidelunge: 'Lower Body',
+  hipcircle: 'Lower Body', jumpsquat: 'Lower Body',
+  bulgariansplitsquat: 'Lower Body', glutebridge: 'Lower Body', hipthrust: 'Lower Body',
+  donkeykick: 'Lower Body', firehydrant: 'Lower Body', reverseLunge: 'Lower Body',
+  curtsylunge: 'Lower Body', sumoSquat: 'Lower Body', stepup: 'Lower Body',
+  nordicCurl: 'Lower Body', romaniandeadlift: 'Lower Body', gobletSquat: 'Lower Body',
+  goodmorning: 'Lower Body', hyperextension: 'Lower Body',
+  // ── Upper Body ──
+  pushup: 'Upper Body', benchpress: 'Upper Body', shoulderpress: 'Upper Body',
+  pullup: 'Upper Body', tricepextension: 'Upper Body', bicepcurl: 'Upper Body',
+  hammercurl: 'Upper Body', lateralraise: 'Upper Body', scapulasqueeze: 'Upper Body',
+  crossbodystretch: 'Upper Body', tricepstretch: 'Upper Body',
+  chestpress: 'Upper Body', chestfly: 'Upper Body',
+  diamondpushup: 'Upper Body', widegripushup: 'Upper Body', declinepushup: 'Upper Body',
+  inclinepushup: 'Upper Body', pikeupshup: 'Upper Body', chinup: 'Upper Body',
+  invertedrow: 'Upper Body', superman: 'Upper Body',
+  arnoldpress: 'Upper Body', frontraise: 'Upper Body', reverseFly: 'Upper Body',
+  skullcrusher: 'Upper Body', concentrationcurl: 'Upper Body', zottmancurl: 'Upper Body',
+  wristcurl: 'Upper Body', dumbbellrow: 'Upper Body',
+  // ── Core ──
+  curlup: 'Core', situp: 'Core', plank: 'Core', mountainclimber: 'Core',
+  sideplank: 'Core', deadbug: 'Core', birddog: 'Core', russiantwist: 'Core',
+  bicycleCrunch: 'Core', legRaise: 'Core', flutterKick: 'Core',
+  hollowbody: 'Core', vSit: 'Core', abWheel: 'Core',
+  // ── Cardio ──
+  jumpingjack: 'Cardio', highnees: 'Cardio', buttskick: 'Cardio', armcircle: 'Cardio',
+  burpee: 'Cardio', boxjump: 'Cardio', skaterjump: 'Cardio', tuckjump: 'Cardio',
+  starjump: 'Cardio', broadjump: 'Cardio', shadowboxing: 'Cardio',
+  // ── Mobility ──
+  catcow: 'Mobility', childpose: 'Mobility', worldsgreateststretch: 'Mobility',
+  hipflexorstretch: 'Mobility', hamstringstretch: 'Mobility', quadstretch: 'Mobility',
+  pigeonpose: 'Mobility', downdogstretch: 'Mobility', cobrapose: 'Mobility',
+  seatedspinaltwist: 'Mobility', anklecircle: 'Mobility', neckroll: 'Mobility',
+  shoulderroll: 'Mobility', wristcircle: 'Mobility',
+}
+
+const CATEGORY_TABS = ['All', 'Lower Body', 'Upper Body', 'Core', 'Cardio', 'Mobility'] as const
+
+// EXERCISE_GIFS imported from ../lib/exerciseGifs
+
+// Exercises appropriate for warm-up — no heavy compounds or isolation equipment work
+const WARMUP_EXERCISES = new Set([
+  'squat', 'lunge', 'pushup', 'plank', 'curlup',
+  'mountainclimber', 'jumpingjack', 'highnees',
+  'buttskick', 'calfraise', 'armcircle', 'scapulasqueeze',
+  'crossbodystretch', 'tricepstretch', 'hipcircle',
+  'sidelunge', 'jumpsquat',
+  // mobility & light warmup exercises
+  'catcow', 'childpose', 'worldsgreateststretch', 'hipflexorstretch',
+  'hamstringstretch', 'quadstretch', 'downdogstretch', 'cobrapose',
+  'seatedspinaltwist', 'anklecircle', 'neckroll', 'shoulderroll', 'wristcircle',
+  'glutebridge', 'donkeykick', 'firehydrant', 'birddog', 'deadbug',
+  'shadowboxing', 'starjump', 'inclinepushup',
+])
+
+const DEMO_SUGGESTIONS = [
+  "Keep your chest up and drive through your heels.",
+  "Engage your core — brace your abs like you're about to take a punch.",
+  "Control the descent — aim for a 3-second eccentric.",
+  "Keep your knees tracking over your toes, not caving inward.",
+  "Breathe out on the concentric, in on the way down.",
+  "Neutral spine throughout — don't let your lower back round.",
+]
+
+const MILESTONE_MESSAGES: Record<number, string[]> = {
+  5:  ["5 reps! Warming up!", "Nice — keep that form tight!", "5 down. Just getting started."],
+  10: ["10 reps! You're locked in.", "Double digits. Don't stop now!", "10! Feel that burn — own it."],
+  15: ["15! You're in the zone!", "Halfway to 30. Unstoppable.", "15 reps — prime performance!"],
+  20: ["20 REPS! Beast mode.", "20 strong. Your body is adapting.", "Twenty. You came to work today."],
+  25: ["25! Elite territory.", "Quarter century of reps. Push harder.", "25 — most people quit at 15."],
+  30: ["30 REPS! Legendary.", "Thirty. Absolute machine.", "30! Your future self thanks you."],
+}
+
+function getMilestoneMessage(count: number): string | null {
+  const msgs = MILESTONE_MESSAGES[count]
+  if (!msgs) return null
+  return msgs[Math.floor(Math.random() * msgs.length)]
+}
+
+/** Optional center-crop so a small subject fills more of the preview (pose still uses full camera). */
+const CAMERA_ZOOM_MIN = 1
+const CAMERA_ZOOM_MAX = 2.75
+const CAMERA_ZOOM_STEP = 0.125
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function fmt(sec: number) {
+  return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`
+}
+
+function riskColor(score: number): string {
+  if (score <= 30) return '#22c55e'
+  if (score <= 60) return '#f59e0b'
+  return '#ef4444'
+}
+
+function riskLabel(score: number): string {
+  if (score <= 30) return 'Safe'
+  if (score <= 60) return 'Watch form'
+  return 'High risk'
+}
+
+// ── RiskGauge ──────────────────────────────────────────────────────────────
+
+function RiskGauge({ score }: { score: number }) {
+  const [display, setDisplay] = useState(score)
+
+  useEffect(() => {
+    let frame: number
+    const step = () => {
+      setDisplay(d => {
+        const diff = score - d
+        if (Math.abs(diff) < 0.5) return score
+        frame = requestAnimationFrame(step)
+        return d + diff * 0.12
+      })
+    }
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
+  }, [score])
+
+  const R      = 40
+  const circ   = 2 * Math.PI * R
+  const offset = circ * (1 - display / 100)
+  const color  = riskColor(display)
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <svg width={104} height={104} viewBox="0 0 104 104">
+        {/* Track */}
+        <circle cx={52} cy={52} r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={8} />
+        {/* Arc */}
+        <circle
+          cx={52} cy={52} r={R}
+          fill="none"
+          stroke={color}
+          strokeWidth={8}
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          transform="rotate(-90 52 52)"
+          style={{ transition: 'stroke 0.3s ease' }}
+        />
+        {/* Score number */}
+        <text
+          x={52} y={48}
+          textAnchor="middle"
+          fill={color}
+          fontSize={20}
+          fontWeight={900}
+          fontFamily="Inter,system-ui,sans-serif"
+          style={{ transition: 'fill 0.3s ease' }}
+        >
+          {Math.round(display)}
+        </text>
+        {/* Sub-label */}
+        <text
+          x={52} y={62}
+          textAnchor="middle"
+          fill="rgba(255,255,255,0.3)"
+          fontSize={7}
+          fontFamily="Inter,system-ui,sans-serif"
+          letterSpacing={1.2}
+        >
+          RISK SCORE
+        </text>
+      </svg>
+      <span
+        className="text-[11px] font-black tracking-[0.13em] uppercase"
+        style={{ color, transition: 'color 0.4s ease' }}
+      >
+        {riskLabel(score)}
+      </span>
+    </div>
+  )
+}
+
+// ── WarmupScoreModal ───────────────────────────────────────────────────────
+
+interface WarmupScoreModalProps {
+  score:            number
+  onContinueWarmup: () => void
+  onStartWorkout:   () => void
+}
+
+function WarmupScoreModal({ score, onContinueWarmup, onStartWorkout }: WarmupScoreModalProps) {
+  const color = score >= 80 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444'
+
+  const { message, detail } =
+    score >= 80
+      ? { message: 'Great warmup!',           detail: 'Your body is ready to train.' }
+      : score >= 50
+      ? { message: 'Decent warmup.',           detail: "You're good to go, but a bit more wouldn't hurt." }
+      : { message: 'Your warmup needs work.',  detail: 'Risk of injury is higher going into the main session.' }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+      <div className="card-surface p-8 max-w-[380px] w-full mx-4 text-center">
+        <p className="text-[10.5px] font-bold tracking-[0.18em] uppercase text-gray-500 mb-5">
+          Warmup Assessment
+        </p>
+
+        {/* Score */}
+        <div
+          className="font-black leading-none mb-3"
+          style={{ fontSize: 96, color, textShadow: `0 0 48px ${color}55` }}
+        >
+          {score}
+        </div>
+        <p className="text-white font-bold text-[17px] mb-1">{message}</p>
+        <p className="text-gray-400 text-[13px] leading-relaxed mb-8">{detail}</p>
+
+        {/* Buttons — three different layouts */}
+        {score >= 80 ? (
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={onStartWorkout}
+              className="w-full py-3.5 bg-accent hover:bg-accent/90 rounded-xl font-bold text-white text-[14px] btn-glow-blue transition-all"
+            >
+              Start Workout →
+            </button>
+            <button
+              onClick={onContinueWarmup}
+              className="w-full py-3 border border-strong text-gray-400 rounded-xl font-semibold text-[13px] hover:border-gray-500 hover:text-gray-200 transition-all"
+            >
+              Continue Warming Up
+            </button>
+          </div>
+        ) : score >= 50 ? (
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={onStartWorkout}
+              className="w-full py-3.5 bg-accent hover:bg-accent/90 rounded-xl font-bold text-white btn-glow-blue transition-all"
+            >
+              Start Workout →
+            </button>
+            <button
+              onClick={onContinueWarmup}
+              className="w-full py-3 border border-strong text-gray-400 rounded-xl font-semibold text-[13px] hover:border-gray-500 hover:text-gray-200 transition-all"
+            >
+              Continue Warming Up
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 items-center">
+            <button
+              onClick={onContinueWarmup}
+              className="w-full py-3.5 rounded-xl font-bold text-amber-400 text-[14px] transition-all"
+              style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)' }}
+            >
+              Keep Warming Up
+            </button>
+            <button
+              onClick={onStartWorkout}
+              className="text-[12px] text-gray-600 hover:text-gray-400 underline underline-offset-2 transition-colors mt-1"
+            >
+              Start anyway
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── BurpeePhaseIndicator ───────────────────────────────────────────────────
+
+const BURPEE_PHASES: BurpeePhase[] = ['stand', 'plank', 'jump']
+const BURPEE_PHASE_LABELS: Record<BurpeePhase, string> = {
+  stand: 'Stand',
+  plank: 'Plank',
+  jump:  'Jump',
+}
+const BURPEE_PHASE_COLORS: Record<BurpeePhase, string> = {
+  stand: '#22c55e',
+  plank: '#f59e0b',
+  jump:  '#3b82f6',
+}
+
+function BurpeePhaseIndicator({ phase }: { phase: BurpeePhase }) {
+  return (
+    <div className="mt-3 flex items-center justify-center gap-1.5">
+      {BURPEE_PHASES.map((p, i) => {
+        const active = p === phase
+        const color  = BURPEE_PHASE_COLORS[p]
+        return (
+          <div key={p} className="flex items-center gap-1.5">
+            <div
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full transition-all duration-200"
+              style={{
+                background: active ? `${color}22` : 'transparent',
+                border:     `1px solid ${active ? color : 'rgba(255,255,255,0.08)'}`,
+              }}
+            >
+              <div
+                className="w-1.5 h-1.5 rounded-full transition-all duration-200"
+                style={{ background: active ? color : 'rgba(255,255,255,0.15)' }}
+              />
+              <span
+                className="text-[10px] font-bold transition-colors duration-200"
+                style={{ color: active ? color : 'rgba(255,255,255,0.25)' }}
+              >
+                {BURPEE_PHASE_LABELS[p]}
+              </span>
+            </div>
+            {i < BURPEE_PHASES.length - 1 && (
+              <span className="text-[9px] text-gray-700">→</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Bilateral asymmetry scoring ────────────────────────────────────────────
+
+function angleOf(a: Lm, b: Lm, c: Lm): number {
+  const ax = a.x - b.x, ay = a.y - b.y
+  const cx = c.x - b.x, cy = c.y - b.y
+  const dot = ax * cx + ay * cy
+  const mag = Math.sqrt((ax * ax + ay * ay) * (cx * cx + cy * cy))
+  return mag === 0 ? 180 : (Math.acos(Math.max(-1, Math.min(1, dot / mag))) * 180) / Math.PI
+}
+
+function computeAsymmetry(lms: Lm[], exercise: string): { left: number; right: number } | null {
+  if (lms.length < 29) return null
+  const ex = exercise.toLowerCase()
+
+  const toScore = (deg: number) => Math.round(Math.max(0, Math.min(100, (180 - deg) / 90 * 100)))
+
+  if (['squat', 'lunge', 'sidelunge', 'jumpsquat', 'deadlift'].includes(ex)) {
+    const lHip = lms[23], lKn = lms[25], lAn = lms[27]
+    const rHip = lms[24], rKn = lms[26], rAn = lms[28]
+    if (
+      (lHip?.visibility ?? 0) < 0.4 || (lKn?.visibility ?? 0) < 0.4 || (lAn?.visibility ?? 0) < 0.4 ||
+      (rHip?.visibility ?? 0) < 0.4 || (rKn?.visibility ?? 0) < 0.4 || (rAn?.visibility ?? 0) < 0.4
+    ) return null
+    return { left: toScore(angleOf(lHip, lKn, lAn)), right: toScore(angleOf(rHip, rKn, rAn)) }
+  }
+
+  if (['pushup', 'benchpress', 'chestfly', 'chestpress', 'shoulderpress', 'curlup', 'bicepcurl'].includes(ex)) {
+    const lSh = lms[11], lEl = lms[13], lWr = lms[15]
+    const rSh = lms[12], rEl = lms[14], rWr = lms[16]
+    if (
+      (lSh?.visibility ?? 0) < 0.3 || (lEl?.visibility ?? 0) < 0.3 || (lWr?.visibility ?? 0) < 0.3 ||
+      (rSh?.visibility ?? 0) < 0.3 || (rEl?.visibility ?? 0) < 0.3 || (rWr?.visibility ?? 0) < 0.3
+    ) return null
+    return { left: toScore(angleOf(lSh, lEl, lWr)), right: toScore(angleOf(rSh, rEl, rWr)) }
+  }
+
+  return null
+}
+
+// ── WorkoutPage ────────────────────────────────────────────────────────────
+
+export function WorkoutPage() {
+  const navigate = useNavigate()
+
+  // ── Refs ───────────────────────────────────────────────────────────────
+  const videoRef            = useRef<HTMLVideoElement>(null)
+  const canvasRef           = useRef<HTMLCanvasElement>(null)
+  const cameraShellRef      = useRef<HTMLDivElement>(null)
+  const transcriptRef       = useRef<HTMLDivElement>(null)
+  const analyzingRef        = useRef(false)
+  const repCountRef         = useRef(0)
+  const exerciseRef         = useRef('squat')
+  const phaseRef            = useRef<string>('warmup')
+  const warmupModalFiredRef = useRef(false)
+  const demoSugIdxRef       = useRef(0)
+  const lastSpokenRef       = useRef(0)
+  const aiRiskRef           = useRef<number | null>(null)
+  const referenceFrameRef   = useRef<string | null>(null)   // reference photo for AI person tracking
+  const isTrackingRef       = useRef(false)
+  const sessionRiskLog      = useRef<number[]>([])          // all blended scores this session
+
+  // ── Store ──────────────────────────────────────────────────────────────
+  const {
+    phase, currentExercise, repCounts, exerciseWeights,
+    riskScores, suggestions, safetyConcerns, warmupScore, sessionStartTime,
+    cooldownExercises,
+    setPhase, setExercise, addRep, resetExerciseReps, updateAnalysis, logExerciseRisk, setWarmupScore,
+    setCooldownExercises, setCooldownCompleted, setExerciseWeight, endSession, resetSession,
+  } = useWorkoutStore()
+
+  // ── Local UI state ─────────────────────────────────────────────────────
+  const [elapsed,       setElapsed]       = useState(0)
+  const [showModal,     setShowModal]     = useState(false)
+  const [cameraStarted, setCameraStarted] = useState(false)
+  const [voiceMuted,    setVoiceMuted]    = useState(true)
+  const [cameraZoom,       setCameraZoom]       = useState(1)
+  const [wideCameraLayout, setWideCameraLayout] = useState(false)
+  const [cameraFullscreen, setCameraFullscreen] = useState(false)
+  const [refCaptured,      setRefCaptured]      = useState(false)   // whether reference photo has been taken
+  const [milestoneMsg,  setMilestoneMsg]  = useState<string | null>(null)
+  const milestoneClearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Exercise picker ────────────────────────────────────────────────────
+  const [showExPicker,   setShowExPicker]   = useState(false)
+  const [exSearch,       setExSearch]       = useState('')
+  const [exCategory,     setExCategory]     = useState<string>('All')
+  const [previewEx,      setPreviewEx]      = useState<string | null>(null)
+  const [previewAnchor,  setPreviewAnchor]  = useState<{ top: number; left: number } | null>(null)
+
+  // ── Program mode ──────────────────────────────────────────────────────
+  const [activeProgram, setActiveProgramState] = useState<ActiveProgram | null>(() =>
+    localStorage.getItem('formAI_launchProgram') ? getActiveProgram() : null
+  )
+  const [programRestCountdown, setProgramRestCountdown] = useState<number | null>(null) // seconds remaining in rest
+  const programAdvanceFiredRef = useRef(false) // guard: only start timer once per exercise
+  const programAdvanceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Stable ref so auto-advance effect can call handleEndWorkout before it's declared
+  const handleEndWorkoutRef = useRef<(() => Promise<void>) | null>(null)
+
+  // ── Set counter ────────────────────────────────────────────────────────
+  interface SetLogEntry { setNum: number; exercise: string; reps: number }
+  const [setCount, setSetCount] = useState(0)
+  const [setLog,   setSetLog]   = useState<SetLogEntry[]>([])
+  const [apiKeyBannerDismissed, setApiKeyBannerDismissed] = useState(false)
+
+  // ── Rest timer ─────────────────────────────────────────────────────────
+  const [restDuration,  setRestDuration]  = useState(60)   // seconds
+  const [restRemaining, setRestRemaining] = useState<number | null>(null)
+  const restTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const startRestTimer = useCallback((secs: number) => {
+    if (restTimerRef.current) clearInterval(restTimerRef.current)
+    setRestRemaining(secs)
+    restTimerRef.current = setInterval(() => {
+      setRestRemaining(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(restTimerRef.current!)
+          restTimerRef.current = null
+          return null
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }, [])
+
+  const skipRestTimer = useCallback(() => {
+    if (restTimerRef.current) clearInterval(restTimerRef.current)
+    restTimerRef.current = null
+    setRestRemaining(null)
+  }, [])
+
+  // Cleanup on unmount
+  useEffect(() => () => { if (restTimerRef.current) clearInterval(restTimerRef.current) }, [])
+
+  // ── Cooldown state ─────────────────────────────────────────────────────
+  const [fatigueWarning,   setFatigueWarning]   = useState<string | null>(null)
+  const [asymmetry, setAsymmetry] = useState<{ left: number; right: number } | null>(null)
+  const [loadingCooldown,  setLoadingCooldown]  = useState(false)
+  const [cooldownIdx,      setCooldownIdx]      = useState(0)
+  const [cooldownTimeLeft, setCooldownTimeLeft] = useState(0)
+
+  // ── User profile ───────────────────────────────────────────────────────
+  const userProfile = useMemo(() => {
+    try {
+      const stored = localStorage.getItem('formAI_profile')
+      const p = stored ? (JSON.parse(stored) as Record<string, unknown>) : {}
+      const ageN = Number(p.age)
+      const weightN = Number(p.weight)
+      return {
+        age: Number.isFinite(ageN) && ageN > 0 ? ageN : 25,
+        weight: Number.isFinite(weightN) && weightN > 0 ? weightN : 70,
+        fitnessLevel:
+          typeof p.fitnessLevel === 'string' ? p.fitnessLevel : 'intermediate',
+      }
+    } catch {
+      return { age: 25, weight: 70, fitnessLevel: 'intermediate' }
+    }
+  }, [])
+
+  const filteredExercises = useMemo(() => {
+    const q = exSearch.toLowerCase().trim()
+    const pool = [...EXERCISES]
+      .filter(ex => phase !== 'warmup' || WARMUP_EXERCISES.has(ex))
+    return pool
+      .filter(ex => exCategory === 'All' || EXERCISE_CATEGORY_MAP[ex] === exCategory)
+      .filter(ex => !q || EXERCISE_LABELS[ex].toLowerCase().includes(q))
+      .sort((a, b) => EXERCISE_LABELS[a].localeCompare(EXERCISE_LABELS[b]))
+  }, [exSearch, exCategory, phase])
+
+  // ── Program / start-exercise init ────────────────────────────────────
+  useEffect(() => {
+    const launchFlag = localStorage.getItem('formAI_launchProgram')
+    if (launchFlag) {
+      // Intentionally launched from Programs page — consume the flag
+      localStorage.removeItem('formAI_launchProgram')
+      const startEx = localStorage.getItem('formAI_startExercise')
+      if (startEx && EXERCISES.includes(startEx)) {
+        setExercise(startEx)
+        localStorage.removeItem('formAI_startExercise')
+        return
+      }
+      const prog = getActiveProgram()
+      if (prog) {
+        const ex = prog.exercises[prog.currentIndex]
+        if (ex && EXERCISES.includes(ex)) setExercise(ex)
+      }
+    } else {
+      // Direct navigation (Home, nav bar, etc.) — clear any stale program
+      clearActiveProgram()
+      setActiveProgramState(null)
+      // Still honour a specific exercise from the library page
+      const startEx = localStorage.getItem('formAI_startExercise')
+      if (startEx && EXERCISES.includes(startEx)) {
+        setExercise(startEx)
+        localStorage.removeItem('formAI_startExercise')
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // If still in warmup and current exercise isn't warmup-appropriate, switch to jumping jacks
+  useEffect(() => {
+    if (phase === 'warmup' && !WARMUP_EXERCISES.has(currentExercise)) {
+      setExercise('jumpingjack')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+
+  const nudgeCameraZoom = useCallback((delta: number) => {
+    setCameraZoom((z) => {
+      const next = z + delta
+      const clamped = Math.min(CAMERA_ZOOM_MAX, Math.max(CAMERA_ZOOM_MIN, next))
+      return Math.round(clamped * 1000) / 1000
+    })
+  }, [])
+
+  const onCameraPreviewWheel = useCallback(
+    (e: React.WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const step = e.ctrlKey || e.metaKey ? CAMERA_ZOOM_STEP * 1.5 : CAMERA_ZOOM_STEP
+      nudgeCameraZoom(e.deltaY > 0 ? -step : step)
+    },
+    [nudgeCameraZoom],
+  )
+
+  useEffect(() => {
+    const sync = () => {
+      setCameraFullscreen(document.fullscreenElement === cameraShellRef.current)
+    }
+    document.addEventListener('fullscreenchange', sync)
+    return () => document.removeEventListener('fullscreenchange', sync)
+  }, [])
+
+  // ── Reference photo capture ────────────────────────────────────────────
+  const captureReferencePhoto = useCallback(() => {
+    const video = videoRef.current
+    if (!video || video.readyState < 2) return
+    const canvas = document.createElement('canvas')
+    canvas.width  = 640
+    canvas.height = 480
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    // Mirror to match the displayed feed
+    ctx.translate(canvas.width, 0)
+    ctx.scale(-1, 1)
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    referenceFrameRef.current = canvas.toDataURL('image/jpeg', 0.85)
+    setRefCaptured(true)
+  }, [videoRef])
+
+  const toggleCameraFullscreen = useCallback(() => {
+    const el = cameraShellRef.current
+    if (!el) return
+    if (!document.fullscreenElement) {
+      void el.requestFullscreen().catch(() => {
+        /* Safari / blocked */
+      })
+    } else {
+      void document.exitFullscreen()
+    }
+  }, [])
+
+  // ── Pose detection hook ────────────────────────────────────────────────
+  const {
+    landmarks, isTracking,
+    isLoading: cameraLoading, error: cameraError,
+    getBestFrames, startCamera, stopCamera, switchCamera, facingMode,
+  } = usePoseDetection(videoRef, canvasRef)
+
+  // ── Rep counter hook ───────────────────────────────────────────────────
+  const isBurpee = currentExercise === 'burpee'
+
+  // Burpee uses its own 3-phase state machine — pass null to each hook when the other is active
+  const { repCount, phase: movementPhase, lastRepTimestamp, isCalibrating, reset: resetRepCounter, armReps } =
+    useRepCounter(isBurpee ? null : landmarks, currentExercise)
+
+  const {
+    repCount:         burpeeRepCount,
+    burpeePhase,
+    isCalibrating:    burpeeCalibrating,
+    lastRepTimestamp: burpeeLastRepTs,
+    reset:            resetBurpeeCounter,
+  } = useBurpeeCounter(isBurpee ? landmarks : null)
+
+  // Combined outputs: whichever hook is active wins
+  const activeRepCount      = isBurpee ? burpeeRepCount    : repCount
+  const activeIsCalibrating = isBurpee ? burpeeCalibrating : isCalibrating
+  const activeLastRepTs     = isBurpee ? burpeeLastRepTs   : lastRepTimestamp
+
+  // Reset burpee counter whenever exercise changes
+  const prevExerciseForBurpee = useRef(currentExercise)
+  useEffect(() => {
+    if (prevExerciseForBurpee.current !== currentExercise) {
+      prevExerciseForBurpee.current = currentExercise
+      if (isBurpee) resetBurpeeCounter()
+    }
+  }, [currentExercise, isBurpee, resetBurpeeCounter])
+
+  // ── Hold timer hook (plank / wall sit) ────────────────────────────────
+  const isHoldExercise = HOLD_EXERCISES.includes(currentExercise)
+  const { holdSeconds, isInPosition, reset: resetHoldTimer } =
+    useHoldTimer(landmarks, currentExercise)
+
+  const handleNextProgramExercise = useCallback(() => {
+    const next = advanceProgramExercise()
+    setActiveProgramState(next)
+    if (next) {
+      const ex = next.exercises[next.currentIndex]
+      if (ex && EXERCISES.includes(ex)) {
+        setExercise(ex)
+        resetExerciseReps(ex)
+        resetRepCounter()
+        resetHoldTimer()
+      }
+    }
+  }, [setExercise, resetExerciseReps, resetRepCounter, resetHoldTimer])
+
+  // ── Program auto-advance when rep/hold target is reached ─────────────
+  // Uses a ref-based interval so re-renders (extra reps) don't cancel the countdown.
+  const startProgramRestCountdown = useCallback((hasMore: boolean) => {
+    if (programAdvanceFiredRef.current) return  // already counting down
+    programAdvanceFiredRef.current = true
+
+    const REST_SECS = 5
+    setProgramRestCountdown(REST_SECS)
+
+    let remaining = REST_SECS
+    programAdvanceTimerRef.current = setInterval(() => {
+      remaining -= 1
+      if (remaining <= 0) {
+        clearInterval(programAdvanceTimerRef.current!)
+        programAdvanceTimerRef.current = null
+        setProgramRestCountdown(null)
+        if (hasMore) {
+          handleNextProgramExercise()
+        } else {
+          clearActiveProgram()
+          setActiveProgramState(null)
+          void handleEndWorkoutRef.current?.()
+        }
+      } else {
+        setProgramRestCountdown(remaining)
+      }
+    }, 1000)
+  // handleNextProgramExercise is stable (useCallback with stable deps)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleNextProgramExercise])
+
+  useEffect(() => {
+    if (!activeProgram || phase !== 'main' || programAdvanceFiredRef.current) return
+    const target = isHoldExercise
+      ? (activeProgram.targetHoldSecs ?? 30)
+      : (activeProgram.targetReps ?? 10)
+    const current = isHoldExercise ? holdSeconds : activeRepCount
+    if (current < target) return
+
+    const hasMore = activeProgram.currentIndex + 1 < activeProgram.exercises.length
+    startProgramRestCountdown(hasMore)
+  }, [activeRepCount, holdSeconds, activeProgram, phase, isHoldExercise, startProgramRestCountdown])
+
+  // Reset the advance guard and cancel any running countdown when the exercise changes
+  useEffect(() => {
+    programAdvanceFiredRef.current = false
+    if (programAdvanceTimerRef.current) {
+      clearInterval(programAdvanceTimerRef.current)
+      programAdvanceTimerRef.current = null
+    }
+    setProgramRestCountdown(null)
+  }, [currentExercise])
+
+  // ── Keep mutable refs in sync with latest values ───────────────────────
+  useEffect(() => { repCountRef.current      = activeRepCount  }, [activeRepCount])
+  useEffect(() => { exerciseRef.current      = currentExercise }, [currentExercise])
+  useEffect(() => { phaseRef.current         = phase           }, [phase])
+  const movementPhaseRef = useRef<typeof movementPhase>('unknown')
+  useEffect(() => { movementPhaseRef.current = movementPhase   }, [movementPhase])
+
+  // ── New-set handler (spacebar) ─────────────────────────────────────────
+  // Read repCounts from getState() at call time so we always snapshot the
+  // freshest zustand value — avoids stale-closure bugs when a rep lands just
+  // before S is pressed and the useCallback hasn't re-created yet.
+  const holdSecondsRef = useRef(holdSeconds)
+  useEffect(() => { holdSecondsRef.current = holdSeconds }, [holdSeconds])
+
+  const handleNewSet = useCallback(() => {
+    const liveReps = useWorkoutStore.getState().repCounts[exerciseRef.current] ?? 0
+    const reps = isHoldExercise ? holdSecondsRef.current : liveReps
+    setSetCount(prev => {
+      const nextNum = prev + 1
+      setSetLog(log => [...log, { setNum: nextNum, exercise: exerciseRef.current, reps }])
+      return nextNum
+    })
+    resetExerciseReps(exerciseRef.current)
+    resetRepCounter()
+    resetHoldTimer()
+    resetBurpeeCounter()
+    sessionRiskLog.current = []
+    setFatigueWarning(null)
+    // Start rest timer between sets
+    setRestRemaining(prev => {
+      if (prev !== null) return prev // already ticking
+      return null
+    })
+    startRestTimer(restDuration)
+  }, [resetExerciseReps, resetRepCounter, resetHoldTimer, resetBurpeeCounter, isHoldExercise, startRestTimer, restDuration])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isTyping = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement
+      if (phaseRef.current !== 'main' || isTyping) return
+      if (e.code === 'Space' || e.key === 's' || e.key === 'S') {
+        e.preventDefault()
+        handleNewSet()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [handleNewSet])
+
+  // ── Mount: reset store, start camera ──────────────────────────────────
+  useEffect(() => {
+    resetSession()
+    startCamera()
+      .then(() => setCameraStarted(true))
+      .catch(() => { /* cameraError state set inside hook */ })
+    return () => stopCamera()
+    // stable callbacks — intentionally empty dep array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Session timer ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!sessionStartTime) return
+    const id = setInterval(
+      () => setElapsed(Math.floor((Date.now() - sessionStartTime) / 1000)),
+      1000,
+    )
+    return () => clearInterval(id)
+  }, [sessionStartTime])
+
+  // ── Warn before leaving mid-session ───────────────────────────────────
+  useEffect(() => {
+    if (!sessionStartTime || phase === 'cooldown') return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [sessionStartTime, phase])
+
+  // ── Canvas size → match rendered size ─────────────────────────────────
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const obs = new ResizeObserver(() => {
+      canvas.width  = canvas.offsetWidth
+      canvas.height = canvas.offsetHeight
+    })
+    obs.observe(canvas)
+    return () => obs.disconnect()
+  }, [])
+
+  // ── Sync new reps from hook → store ───────────────────────────────────
+  useEffect(() => {
+    if (activeLastRepTs !== null) {
+      addRep(exerciseRef.current)
+      const newCount = (useWorkoutStore.getState().repCounts[exerciseRef.current] ?? 0) + 1
+      const msg = getMilestoneMessage(newCount)
+      if (msg) {
+        if (milestoneClearRef.current) clearTimeout(milestoneClearRef.current)
+        setMilestoneMsg(msg)
+        milestoneClearRef.current = setTimeout(() => setMilestoneMsg(null), 2500)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLastRepTs])
+
+  // ── Voice feedback — speak newest suggestion via OpenAI TTS ──────────
+  useEffect(() => {
+    if (!suggestions.length || voiceMuted) return
+    const newest = suggestions[0]
+    if (newest.timestamp > lastSpokenRef.current) {
+      lastSpokenRef.current = newest.timestamp
+      void speakWithOpenAI(newest.text)
+    }
+  }, [suggestions, voiceMuted])
+
+  // ── Auto-scroll transcript to top on new suggestion ─────────────────────
+  useEffect(() => {
+    if (transcriptRef.current) transcriptRef.current.scrollTop = 0
+  }, [suggestions])
+
+  // ── Auto-fire warmup modal at 60 s (once per session) ─────────────────
+  useEffect(() => {
+    if (phase !== 'warmup' || showModal || warmupModalFiredRef.current) return
+    if (elapsed < 60) return
+    warmupModalFiredRef.current = true
+    handleEndWarmup()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsed, phase, showModal])
+
+  // ── Rotating coaching suggestions every 10 s (only when no API key) ───
+  useEffect(() => {
+    if (hasApiKey()) return   // OpenAI handles coaching — don't override with canned suggestions
+    const id = setInterval(() => {
+      const idx = demoSugIdxRef.current % DEMO_SUGGESTIONS.length
+      demoSugIdxRef.current++
+      updateAnalysis({
+        riskScore:        0,
+        suggestions:      [DEMO_SUGGESTIONS[idx]],
+        safetyConcerns:   [],
+        repCountEstimate: 0,
+        dominantIssue:    null,
+        warmupQuality:    phaseRef.current === 'warmup' ? 74 : null,
+      })
+    }, 10000)
+    return () => clearInterval(id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Keep isTrackingRef in sync so API interval doesn't need it as a dep ─
+  useEffect(() => { isTrackingRef.current = isTracking }, [isTracking])
+
+  // ── Live risk from pose landmarks (runs every frame) ──────────────────
+  useEffect(() => {
+    if (!landmarks || !isTracking) return
+
+    const localScore = computeAlignmentRisk(landmarks, exerciseRef.current)
+    const aiScore = aiRiskRef.current
+    const blended = aiScore !== null
+      ? Math.round(aiScore * 0.6 + localScore * 0.4)
+      : localScore
+    updateAnalysis({
+      riskScore:        blended,
+      suggestions:      [],
+      safetyConcerns:   blended >= 70 ? ['High injury risk — check your form'] : [],
+      repCountEstimate: 0,
+      dominantIssue:    null,
+      warmupQuality:    null,
+    })
+
+    // ── Fatigue detection (main phase only) ───────────────────────────
+    if (phaseRef.current === 'main' && blended > 0) {
+      sessionRiskLog.current.push(blended)
+      logExerciseRisk(exerciseRef.current, blended)
+      const log = sessionRiskLog.current
+      // Need at least 50 samples (≈5-6 s at 30fps with EMA) before evaluating
+      if (log.length >= 50) {
+        const baselineAvg = log.slice(0, 20).reduce((a, b) => a + b, 0) / 20
+        const recentAvg   = log.slice(-15).reduce((a, b) => a + b, 0)  / 15
+        const degradation = recentAvg - baselineAvg
+        if (degradation >= 22 && recentAvg >= 40) {
+          setFatigueWarning(
+            `Form has dropped ${Math.round(degradation)} points since you started this set. Consider resting.`
+          )
+        } else if (degradation < 10) {
+          setFatigueWarning(null)
+        }
+      }
+    }
+
+    // ── Bilateral asymmetry ───────────────────────────────────────────
+    setAsymmetry(computeAsymmetry(landmarks, exerciseRef.current))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [landmarks, isTracking])
+
+  // ── API risk + suggestions: first at 8 s, then every 30 s ────────────
+  useEffect(() => {
+    if (!hasApiKey()) return
+    const callApi = async () => {
+      if (!isTrackingRef.current || analyzingRef.current) return
+      const frames = getBestFrames(3, exerciseRef.current)
+      if (!frames.length) return
+      analyzingRef.current = true
+      try {
+        const result = await analyzeForm({
+          frames,
+          exercise:       exerciseRef.current,
+          repCount:       repCountRef.current,
+          userProfile,
+          phase:          phaseRef.current === 'warmup' ? 'warmup' : 'main',
+          referenceFrame: referenceFrameRef.current,
+        })
+        aiRiskRef.current = result.riskScore
+        if (result.suggestions.length > 0) {
+          updateAnalysis({
+            riskScore:        result.riskScore,
+            suggestions:      result.suggestions,
+            safetyConcerns:   result.safetyConcerns,
+            repCountEstimate: 0,
+            dominantIssue:    result.dominantIssue,
+            warmupQuality:    result.warmupQuality,
+          })
+        }
+      } catch { /* keep using local score */ } finally {
+        analyzingRef.current = false
+      }
+    }
+    const firstTimer = setTimeout(callApi, 5_000)
+    const interval   = setInterval(callApi, 15_000)
+    return () => { clearTimeout(firstTimer); clearInterval(interval) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getBestFrames])
+
+  // ── Derived ────────────────────────────────────────────────────────────
+  // Smooth over last 8 frames to reduce jitter
+  const latestRisk = riskScores.length
+    ? Math.round(riskScores.slice(-8).reduce((a, b) => a + b, 0) / Math.min(riskScores.length, 8))
+    : 0
+  const latestSuggestions = suggestions.slice(0, 3)
+  const totalReps         = Object.values(repCounts).reduce((a, b) => a + b, 0)
+
+  // ── Handlers ──────────────────────────────────────────────────────────
+
+  const handleEndWarmup = useCallback(() => {
+    const avg = riskScores.length
+      ? riskScores.reduce((a, b) => a + b, 0) / riskScores.length
+      : 50
+    setWarmupScore(Math.round(Math.max(0, Math.min(100, 100 - avg))))
+    setShowModal(true)
+  }, [riskScores, setWarmupScore])
+
+  const handleContinueWarmup = useCallback(() => setShowModal(false), [])
+
+  const handleStartWorkout = useCallback(() => {
+    setShowModal(false)
+    setPhase('main')
+    // Restore the program's exercise now that warmup restrictions are lifted
+    const prog = getActiveProgram()
+    if (prog) {
+      const ex = prog.exercises[prog.currentIndex]
+      if (ex && EXERCISES.includes(ex)) {
+        setExercise(ex)
+        resetExerciseReps(ex)
+      }
+    }
+  }, [setPhase, setExercise, resetExerciseReps])
+
+  const handleEndWorkout = useCallback(async () => {
+    setPhase('cooldown')
+    setLoadingCooldown(true)
+    setCooldownIdx(0)
+
+    let profileData: Record<string, unknown> = {}
+    try {
+      const raw = localStorage.getItem('formAI_profile')
+      if (raw) profileData = JSON.parse(raw) as Record<string, unknown>
+    } catch { /* ignore */ }
+
+    const fullProfile: UserProfile = {
+      uid: '',
+      email: '',
+      displayName: String(profileData.name ?? ''),
+      age: Number(profileData.age) || 25,
+      weightKg: Number(profileData.weight) || 70,
+      heightCm: Number(profileData.height) || 170,
+      biologicalSex: (profileData.biologicalSex as UserProfile['biologicalSex']) ?? 'other',
+      fitnessLevel: (profileData.fitnessLevel as UserProfile['fitnessLevel']) ?? 'intermediate',
+      createdAt: new Date(),
+      streakCount: 0,
+      lastWorkoutDate: null,
+    }
+
+    const exercises: CooldownExercise[] = await generateCooldown(
+      { exercises: Object.keys(repCounts), repCounts },
+      fullProfile,
+    )
+
+    const fallback: CooldownExercise[] = [
+      { name: 'Standing quad stretch', durationSeconds: 30, targetMuscles: ['quads'], instruction: 'Stand on one leg, pull the other foot to your glutes. Hold and switch.' },
+      { name: 'Seated hamstring stretch', durationSeconds: 40, targetMuscles: ['hamstrings'], instruction: 'Sit on the floor, legs straight, reach toward your toes. Keep your back flat.' },
+      { name: 'Child\'s pose', durationSeconds: 45, targetMuscles: ['back', 'shoulders'], instruction: 'Kneel and sit back on your heels, stretch arms forward on the floor. Breathe deeply.' },
+      { name: 'Cross-body shoulder stretch', durationSeconds: 30, targetMuscles: ['shoulders'], instruction: 'Pull one arm across your chest with the opposite hand. Hold then switch.' },
+    ]
+
+    const final = exercises.length > 0 ? exercises : fallback
+    setCooldownExercises(final)
+    setCooldownTimeLeft(final[0].durationSeconds)
+    setLoadingCooldown(false)
+  }, [setPhase, repCounts, setCooldownExercises])
+
+  // Keep ref current so the auto-advance effect can call it before declaration
+  useEffect(() => { handleEndWorkoutRef.current = handleEndWorkout }, [handleEndWorkout])
+
+  // ── Cooldown timer ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'cooldown' || loadingCooldown || cooldownExercises.length === 0) return
+    if (cooldownIdx >= cooldownExercises.length) return
+
+    const id = setInterval(() => {
+      setCooldownTimeLeft(t => Math.max(0, t - 1))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [phase, loadingCooldown, cooldownExercises, cooldownIdx])
+
+  // ── Auto-advance when timer hits 0 ─────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'cooldown' || loadingCooldown || cooldownExercises.length === 0) return
+    if (cooldownTimeLeft !== 0) return
+    if (cooldownIdx >= cooldownExercises.length) return
+
+    const next = cooldownIdx + 1
+    if (next >= cooldownExercises.length) {
+      setCooldownCompleted(true)
+      endSession()
+      navigate('/session-summary')
+    } else {
+      setCooldownIdx(next)
+      setCooldownTimeLeft(cooldownExercises[next].durationSeconds)
+    }
+  }, [cooldownTimeLeft, phase, loadingCooldown, cooldownExercises, cooldownIdx, setCooldownCompleted, endSession, navigate])
+
+  // ── Cooldown screen ────────────────────────────────────────────────────
+  if (phase === 'cooldown') {
+    const currentEx = cooldownExercises[cooldownIdx] ?? null
+
+    return (
+      <div className="min-h-screen bg-page flex flex-col items-center justify-center p-6 text-white">
+        <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-green-400 mb-2">Cooldown</p>
+        <h1 className="text-2xl font-black tracking-tight mb-1">Nice work — cool down now</h1>
+        <p className="text-gray-500 text-sm mb-10">Follow each stretch at a gentle pace</p>
+
+        {loadingCooldown ? (
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-10 h-10 border-2 border-green-600/30 border-t-green-500 rounded-full animate-spin" />
+            <p className="text-gray-500 text-sm">Generating your cooldown…</p>
+          </div>
+        ) : currentEx ? (
+          <div className="w-full max-w-md">
+            {/* Progress dots */}
+            <div className="flex justify-center gap-2 mb-8">
+              {cooldownExercises.map((_, i) => (
+                <div
+                  key={i}
+                  className="w-2 h-2 rounded-full transition-all"
+                  style={{
+                    background: i < cooldownIdx ? '#22c55e' : i === cooldownIdx ? '#86efac' : '#1e1e2e',
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Current exercise card */}
+            <div
+              className="card-surface p-8 text-center mb-6"
+              style={{ borderColor: 'rgba(34,197,94,0.25)' }}
+            >
+              <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-gray-500 mb-3">
+                {cooldownIdx + 1} of {cooldownExercises.length}
+              </p>
+              <h2 className="text-2xl font-black text-white mb-2">{currentEx.name}</h2>
+              <p className="text-gray-400 text-sm leading-relaxed mb-6">{currentEx.instruction}</p>
+
+              {/* Timer circle */}
+              <div className="flex justify-center mb-6">
+                <div className="relative w-24 h-24">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 96 96">
+                    <circle cx={48} cy={48} r={40} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={6} />
+                    <circle
+                      cx={48} cy={48} r={40}
+                      fill="none"
+                      stroke="#22c55e"
+                      strokeWidth={6}
+                      strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 40}
+                      strokeDashoffset={2 * Math.PI * 40 * (1 - cooldownTimeLeft / (currentEx.durationSeconds || 1))}
+                      style={{ transition: 'stroke-dashoffset 0.9s linear' }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="font-mono text-2xl font-black text-green-400">{cooldownTimeLeft}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {currentEx.targetMuscles.map(m => (
+                  <span key={m} className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-green-500/10 text-green-400 border border-green-500/20 capitalize">
+                    {m}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  const next = cooldownIdx + 1
+                  if (next >= cooldownExercises.length) {
+                    setCooldownCompleted(true)
+                    endSession()
+                    navigate('/session-summary')
+                  } else {
+                    setCooldownIdx(next)
+                    setCooldownTimeLeft(cooldownExercises[next].durationSeconds)
+                  }
+                }}
+                className="flex-1 py-3 rounded-xl border border-strong text-gray-400 font-semibold text-sm hover:border-gray-500 hover:text-gray-200 transition-all"
+              >
+                Skip →
+              </button>
+              <button
+                onClick={() => {
+                  setCooldownCompleted(true)
+                  endSession()
+                  navigate('/session-summary')
+                }}
+                className="flex-1 py-3 rounded-xl font-semibold text-sm text-green-400 transition-all"
+                style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)' }}
+              >
+                Finish early
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  // ── Camera error screen ────────────────────────────────────────────────
+  if (cameraError && !cameraStarted) {
+    const isPermissionError = cameraError.toLowerCase().includes('denied') || cameraError.toLowerCase().includes('allowed') || cameraError.toLowerCase().includes('permission')
+    const isInUseError = cameraError.toLowerCase().includes('use') || cameraError.toLowerCase().includes('readable')
+    return (
+      <div className="min-h-screen bg-page flex items-center justify-center p-6">
+        <div className="card-surface p-8 max-w-[400px] text-center space-y-5">
+          <div className="text-5xl">📷</div>
+          <div>
+            <h2 className="text-[18px] font-bold text-white mb-2">Camera Required</h2>
+            <p className="text-gray-400 text-[13px] leading-relaxed">{cameraError}</p>
+          </div>
+          {isPermissionError && (
+            <div className="text-left rounded-xl p-4 space-y-2"
+              style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-blue-400">How to fix</p>
+              <ul className="text-[12px] text-gray-400 space-y-1.5 list-disc list-inside">
+                <li>iOS Safari: Settings → Safari → Camera → Allow</li>
+                <li>Chrome: tap the 🔒 icon in address bar → Camera → Allow</li>
+                <li>Then tap "Try Again" below</li>
+              </ul>
+            </div>
+          )}
+          {isInUseError && (
+            <p className="text-[12px] text-amber-400">
+              Close FaceTime, Snapchat, or any other app using your camera, then try again.
+            </p>
+          )}
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => startCamera('user')}
+              className="w-full py-3 bg-blue-600 rounded-xl font-semibold text-white hover:bg-blue-500 transition-colors"
+            >
+              Try Front Camera
+            </button>
+            <button
+              onClick={() => startCamera('environment')}
+              className="w-full py-3 rounded-xl font-semibold text-gray-400 hover:text-white transition-colors"
+              style={{ border: '1px solid var(--border)' }}
+            >
+              Try Back Camera
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Main render ────────────────────────────────────────────────────────
+  return (
+    <>
+      {/* Inline keyframes */}
+      <style>{`
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .suggestion-enter { animation: slideDown 0.25s ease forwards; }
+        @keyframes repPulse {
+          0%   { transform: scale(1);    opacity: 1; }
+          30%  { transform: scale(1.18); opacity: 0.9; }
+          100% { transform: scale(1);    opacity: 1; }
+        }
+        .rep-pulse { animation: repPulse 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        @keyframes milestoneIn {
+          0%   { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.92); }
+          60%  { opacity: 1; transform: translateX(-50%) translateY(-4px) scale(1.04); }
+          100% { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1); }
+        }
+        @keyframes milestoneOut {
+          from { opacity: 1; transform: translateX(-50%) scale(1); }
+          to   { opacity: 0; transform: translateX(-50%) scale(0.9); }
+        }
+        .milestone-enter { animation: milestoneIn 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+      `}</style>
+
+      {/* Milestone motivation overlay */}
+      {milestoneMsg && (
+        <div
+          className="milestone-enter fixed z-50 pointer-events-none"
+          style={{ bottom: '8rem', left: '50%' }}
+        >
+          <div
+            className="px-6 py-3 rounded-2xl text-white font-black text-[16px] text-center whitespace-nowrap"
+            style={{
+              background: 'linear-gradient(135deg, rgba(59,130,246,0.95), rgba(139,92,246,0.95))',
+              boxShadow: '0 0 32px rgba(59,130,246,0.6), 0 4px 20px rgba(0,0,0,0.5)',
+              border: '1px solid rgba(255,255,255,0.15)',
+            }}
+          >
+            {milestoneMsg}
+          </div>
+        </div>
+      )}
+
+      {/* Warmup score modal */}
+      {showModal && warmupScore !== null && (
+        <WarmupScoreModal
+          score={warmupScore}
+          onContinueWarmup={handleContinueWarmup}
+          onStartWorkout={handleStartWorkout}
+        />
+      )}
+
+      {/* Guest banner */}
+      {localStorage.getItem('formAI_guest') === 'true' && (
+        <div className="fixed top-0 left-0 right-0 z-40 bg-amber-500/90 backdrop-blur text-black text-center py-2 text-[12px] font-bold">
+          Guest mode — <Link to="/auth" className="underline">Create a free account</Link> to save your progress
+        </div>
+      )}
+
+      <div className="h-screen bg-page flex flex-col overflow-hidden" style={localStorage.getItem('formAI_guest') === 'true' ? { paddingTop: '2rem' } : undefined}>
+
+        {/* ── HEADER ──────────────────────────────────────────────────── */}
+        <header className="h-14 flex items-center justify-between px-6 bg-panel border-b border-subtle shrink-0">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' }}
+            >
+              <span className="text-white font-black text-[11px]" style={{ letterSpacing: -0.5 }}>IYP</span>
+            </div>
+            <span className="font-black text-white text-[14px] tracking-tight">IntoYourPrime</span>
+            <div className="w-px h-4 bg-panel-2" />
+            <span
+              className="text-[11px] font-bold tracking-[0.13em] uppercase"
+              style={{ color: '#3b82f6' }}
+            >
+              {phase === 'warmup' ? 'Warm-Up Phase' : 'Main Workout'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-5">
+            <span className="text-[13px] font-mono text-gray-500">
+              <span className="text-white font-bold">{fmt(elapsed)}</span>
+            </span>
+            <button
+              onClick={phase === 'main' ? handleEndWorkout : handleEndWarmup}
+              className="px-4 py-1.5 border border-red-500/60 text-red-400 text-[12px] font-semibold rounded-lg hover:bg-red-500/10 transition-all"
+            >
+              {phase === 'main' ? 'End Workout' : 'End Warmup'}
+            </button>
+          </div>
+        </header>
+
+        {/* Program pending banner during warmup */}
+        {phase === 'warmup' && activeProgram && (
+          <div className="shrink-0 mx-4 mt-3 px-4 py-2.5 rounded-xl flex items-center gap-3"
+            style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)' }}>
+            <span className="text-[18px] shrink-0">🏋️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">Program queued</p>
+              <p className="text-[12px] text-gray-300 truncate">
+                <span className="font-semibold text-white">{activeProgram.name}</span>
+                {' '}— starts after you complete your warmup
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── THREE COLUMNS ───────────────────────────────────────────── */}
+        <div className="flex-1 flex overflow-hidden min-h-0">
+
+          {/* ── LEFT PANEL ───────────────────────────────────────────── */}
+          <aside
+            className={[
+              'shrink-0 flex flex-col gap-3 border-r border-subtle overflow-y-auto',
+              wideCameraLayout ? 'p-3' : 'p-4',
+              wideCameraLayout ? 'w-[min(13.5rem,22vw)]' : 'w-[30%]',
+            ].join(' ')}
+          >
+
+            {/* Program mode banner */}
+            {activeProgram && (
+              <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/8 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black uppercase tracking-wider text-blue-400">Program</p>
+                  <button
+                    type="button"
+                    onClick={() => { clearActiveProgram(); setActiveProgramState(null) }}
+                    className="text-[9px] text-gray-600 hover:text-red-400 transition-colors"
+                  >
+                    ✕ exit
+                  </button>
+                </div>
+                <p className="text-[11px] font-bold text-white truncate">{activeProgram.name}</p>
+                {/* Progress dots */}
+                <div className="flex gap-1">
+                  {activeProgram.exercises.map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-1 flex-1 rounded-full transition-colors"
+                      style={{
+                        background: i < activeProgram.currentIndex ? '#22c55e'
+                          : i === activeProgram.currentIndex ? '#3b82f6'
+                          : 'rgba(255,255,255,0.08)'
+                      }}
+                    />
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-500">
+                  {activeProgram.currentIndex + 1}/{activeProgram.exercises.length}
+                  {activeProgram.currentIndex + 1 < activeProgram.exercises.length && (
+                    <> · next: <span className="text-gray-400">{EXERCISE_LABELS[activeProgram.exercises[activeProgram.currentIndex + 1] as typeof EXERCISES[number]] ?? activeProgram.exercises[activeProgram.currentIndex + 1]}</span></>
+                  )}
+                </p>
+                {activeProgram.currentIndex + 1 < activeProgram.exercises.length ? (
+                  <button
+                    type="button"
+                    onClick={handleNextProgramExercise}
+                    className="w-full py-1.5 rounded-lg bg-accent hover:bg-accent/90 text-[11px] font-bold text-white transition-colors"
+                  >
+                    Next Exercise →
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { clearActiveProgram(); setActiveProgramState(null); void handleEndWorkout() }}
+                    className="w-full py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-[11px] font-bold text-white transition-colors"
+                  >
+                    ✓ Program Complete — Cool Down
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Exercise picker */}
+            <div className="card-surface p-4">
+              <label className="block text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2">
+                Exercise
+              </label>
+
+              {/* Collapsed: show current exercise, click to open */}
+              <button
+                onClick={() => { setShowExPicker(v => !v); setExSearch(''); }}
+                className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-left transition-colors"
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}
+              >
+                <span className="text-[14px] font-bold text-white">
+                  {EXERCISE_LABELS[currentExercise] ?? currentExercise}
+                </span>
+                <span className="text-gray-500 text-[11px]">{showExPicker ? '▲ close' : '▼ change'}</span>
+              </button>
+
+              {/* Expanded picker */}
+              {showExPicker && (
+                <div className="mt-3 space-y-3">
+                  {/* Warmup restriction notice */}
+                  {phase === 'warmup' && (
+                    <p className="text-[11px] text-amber-500/80 px-1">
+                      Warm-up mode — showing mobility & cardio only. Heavy lifts unlock after you start your workout.
+                    </p>
+                  )}
+                  {/* Search */}
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Search exercises…"
+                    value={exSearch}
+                    onChange={e => setExSearch(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-[13px] text-white placeholder-gray-600 outline-none"
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border-2)' }}
+                  />
+
+                  {/* Category tabs */}
+                  <div className="flex gap-1.5 flex-wrap">
+                    {CATEGORY_TABS.map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => setExCategory(cat)}
+                        className="px-3 py-1 rounded-full text-[11px] font-semibold transition-colors"
+                        style={exCategory === cat
+                          ? { background: '#3b82f6', color: '#fff' }
+                          : { background: 'var(--surface-2)', color: 'var(--text-3)' }
+                        }
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Exercise grid */}
+                  <div className="grid grid-cols-2 gap-1.5 max-h-52 overflow-y-auto pr-0.5">
+                    {filteredExercises.length === 0 ? (
+                      <p className="col-span-2 text-center text-[12px] text-gray-600 py-4">No exercises match</p>
+                    ) : filteredExercises.map(ex => (
+                      <div key={ex} className="flex rounded-lg overflow-hidden"
+                        style={currentExercise === ex
+                          ? { border: '1px solid #3b82f6' }
+                          : { border: '1px solid var(--border)' }
+                        }
+                      >
+                        {/* Select button */}
+                        <button
+                          onClick={() => { setExercise(ex); setShowExPicker(false); setExSearch(''); setExCategory('All'); setPreviewEx(null); }}
+                          className="flex-1 px-2.5 py-2 text-left text-[12px] font-semibold transition-colors"
+                          style={currentExercise === ex
+                            ? { background: '#1d4ed8', color: '#fff' }
+                            : { background: 'var(--surface)', color: 'var(--text-2)' }
+                          }
+                        >
+                          <span className="block truncate">{EXERCISE_LABELS[ex]}</span>
+                          {EXERCISE_INFO.find(e => e.id === ex)?.isNew && (
+                            <span className="text-[9px] font-black text-emerald-400 leading-none">NEW</span>
+                          )}
+                        </button>
+                        {/* Info icon */}
+                        <button
+                          className="px-2 flex items-center justify-center shrink-0 transition-colors"
+                          style={{ background: currentExercise === ex ? '#1e40af' : '#161624', color: previewEx === ex ? '#60a5fa' : '#4b5563' }}
+                          onMouseEnter={(e) => {
+                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                            setPreviewEx(ex)
+                            setPreviewAnchor({ top: rect.top, left: rect.right + 10 })
+                          }}
+                          onMouseLeave={() => setPreviewEx(null)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (previewEx === ex) { setPreviewEx(null); return }
+                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                            setPreviewEx(ex)
+                            setPreviewAnchor({ top: rect.top, left: rect.right + 10 })
+                          }}
+                          title="Preview exercise"
+                        >
+                          <span className="text-[11px]">ℹ</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Weight input */}
+            {phase === 'main' && (
+              <div className="card-surface px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500">Weight Used</p>
+                  <p className="text-[11px] text-gray-600 mt-0.5">kg · optional</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const cur = exerciseWeights[currentExercise] ?? 0
+                      if (cur > 0) setExerciseWeight(currentExercise, Math.max(0, cur - 2.5))
+                    }}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-[16px] font-bold text-gray-400 hover:text-white transition-colors"
+                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}
+                  >−</button>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={exerciseWeights[currentExercise] !== undefined ? exerciseWeights[currentExercise] : ''}
+                    placeholder="0"
+                    onChange={e => {
+                      const v = parseFloat(e.target.value)
+                      setExerciseWeight(currentExercise, Number.isNaN(v) ? 0 : v)
+                    }}
+                    className="w-16 text-center rounded-lg py-1.5 text-[15px] font-bold text-white outline-none"
+                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}
+                  />
+                  <button
+                    onClick={() => setExerciseWeight(currentExercise, (exerciseWeights[currentExercise] ?? 0) + 2.5)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-[16px] font-bold text-gray-400 hover:text-white transition-colors"
+                    style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)' }}
+                  >+</button>
+                  <span className="text-[11px] text-gray-600">kg</span>
+                </div>
+              </div>
+            )}
+
+            {/* Rep counter / Hold timer */}
+            <div className="card-surface p-5 flex flex-col items-center">
+              {isHoldExercise ? (
+                <>
+                  <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2">
+                    Hold Time
+                  </span>
+                  <div className="flex items-end gap-1 leading-none">
+                    <div
+                      className="font-black select-none"
+                      style={{
+                        fontSize: 72,
+                        letterSpacing: -3,
+                        display: 'inline-block',
+                        lineHeight: 1,
+                        color: isInPosition ? '#22c55e' : '#374151',
+                        transition: 'color 0.3s ease',
+                      }}
+                    >
+                      {fmt(holdSeconds)}
+                    </div>
+                    {activeProgram && phase === 'main' && (
+                      <span className="text-[16px] font-black text-gray-600 mb-1.5">
+                        /{fmt(activeProgram.targetHoldSecs)}
+                      </span>
+                    )}
+                  </div>
+                  {activeProgram && phase === 'main' && (
+                    <div className="w-full mt-2 h-1.5 rounded-full bg-white/8 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-1000"
+                        style={{
+                          width: `${Math.min(100, (holdSeconds / activeProgram.targetHoldSecs) * 100)}%`,
+                          background: holdSeconds >= activeProgram.targetHoldSecs ? '#22c55e' : '#3b82f6',
+                        }}
+                      />
+                    </div>
+                  )}
+                  <span className="text-[11px] text-gray-600 mt-1">
+                    {EXERCISE_LABELS[currentExercise] ?? currentExercise}
+                  </span>
+                  <div className="mt-3 flex items-center gap-2">
+                    <div
+                      className="w-2 h-2 rounded-full transition-colors duration-300"
+                      style={{
+                        background: isInPosition ? '#22c55e' : '#374151',
+                        boxShadow: isInPosition ? '0 0 6px #22c55e' : 'none',
+                      }}
+                    />
+                    <span
+                      className="text-[11px] font-semibold transition-colors duration-300"
+                      style={{ color: isInPosition ? '#22c55e' : '#6b7280' }}
+                    >
+                      {isInPosition ? 'In position' : 'Get in position'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2">
+                    {activeProgram && phase === 'main' ? 'Reps' : 'Current Reps'}
+                  </span>
+                  <div className="flex items-end gap-1 leading-none">
+                    <div
+                      key={activeLastRepTs ?? 0}
+                      className="font-black select-none text-white rep-pulse"
+                      style={{ fontSize: 84, letterSpacing: -4, display: 'inline-block', lineHeight: 1 }}
+                    >
+                      {String(repCounts[currentExercise] ?? 0).padStart(2, '0')}
+                    </div>
+                    {activeProgram && phase === 'main' && !isHoldExercise && (
+                      <span className="text-[22px] font-black text-gray-600 mb-2">
+                        /{activeProgram.targetReps}
+                      </span>
+                    )}
+                  </div>
+                  {activeProgram && phase === 'main' && !isHoldExercise && (
+                    <div className="w-full mt-2 h-1.5 rounded-full bg-white/8 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, ((repCounts[currentExercise] ?? 0) / activeProgram.targetReps) * 100)}%`,
+                          background: (repCounts[currentExercise] ?? 0) >= activeProgram.targetReps ? '#22c55e' : '#3b82f6',
+                        }}
+                      />
+                    </div>
+                  )}
+                  <span className="text-[11px] text-gray-600 mt-1">{EXERCISE_LABELS[currentExercise] ?? currentExercise}</span>
+
+                  {EXERCISE_INFO.find(e => e.id === currentExercise)?.isLimitedTracking && (
+                    <div className="mt-2 px-3 py-1.5 rounded-lg text-[11px] text-amber-400 border border-amber-500/25 bg-amber-500/8 flex items-center gap-1.5">
+                      <span>⚠</span>
+                      <span>Rep counting limited from front camera for this exercise</span>
+                    </div>
+                  )}
+
+                  {/* Per-side counts for unilateral exercises */}
+                  {(['bicepcurl','hammercurl','lunge','sidelunge','donkeykick','firehydrant',
+                     'flutterKick','reverseLunge','curtsylunge','stepup','bulgariansplitsquat',
+                     'concentrationcurl','zottmancurl'].includes(currentExercise)) && (
+                    <div className="mt-3 flex items-center gap-4">
+                      {(['left', 'right'] as const).map(side => (
+                        <div key={side} className="flex flex-col items-center" style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '6px 14px', border: '1px solid var(--border)' }}>
+                          <span className="text-[9px] font-bold tracking-widest uppercase text-gray-600 mb-0.5">{side}</span>
+                          <span className="text-[22px] font-black leading-none text-white">{String(armReps[side]).padStart(2, '0')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Movement phase indicator */}
+                  {activeIsCalibrating ? (
+                    <p className="mt-3 text-[11px] text-amber-500 animate-pulse">Calibrating…</p>
+                  ) : isBurpee ? (
+                    <BurpeePhaseIndicator phase={burpeePhase} />
+                  ) : movementPhase === 'unknown' ? (
+                    <p className="mt-3 text-[11px] text-blue-400 animate-pulse">Move to start tracking</p>
+                  ) : (
+                    <div className="mt-3 flex items-center gap-2">
+                      <div
+                        className="w-2 h-2 rounded-full transition-colors duration-200"
+                        style={{
+                          background: movementPhase === 'down' ? '#3b82f6'
+                                    : movementPhase === 'up'   ? '#22c55e'
+                                    : '#374151',
+                          boxShadow: `0 0 6px ${movementPhase === 'down' ? '#3b82f6' : '#22c55e'}`,
+                        }}
+                      />
+                      <span className="text-[11px] text-gray-500 capitalize">{movementPhase}</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Set counter */}
+            <div className="card-surface p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500">
+                  Sets
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNewSet}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-green-400 border border-green-500/30 hover:border-green-400/50 hover:bg-green-500/10 transition-colors"
+                >
+                  + New Set
+                </button>
+              </div>
+              <div className="font-black text-white leading-none" style={{ fontSize: 48, letterSpacing: -2 }}>
+                {String(setCount).padStart(2, '0')}
+              </div>
+              {setLog.length > 0 && (
+                <div className="mt-2 space-y-1 max-h-20 overflow-y-auto">
+                  {[...setLog].reverse().map(s => (
+                    <div key={s.setNum} className="flex justify-between text-[11px]">
+                      <span className="text-gray-600">Set {s.setNum} · <span className="capitalize">{s.exercise}</span></span>
+                      <span className="font-mono font-bold text-gray-400">
+                        {HOLD_EXERCISES.includes(s.exercise) ? `${s.reps}s` : `${s.reps} reps`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="mt-2 text-[10px] text-gray-700">Press <kbd className="px-1 rounded bg-white/10 font-mono">S</kbd> or <kbd className="px-1 rounded bg-white/10 font-mono">Space</kbd></p>
+            </div>
+
+            {/* Rest timer */}
+            <div className="card-surface p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500">Rest</span>
+                <div className="flex items-center gap-1">
+                  {([30, 60, 90] as const).map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setRestDuration(d)}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors"
+                      style={restDuration === d
+                        ? { background: 'rgba(59,130,246,0.2)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.4)' }
+                        : { background: 'transparent', color: '#4b5563', border: '1px solid transparent' }
+                      }
+                    >{d}s</button>
+                  ))}
+                </div>
+              </div>
+              {restRemaining !== null ? (
+                <div className="flex items-center justify-between">
+                  <div className="font-mono text-[30px] font-black leading-none"
+                    style={{ color: restRemaining <= 10 ? '#f87171' : '#34d399' }}>
+                    {String(restRemaining).padStart(2, '0')}s
+                  </div>
+                  <button
+                    type="button"
+                    onClick={skipRestTimer}
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-gray-400 border border-gray-700 hover:border-gray-500 transition-colors"
+                  >Skip</button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => startRestTimer(restDuration)}
+                  className="w-full py-1.5 rounded-lg text-[11px] font-bold text-gray-500 border border-dashed border-gray-700 hover:border-gray-500 hover:text-gray-300 transition-colors"
+                >Start rest timer</button>
+              )}
+            </div>
+
+            {/* Phase badge */}
+            <div className="card-surface p-4 flex items-center justify-between">
+              <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500">
+                Phase
+              </span>
+              <span
+                className="px-3 py-1 rounded-full text-[10.5px] font-black tracking-wider uppercase"
+                style={{
+                  background: phase === 'warmup'
+                    ? 'rgba(234,179,8,0.1)' : 'rgba(59,130,246,0.1)',
+                  color: phase === 'warmup' ? '#eab308' : '#3b82f6',
+                  border: phase === 'warmup'
+                    ? '1px solid rgba(234,179,8,0.25)' : '1px solid rgba(59,130,246,0.25)',
+                }}
+              >
+                {phase === 'warmup' ? 'Warmup' : 'Main Workout'}
+              </span>
+            </div>
+
+            {/* Session timer */}
+            <div className="card-surface p-4">
+              <span className="block text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2">
+                Elapsed
+              </span>
+              <div className="font-mono text-[30px] font-black text-white text-glow-blue">
+                {fmt(elapsed)}
+              </div>
+            </div>
+
+            {/* Rep history */}
+            <div className="card-surface p-4 flex-1 flex flex-col min-h-0">
+              <div className="flex items-center justify-between mb-3 shrink-0">
+                <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500">
+                  Session Reps
+                </span>
+                <span className="text-[11px] font-black text-blue-400">{totalReps} total</span>
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                {Object.keys(repCounts).length === 0 ? (
+                  <p className="text-gray-700 text-[12px] text-center py-4">No reps yet</p>
+                ) : (
+                  Object.entries(repCounts).map(([ex, count]) => (
+                    <div
+                      key={ex}
+                      className="flex items-center justify-between p-2.5 rounded-lg bg-panel border border-subtle"
+                    >
+                      <span className="text-[12px] font-semibold text-white">{EXERCISE_LABELS[ex] ?? ex}</span>
+                      <span className="text-blue-400 font-black text-[15px]">{count}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </aside>
+
+          {/* ── CENTER (40%) ───────────────────────────────────────────── */}
+          <main className={`flex-1 flex flex-col min-w-0 overflow-hidden ${wideCameraLayout ? 'p-3' : 'p-4'}`}>
+            <div
+              ref={cameraShellRef}
+              className={[
+                'relative flex-1 overflow-hidden bg-[#050508] min-h-0 shadow-[0_0_0_1px_#1e1e2e]',
+                cameraFullscreen ? 'rounded-none' : 'rounded-xl',
+              ].join(' ')}
+              onWheel={onCameraPreviewWheel}
+            >
+
+              {/* Camera initialising */}
+              {cameraLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#050508] z-10">
+                  <div className="w-10 h-10 border-2 border-blue-600/30 border-t-blue-500 rounded-full animate-spin" />
+                  <span className="text-gray-600 text-[13px]">Initializing camera…</span>
+                </div>
+              )}
+
+              {/* No pose detected overlay */}
+              {!cameraLoading && cameraStarted && !isTracking && (
+                <div className="absolute inset-0 flex items-end justify-center pb-6 pointer-events-none z-10">
+                  <div className="px-4 py-2.5 bg-black/70 backdrop-blur-md rounded-full border border-white/[0.07]">
+                    <span className="text-gray-400 text-[13px]">No pose detected — step into frame</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Reference photo prompt — shown as soon as camera starts */}
+              {!cameraLoading && cameraStarted && !refCaptured && (
+                <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                  <div
+                    className="mx-4 w-full max-w-sm rounded-2xl p-5 text-center pointer-events-auto"
+                    style={{ background: 'rgba(10,10,20,0.88)', border: '1px solid rgba(59,130,246,0.35)', backdropFilter: 'blur(12px)' }}
+                  >
+                    <div className="text-3xl mb-3">📸</div>
+                    <p className="font-black text-white text-[16px] mb-1">Set your reference</p>
+                    <p className="text-gray-400 text-[12px] leading-relaxed mb-4">
+                      Stand in frame so we can identify you. The AI will focus on you even if others walk through.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={captureReferencePhoto}
+                      className="w-full py-3.5 rounded-xl bg-accent hover:bg-accent/90 font-bold text-[15px] text-white transition-colors"
+                      style={{ boxShadow: '0 0 24px rgba(59,130,246,0.4)' }}
+                    >
+                      That's me — capture photo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRefCaptured(true)}
+                      className="mt-2 w-full py-2 text-[12px] text-gray-600 hover:text-gray-400 transition-colors"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Reference captured confirmation — fades after 2s */}
+              {refCaptured && referenceFrameRef.current && (
+                <div className="absolute bottom-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full pointer-events-none"
+                  style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }}>
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  <span className="text-[11px] font-semibold text-green-400">Reference set</span>
+                </div>
+              )}
+
+              {/* Scaled preview (crop to center when zoomed in) */}
+              <div className="absolute inset-0 overflow-hidden">
+                <div
+                  className="absolute inset-0 will-change-transform"
+                  style={{
+                    transform: `scale(${cameraZoom})`,
+                    transformOrigin: 'center center',
+                  }}
+                >
+                  <video
+                    ref={videoRef}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+                    playsInline
+                    muted
+                    autoPlay
+                  />
+                  <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+                </div>
+              </div>
+
+              {/* Display + magnify controls */}
+              {!cameraLoading && cameraStarted && (
+                <>
+                  <div className="absolute right-2 top-2 z-20 flex flex-col gap-1.5">
+                    {/* Camera switch (front/back) */}
+                    <button
+                      type="button"
+                      onClick={() => switchCamera()}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-gray-200 backdrop-blur-md transition hover:bg-white/10"
+                      title={facingMode === 'user' ? 'Switch to back camera' : 'Switch to front camera'}
+                      aria-label="Switch camera"
+                    >
+                      <span className="text-[15px]">🔄</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleCameraFullscreen}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-black/70 text-gray-200 backdrop-blur-md transition hover:bg-white/10"
+                      title={cameraFullscreen ? 'Exit fullscreen' : 'Fullscreen camera'}
+                      aria-label={cameraFullscreen ? 'Exit fullscreen' : 'Fullscreen camera'}
+                    >
+                      {cameraFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWideCameraLayout((w) => !w)}
+                      className={[
+                        'rounded-lg border px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide backdrop-blur-md transition',
+                        wideCameraLayout
+                          ? 'border-blue-500/50 bg-blue-600/30 text-blue-100'
+                          : 'border-white/15 bg-black/70 text-gray-300 hover:bg-white/10',
+                      ].join(' ')}
+                      title="Give the camera column more space (narrow side panels)"
+                    >
+                      {wideCameraLayout ? 'Wide on' : 'Wide view'}
+                    </button>
+                  </div>
+
+                  <div className="absolute bottom-3 left-1/2 z-20 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-col items-center gap-1.5 sm:max-w-none">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-500">
+                      Magnify center (optional)
+                    </span>
+                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/65 px-2 py-1.5 backdrop-blur-md">
+                      <button
+                        type="button"
+                        aria-label="Magnify less"
+                        disabled={cameraZoom <= CAMERA_ZOOM_MIN}
+                        onClick={() => nudgeCameraZoom(-CAMERA_ZOOM_STEP)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-300 transition hover:bg-white/10 disabled:opacity-30"
+                      >
+                        <ZoomOut className="h-4 w-4" />
+                      </button>
+                      <input
+                        type="range"
+                        aria-label="Magnify center"
+                        min={CAMERA_ZOOM_MIN}
+                        max={CAMERA_ZOOM_MAX}
+                        step={CAMERA_ZOOM_STEP}
+                        value={cameraZoom}
+                        onChange={(e) => setCameraZoom(Number(e.target.value))}
+                        className="h-1 w-[72px] cursor-pointer accent-blue-500 sm:w-[120px]"
+                      />
+                      <button
+                        type="button"
+                        aria-label="Magnify more"
+                        disabled={cameraZoom >= CAMERA_ZOOM_MAX}
+                        onClick={() => nudgeCameraZoom(CAMERA_ZOOM_STEP)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-300 transition hover:bg-white/10 disabled:opacity-30"
+                      >
+                        <ZoomIn className="h-4 w-4" />
+                      </button>
+                      <span className="hidden min-w-[2.5rem] pr-0.5 text-center font-mono text-[10px] text-gray-400 sm:inline">
+                        {cameraZoom.toFixed(2)}×
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </main>
+
+          {/* ── RIGHT PANEL ─────────────────────────────────────────────── */}
+          <aside
+            className={[
+              'shrink-0 flex flex-col gap-3 border-l border-subtle overflow-hidden',
+              wideCameraLayout ? 'p-3' : 'p-4',
+              wideCameraLayout ? 'w-[min(13.5rem,22vw)]' : 'w-[30%]',
+            ].join(' ')}
+          >
+
+            {/* Risk gauge */}
+            <div className="card-surface p-5 flex flex-col items-center">
+              <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-3">
+                Injury Risk
+              </span>
+              <RiskGauge score={latestRisk} />
+            </div>
+
+            {/* Fatigue warning banner */}
+            {fatigueWarning && phase === 'main' && (
+              <div
+                className="rounded-xl p-4 shrink-0"
+                style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.35)' }}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                  <span className="text-[10.5px] font-black tracking-wider uppercase text-amber-400">
+                    Fatigue Detected
+                  </span>
+                </div>
+                <p className="text-[12px] text-amber-300 leading-relaxed">{fatigueWarning}</p>
+              </div>
+            )}
+
+            {/* Bilateral asymmetry indicator */}
+            {asymmetry && Math.abs(asymmetry.left - asymmetry.right) >= 10 && phase === 'main' && (
+              <div className="rounded-xl p-4 shrink-0" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 block mb-2.5">
+                  L / R Balance
+                </span>
+                <div className="space-y-1.5">
+                  {(['left', 'right'] as const).map((side) => (
+                    <div key={side} className="flex items-center gap-2">
+                      <span className="text-[10px] font-black w-3" style={{ color: side === 'left' ? '#60a5fa' : '#a78bfa' }}>
+                        {side === 'left' ? 'L' : 'R'}
+                      </span>
+                      <div className="flex-1 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <div
+                          className="h-1.5 rounded-full transition-all duration-300"
+                          style={{
+                            width: `${asymmetry[side]}%`,
+                            background: side === 'left' ? '#3b82f6' : '#7c3aed',
+                          }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-mono text-gray-500 w-5 text-right">{asymmetry[side]}</span>
+                    </div>
+                  ))}
+                </div>
+                {Math.abs(asymmetry.left - asymmetry.right) >= 20 && (
+                  <p className="text-[10.5px] text-amber-400 mt-2">
+                    {asymmetry.left > asymmetry.right ? 'Left' : 'Right'} side dominant
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Safety concern banner */}
+            {safetyConcerns.length > 0 && (
+              <div
+                className="rounded-xl p-4 shrink-0"
+                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.35)' }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+                  <span className="text-[10.5px] font-black tracking-wider uppercase text-red-400">
+                    Safety Alert
+                  </span>
+                </div>
+                {safetyConcerns.map((concern, i) => (
+                  <p key={i} className="text-[12px] text-red-300 leading-relaxed">{concern}</p>
+                ))}
+              </div>
+            )}
+
+            {/* Program rest countdown toast */}
+            {programRestCountdown !== null && activeProgram && (
+              <div className="shrink-0 mb-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.1)' }}>
+                <div className="flex items-center gap-3 p-3">
+                  <span className="text-[22px] font-black text-green-400 leading-none w-6 text-center">{programRestCountdown}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11.5px] font-bold text-green-400">Target reached! Rest up.</p>
+                    <p className="text-[10.5px] text-green-300/70">
+                      {activeProgram.currentIndex + 1 < activeProgram.exercises.length
+                        ? `Next: ${EXERCISE_LABELS[activeProgram.exercises[activeProgram.currentIndex + 1] as typeof EXERCISES[number]] ?? ''}`
+                        : 'Program complete — cooldown next'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* No API key banner */}
+            {!hasApiKey() && !apiKeyBannerDismissed && (phase === 'warmup' || phase === 'main') && (
+              <div className="shrink-0 mb-3 rounded-xl overflow-hidden" style={{ border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.07)' }}>
+                <div className="flex items-start gap-3 p-3">
+                  <span style={{ fontSize: 16, lineHeight: 1, marginTop: 1 }}>⚠️</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11.5px] font-bold text-amber-400 mb-0.5">No API Key</p>
+                    <p className="text-[10.5px] text-amber-300/70 leading-relaxed">
+                      AI coaching is disabled. Add your OpenAI key in&nbsp;
+                      <a href="/profile" className="underline text-amber-400 hover:text-amber-300">Profile</a>
+                      &nbsp;to enable real-time form feedback.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setApiKeyBannerDismissed(true)}
+                    className="text-amber-400/50 hover:text-amber-400 text-[14px] leading-none shrink-0 mt-0.5"
+                    aria-label="Dismiss"
+                  >✕</button>
+                </div>
+              </div>
+            )}
+
+            {/* Coach feedback / suggestions */}
+            <div className="flex-1 flex flex-col min-h-0">
+              <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-3 shrink-0">
+                Coach Feedback
+              </span>
+
+              <div ref={transcriptRef} className="flex-1 overflow-y-auto space-y-2.5 min-h-0">
+                {latestSuggestions.length === 0 ? (
+                  <div className="card-surface p-5 text-center mt-2">
+                    <div className="text-2xl mb-2">🎯</div>
+                    <p className="text-[12px] text-gray-600 leading-relaxed">
+                      Form cues will appear once you start moving.
+                    </p>
+                  </div>
+                ) : (
+                  latestSuggestions.map((entry, i) => (
+                    <div
+                      key={`${entry.timestamp}-${i}`}
+                      className={i === 0 ? 'suggestion-enter' : ''}
+                      style={{
+                        background:      '#13131f',
+                        borderRadius:    10,
+                        border:          '1px solid',
+                        borderColor:     i === 0 ? 'rgba(59,130,246,0.35)' : '#1e1e2e',
+                        borderLeftWidth: i === 0 ? 3 : 1,
+                        borderLeftColor: i === 0 ? '#3b82f6' : '#1e1e2e',
+                        opacity:         i === 0 ? 1 : i === 1 ? 0.62 : 0.35,
+                        padding:         '10px 12px',
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                        <span className="text-[10px] text-gray-600 font-mono">
+                          {new Date(entry.timestamp).toLocaleTimeString([], {
+                            hour: '2-digit', minute: '2-digit', second: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-[12px] text-gray-300 leading-[1.55]">{entry.text}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Exercise GIF */}
+            <div className="shrink-0 mt-3">
+              <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-2 block">
+                Exercise Demo
+              </span>
+              <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--surface)' }}>
+                <img
+                  key={currentExercise}
+                  src={EXERCISE_GIFS[currentExercise]}
+                  alt={EXERCISE_LABELS[currentExercise] ?? currentExercise}
+                  style={{ width: '100%', display: 'block', maxHeight: 320, objectFit: 'contain' }}
+                  loading="lazy"
+                />
+              </div>
+              <p className="text-[9px] text-gray-700 mt-1 text-right leading-tight">
+                GIF via{' '}
+                <a href="https://fitnessprogramer.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-500">fitnessprogramer.com</a>
+                {' '}·{' '}
+                <a href="https://gymvisual.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-500">gymvisual.com</a>
+              </p>
+            </div>
+          </aside>
+        </div>
+
+        {/* ── BOTTOM BAR ──────────────────────────────────────────────── */}
+        <div className="h-16 flex items-center justify-between px-6 bg-panel border-t border-subtle shrink-0">
+
+          {/* Mute toggle */}
+          <button
+            onClick={() => setVoiceMuted(m => { if (!m) cancelTTS(); return !m })}
+            className={[
+              'flex items-center gap-2 px-4 py-2 rounded-lg border text-[12px] font-bold transition-all',
+              voiceMuted
+                ? 'border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:border-blue-400'
+                : 'border-green-500/40 bg-green-500/10 text-green-400 hover:bg-green-500/20',
+            ].join(' ')}
+          >
+            {voiceMuted ? '🔇' : '🔊'}
+            <span>{voiceMuted ? 'Enable Voice' : 'Voice On'}</span>
+          </button>
+
+          {/* Phase CTA */}
+          {phase === 'warmup' ? (
+            <button
+              onClick={handleEndWarmup}
+              className="px-8 py-3 bg-accent hover:bg-accent/90 rounded-xl font-bold text-white text-[14px] btn-glow-blue transition-all"
+            >
+              End Warmup → Start Workout
+            </button>
+          ) : (
+            <button
+              onClick={handleEndWorkout}
+              className="px-8 py-3 rounded-xl font-bold text-white text-[14px] transition-all"
+              style={{
+                background: 'rgba(239,68,68,0.75)',
+                border: '1px solid rgba(239,68,68,0.5)',
+              }}
+            >
+              End Workout
+            </button>
+          )}
+
+          {/* Tracking status */}
+          <div className="flex items-center gap-2">
+            <div
+              className="w-2 h-2 rounded-full transition-all duration-300"
+              style={{
+                background: isTracking ? '#22c55e' : '#374151',
+                boxShadow:  isTracking ? '0 0 6px #22c55e' : 'none',
+              }}
+            />
+            <span className="text-[12px] text-gray-500">
+              {isTracking ? 'Tracking' : 'Not detected'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Exercise preview tooltip ── */}
+      {previewEx && previewAnchor && (() => {
+        const label  = EXERCISE_LABELS[previewEx] ?? previewEx
+        const gif    = EXERCISE_GIFS[previewEx]
+        const info   = EXERCISE_INFO.find(e => e.id === previewEx)
+        const tipW   = 220
+        const left   = previewAnchor.left + tipW > window.innerWidth - 8
+          ? previewAnchor.left - tipW - 20   // flip left if off-screen
+          : previewAnchor.left
+        const top    = Math.min(previewAnchor.top, window.innerHeight - 300)
+        return (
+          <div
+            onMouseEnter={() => { /* keep open while hovering tooltip */ }}
+            onMouseLeave={() => setPreviewEx(null)}
+            style={{
+              position:  'fixed',
+              top,
+              left,
+              width:     tipW,
+              zIndex:    300,
+              background: 'var(--surface)',
+              border:    '1px solid #2a2a42',
+              borderRadius: 12,
+              overflow:  'hidden',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+            }}
+          >
+            {gif ? (
+              <>
+                <img
+                  src={gif}
+                  alt={label}
+                  style={{ width: '100%', maxHeight: 160, objectFit: 'cover', display: 'block' }}
+                  loading="lazy"
+                />
+                <div style={{ padding: '8px 10px 6px' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 2 }}>{label}</p>
+                  <p style={{ fontSize: 9, color: '#4b5563' }}>
+                    Source: <a href="https://commons.wikimedia.org" target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>Wikimedia Commons</a> · CC BY-SA
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div style={{ padding: '10px 12px' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 6 }}>{label}</p>
+                {info?.cues.slice(0, 4).map((cue, i) => (
+                  <p key={i} style={{ fontSize: 10, color: '#9ca3af', marginBottom: 3 }}>· {cue}</p>
+                ))}
+                {!info && <p style={{ fontSize: 10, color: '#6b7280' }}>No preview available</p>}
+              </div>
+            )}
+          </div>
+        )
+      })()}
+    </>
+  )
+}

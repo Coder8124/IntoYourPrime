@@ -1,0 +1,401 @@
+import { useRef, useState, useCallback, useEffect } from 'react'
+import type { RefObject } from 'react'
+import type { NormalizedLandmark, Pose, PoseConfig, Results } from '@mediapipe/pose'
+
+/** Must match `locateFile` CDN version — MediaPipe `pose.js` is not ESM-safe for Vite. */
+const MP_POSE_VERSION = '0.5.1675469404'
+const MP_SCRIPT = `https://cdn.jsdelivr.net/npm/@mediapipe/pose@${MP_POSE_VERSION}/pose.js`
+
+/** Skeleton edges (same as `POSE_CONNECTIONS` in @mediapipe/pose). */
+const POSE_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
+  [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8], [9, 10],
+  [11, 12], [11, 13], [13, 15], [15, 17], [15, 19], [15, 21], [17, 19],
+  [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20], [11, 23],
+  [12, 24], [23, 24], [23, 25], [24, 26], [25, 27], [26, 28], [27, 29],
+  [28, 30], [29, 31], [30, 32], [27, 31], [28, 32],
+]
+
+type PoseGlobal = { Pose: new (config?: PoseConfig) => Pose }
+
+let scriptPromise: Promise<void> | null = null
+
+function ensureMediaPipePoseScript(): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve()
+  const w = window as unknown as Partial<PoseGlobal>
+  if (w.Pose) return Promise.resolve()
+  if (!scriptPromise) {
+    scriptPromise = new Promise((resolve, reject) => {
+      const id = 'mediapipe-pose-script'
+      const existing = document.getElementById(id) as HTMLScriptElement | null
+      if (existing) {
+        if ((existing as HTMLScriptElement & { dataset: { loaded?: string } }).dataset.loaded === '1') {
+          resolve()
+          return
+        }
+        existing.addEventListener('load', () => resolve(), { once: true })
+        existing.addEventListener('error', () => reject(new Error('MediaPipe Pose script failed')), {
+          once: true,
+        })
+        return
+      }
+      const s = document.createElement('script')
+      s.id = id
+      s.src = MP_SCRIPT
+      s.async = true
+      s.onload = () => {
+        ;(s as HTMLScriptElement & { dataset: { loaded?: string } }).dataset.loaded = '1'
+        resolve()
+      }
+      s.onerror = () => reject(new Error('Failed to load MediaPipe Pose'))
+      document.head.appendChild(s)
+    })
+  }
+  return scriptPromise
+}
+
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const BUFFER_SIZE    = 120   // 4 s at 30 fps
+const FRAME_W        = 960
+const FRAME_H        = 720
+const JPEG_QUALITY   = 0.85
+const TRACKING_THRESH = 0.5
+
+// ── Internal frame entry ───────────────────────────────────────────────────
+
+interface FrameEntry {
+  dataUrl:          string
+  confidence:       number
+  /** Shoulders + elbows + wrists — better frame pick for pushups / pressing. */
+  armConfidence:    number
+}
+
+// ── Return type ────────────────────────────────────────────────────────────
+
+export interface UsePoseDetectionReturn {
+  landmarks:    NormalizedLandmark[] | null
+  isTracking:   boolean
+  confidence:   number
+  getBestFrames: (n: number, exercise?: string) => string[]
+  startCamera:  (facing?: 'user' | 'environment') => Promise<void>
+  stopCamera:   () => void
+  switchCamera: () => Promise<void>
+  facingMode:   'user' | 'environment'
+  isLoading:    boolean
+  error:        string | null
+}
+
+function cameraErrorMessage(err: unknown): string {
+  if (err instanceof DOMException) {
+    if (err.name === 'NotAllowedError')
+      return 'Camera access denied. Tap the camera icon in your browser address bar (or go to Settings → Safari/Chrome → Camera) and allow access, then reload.'
+    if (err.name === 'NotFoundError')
+      return 'No camera found on this device.'
+    if (err.name === 'NotReadableError')
+      return 'Camera is in use by another app. Close other apps using the camera and try again.'
+    if (err.name === 'OverconstrainedError')
+      return 'Camera resolution not supported. Try a different browser or device.'
+    if (err.name === 'SecurityError')
+      return 'Camera blocked by browser security policy. Make sure the page is served over HTTPS.'
+  }
+  if (err instanceof Error) return err.message
+  return 'Camera access denied. Please allow camera permissions and reload.'
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function avgVisibility(lms: NormalizedLandmark[]): number {
+  if (!lms.length) return 0
+  return lms.reduce((sum, lm) => sum + (lm.visibility ?? 0), 0) / lms.length
+}
+
+/** Landmarks 11–16: shoulders, elbows, wrists. */
+function armChainVisibility(lms: NormalizedLandmark[]): number {
+  const idx = [11, 12, 13, 14, 15, 16]
+  let sum = 0
+  for (const i of idx) {
+    const p = lms[i]
+    if (!p) return 0
+    sum += p.visibility ?? 0
+  }
+  return sum / idx.length
+}
+
+function connectionColor(conf: number): string {
+  if (conf > 0.7)  return '#22c55e'   // green
+  if (conf >= 0.4) return '#f59e0b'   // amber
+  return '#ef4444'                     // red
+}
+
+// ── Hook ───────────────────────────────────────────────────────────────────
+
+export function usePoseDetection(
+  videoRef: RefObject<HTMLVideoElement | null>,
+  canvasRef: RefObject<HTMLCanvasElement | null>,
+): UsePoseDetectionReturn {
+
+  // ── Refs (never trigger re-render) ──────────────────────────────────────
+  const poseRef         = useRef<Pose | null>(null)
+  const streamRef       = useRef<MediaStream | null>(null)
+  const rafRef          = useRef<number>(0)
+  const processingRef   = useRef(false)
+  const frameBuffer     = useRef<FrameEntry[]>([])
+  const offscreenRef    = useRef<HTMLCanvasElement | null>(null)
+  // stable mutable mirror of state for use inside RAF callbacks
+  const runningRef      = useRef(false)
+
+  // ── State ────────────────────────────────────────────────────────────────
+  const [landmarks,   setLandmarks]  = useState<NormalizedLandmark[] | null>(null)
+  const [isTracking,  setIsTracking] = useState(false)
+  const [confidence,  setConfidence] = useState(0)
+  const [isLoading,   setIsLoading]  = useState(false)
+  const [error,       setError]      = useState<string | null>(null)
+  const [facingMode,  setFacingMode] = useState<'user' | 'environment'>('user')
+
+  // ── Offscreen canvas (frame capture) ────────────────────────────────────
+  const getOffscreen = useCallback((): HTMLCanvasElement => {
+    if (!offscreenRef.current) {
+      const c = document.createElement('canvas')
+      c.width  = FRAME_W
+      c.height = FRAME_H
+      offscreenRef.current = c
+    }
+    return offscreenRef.current
+  }, [])
+
+  const captureFrame = useCallback((): string | null => {
+    const video = videoRef.current
+    if (!video || video.readyState < 2) return null
+    const canvas = getOffscreen()
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(video, 0, 0, FRAME_W, FRAME_H)
+    return canvas.toDataURL('image/jpeg', JPEG_QUALITY)
+  }, [videoRef, getOffscreen])
+
+  // ── Circular buffer ──────────────────────────────────────────────────────
+  const storeFrame = useCallback((dataUrl: string, conf: number, armConf: number) => {
+    frameBuffer.current.push({ dataUrl, confidence: conf, armConfidence: armConf })
+    if (frameBuffer.current.length > BUFFER_SIZE) {
+      frameBuffer.current.shift()
+    }
+  }, [])
+
+  // ── Skeleton drawing ─────────────────────────────────────────────────────
+  const drawSkeleton = useCallback((
+    ctx:    CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    lms:    NormalizedLandmark[],
+  ) => {
+    ctx.save()
+
+    // Mirror transform — feels like looking in a mirror
+    ctx.translate(canvas.width, 0)
+    ctx.scale(-1, 1)
+
+    const px = (x: number) => x * canvas.width
+    const py = (y: number) => y * canvas.height
+
+    // Draw connections
+    for (const [startIdx, endIdx] of POSE_CONNECTIONS) {
+      const a = lms[startIdx]
+      const b = lms[endIdx]
+      if (!a || !b) continue
+
+      const connConf = ((a.visibility ?? 0) + (b.visibility ?? 0)) / 2
+
+      ctx.beginPath()
+      ctx.moveTo(px(a.x), py(a.y))
+      ctx.lineTo(px(b.x), py(b.y))
+      ctx.strokeStyle = connectionColor(connConf)
+      ctx.lineWidth   = 2.5
+      ctx.lineCap     = 'round'
+      ctx.stroke()
+    }
+
+    // Draw landmark dots
+    for (const lm of lms) {
+      const lmConf = lm.visibility ?? 0
+      ctx.beginPath()
+      ctx.arc(px(lm.x), py(lm.y), 4, 0, Math.PI * 2)
+      ctx.fillStyle   = connectionColor(lmConf)
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+      ctx.lineWidth   = 1
+      ctx.stroke()
+    }
+
+    ctx.restore()
+  }, [])
+
+  // ── MediaPipe results handler ────────────────────────────────────────────
+  const onResults = useCallback((results: Results) => {
+    processingRef.current = false
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    if (!results.poseLandmarks) {
+      setLandmarks(null)
+      setIsTracking(false)
+      setConfidence(0)
+      return
+    }
+
+    const lms  = results.poseLandmarks
+    const conf = avgVisibility(lms)
+
+    setLandmarks(lms)
+    setConfidence(conf)
+    setIsTracking(conf > TRACKING_THRESH)
+
+    drawSkeleton(ctx, canvas, lms)
+
+    // Capture & buffer frame
+    const dataUrl = captureFrame()
+    if (dataUrl) storeFrame(dataUrl, conf, armChainVisibility(lms))
+  }, [canvasRef, drawSkeleton, captureFrame, storeFrame])
+
+  // ── Public: getBestFrames ────────────────────────────────────────────────
+  const getBestFrames = useCallback((n: number, exercise?: string): string[] => {
+    const pushup = exercise?.toLowerCase().trim() === 'pushup'
+    return [...frameBuffer.current]
+      .sort((a, b) => {
+        const av = pushup ? a.armConfidence : a.confidence
+        const bv = pushup ? b.armConfidence : b.confidence
+        return bv - av
+      })
+      .slice(0, n)
+      .map((f) => f.dataUrl)
+  }, [])
+
+  // ── Public: stopCamera ───────────────────────────────────────────────────
+  const stopCamera = useCallback(() => {
+    runningRef.current = false
+    cancelAnimationFrame(rafRef.current)
+    processingRef.current = false
+
+    poseRef.current?.close()
+    poseRef.current = null
+
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+
+    setLandmarks(null)
+    setIsTracking(false)
+    setConfidence(0)
+  }, [])
+
+  // ── Public: startCamera ──────────────────────────────────────────────────
+  const startCamera = useCallback(async (facing: 'user' | 'environment' = 'user') => {
+    // Stop any existing session before re-starting
+    stopCamera()
+
+    setIsLoading(true)
+    setError(null)
+    setFacingMode(facing)
+
+    try {
+      // Try ideal constraints first; fall back to minimal on failure
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facing },
+          width: { ideal: 1280, min: 320 },
+          height: { ideal: 720, min: 240 },
+        },
+        audio: false,
+      }).catch(() =>
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing },
+          audio: false,
+        })
+      )
+      streamRef.current = stream
+
+      const video = videoRef.current
+      if (!video) throw new Error('Video element is not mounted')
+
+      video.srcObject = stream
+      video.setAttribute('playsinline', 'true')
+      video.setAttribute('muted', 'true')
+      video.muted = true
+      await video.play()
+
+      await ensureMediaPipePoseScript()
+      const { Pose: PoseCtor } = window as unknown as PoseGlobal
+
+      // Init MediaPipe Pose (WASM/assets from same CDN version as script)
+      const pose = new PoseCtor({
+        locateFile: (file: string) =>
+          `https://cdn.jsdelivr.net/npm/@mediapipe/pose@${MP_POSE_VERSION}/${file}`,
+      })
+
+      pose.setOptions({
+        modelComplexity:       1,
+        smoothLandmarks:       true,
+        enableSegmentation:    false,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence:  0.4,
+      })
+
+      pose.onResults(onResults)
+
+      // Warm up the model (first send is slow; do it before revealing UI)
+      if (video.readyState >= 2) {
+        await pose.send({ image: video }).catch(() => {/* ignore first-frame errors */})
+      }
+
+      poseRef.current   = pose
+      runningRef.current = true
+      setIsLoading(false)
+
+      // ── RAF detection loop ─────────────────────────────────────────────
+      const loop = async () => {
+        if (!runningRef.current) return
+
+        const vid = videoRef.current
+        if (vid && poseRef.current && !processingRef.current && vid.readyState >= 2) {
+          processingRef.current = true
+          await poseRef.current.send({ image: vid }).catch(() => {
+            processingRef.current = false
+          })
+        }
+
+        rafRef.current = requestAnimationFrame(loop)
+      }
+
+      rafRef.current = requestAnimationFrame(loop)
+
+    } catch (err) {
+      setIsLoading(false)
+      setError(cameraErrorMessage(err))
+    }
+  }, [videoRef, onResults, stopCamera])
+
+  const switchCamera = useCallback(async () => {
+    const next: 'user' | 'environment' = facingMode === 'user' ? 'environment' : 'user'
+    await startCamera(next)
+  }, [facingMode, startCamera])
+
+  // ── Cleanup on unmount ───────────────────────────────────────────────────
+  useEffect(() => () => {
+    stopCamera()
+  }, [stopCamera])
+
+  return {
+    landmarks,
+    isTracking,
+    confidence,
+    getBestFrames,
+    startCamera,
+    stopCamera,
+    switchCamera,
+    facingMode,
+    isLoading,
+    error,
+  }
+}

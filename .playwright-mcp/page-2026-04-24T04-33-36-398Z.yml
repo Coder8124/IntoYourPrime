@@ -1,0 +1,29 @@
+- generic [ref=e4]:
+  - generic:
+    - generic:
+      - img
+      - generic: IntoYourPrime
+  - generic: v2.6 · AI coach online · 33 landmarks · 30 fps
+  - generic: ↓ tap the vending machine to enter ↓
+  - generic [ref=e11]:
+    - button "Close" [ref=e12] [cursor=pointer]: ×
+    - generic [ref=e13]:
+      - generic [ref=e14]: Dispensing access…
+      - generic [ref=e15]: v2.6
+    - heading "Step onto the platform." [level=1] [ref=e16]
+    - paragraph [ref=e17]: Drop in your credentials — the machine takes it from here.
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]: Email
+        - textbox "Email" [ref=e21]:
+          - /placeholder: you@example.com
+      - generic [ref=e22]:
+        - generic [ref=e23]: Password
+        - textbox "Password" [ref=e24]:
+          - /placeholder: ••••••••
+    - button "Sign in →" [disabled] [ref=e25]
+    - generic [ref=e28]: or
+    - button "Continue as guest" [ref=e30] [cursor=pointer]
+    - paragraph [ref=e31]:
+      - text: No account yet?
+      - button "Create one" [ref=e32] [cursor=pointer]
