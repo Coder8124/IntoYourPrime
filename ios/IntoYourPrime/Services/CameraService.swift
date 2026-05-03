@@ -15,6 +15,31 @@ final class CameraService: NSObject, ObservableObject {
 
     var frameHandler: ((CMSampleBuffer) -> Void)?
 
+    // MARK: - Frame capture (throttled, max 8 frames per burst)
+    @Published var capturedFrames: [String] = []
+    private nonisolated(unsafe) var lastCaptureTime: Date = .distantPast
+
+    nonisolated func appendFrame(from buffer: CMSampleBuffer) {
+        let now = Date()
+        guard now.timeIntervalSince(lastCaptureTime) >= 2.0 else { return }
+        lastCaptureTime = now
+        guard let imageBuffer = CMSampleBufferGetImageBuffer(buffer) else { return }
+        let ciImage = CIImage(cvPixelBuffer: imageBuffer)
+        let context = CIContext()
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
+        let uiImage = UIImage(cgImage: cgImage).resized(to: CGSize(width: 512, height: 512))
+        guard let data = uiImage.jpegData(compressionQuality: 0.7) else { return }
+        let frame = "data:image/jpeg;base64," + data.base64EncodedString()
+        Task { @MainActor [weak self] in
+            guard let self, self.capturedFrames.count < 8 else { return }
+            self.capturedFrames.append(frame)
+        }
+    }
+
+    func clearCapturedFrames() {
+        capturedFrames.removeAll()
+    }
+
     func requestPermission() async {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         if status == .authorized {

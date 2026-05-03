@@ -9,7 +9,6 @@ struct WorkoutView: View {
     @State private var repCount      = 0
     @State private var analysis: FormAnalysisResult?
     @State private var isAnalyzing   = false
-    @State private var capturedFrames: [String] = []
     @State private var showExPicker  = false
     @State private var showCooldown  = false
     @State private var cooldownExs:  [CooldownExercise] = []
@@ -51,11 +50,9 @@ struct WorkoutView: View {
             sessionStart = .now
             await camera.requestPermission()
             camera.start(position: .front)
-            camera.frameHandler = { [weak self] buf in
-                guard let self else { return }
-                self.pose.process(sampleBuffer: buf, exercise: self.exercise)
-                // Capture a JPEG frame every ~2s for AI analysis
-                self.captureFrame(from: buf)
+            camera.frameHandler = { buf in
+                pose.process(sampleBuffer: buf, exercise: exercise)
+                camera.appendFrame(from: buf)
             }
             pose.onRepCounted = { count in
                 repCount = count
@@ -172,36 +169,18 @@ struct WorkoutView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14)).padding(.horizontal)
     }
 
-    // MARK: - Frame capture
-
-    private var lastCaptureTime = Date.distantPast
-    private mutating func captureFrame(from buffer: CMSampleBuffer) {
-        let now = Date()
-        guard now.timeIntervalSince(lastCaptureTime) >= 2.0 else { return }
-        guard capturedFrames.count < 8 else { return }
-        lastCaptureTime = now
-        guard let imageBuffer = CMSampleBufferGetImageBuffer(buffer) else { return }
-        let ciImage = CIImage(cvPixelBuffer: imageBuffer)
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
-        let uiImage = UIImage(cgImage: cgImage).resized(to: CGSize(width: 512, height: 512))
-        if let data = uiImage.jpegData(compressionQuality: 0.7) {
-            capturedFrames.append("data:image/jpeg;base64," + data.base64EncodedString())
-        }
-    }
-
     // MARK: - Actions
 
     private func sendAnalysis() async {
-        guard !isAnalyzing, SubscriptionService.shared.isActive, !capturedFrames.isEmpty else { return }
+        guard !isAnalyzing, SubscriptionService.shared.isActive, !camera.capturedFrames.isEmpty else { return }
         isAnalyzing = true
         defer { isAnalyzing = false }
         do {
             analysis = try await AIService.shared.analyzeForm(
-                frames: capturedFrames, exercise: exercise,
+                frames: camera.capturedFrames, exercise: exercise,
                 repCount: repCount, userProfile: profile, phase: phase
             )
-            capturedFrames.removeAll()
+            camera.clearCapturedFrames()
             errorMessage = nil
         } catch AIError.limitReached {
             errorMessage = "Monthly AI limit reached."
