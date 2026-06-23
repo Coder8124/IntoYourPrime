@@ -479,6 +479,15 @@ export const EXERCISE_GUIDES: Record<string, string> = {
     'PACE: controlled, no swinging.',
   ].join('\n'),
 
+  reversefly: [
+    'IDEAL: hinged forward with a flat back, a soft fixed elbow bend, raising both arms out to the sides to squeeze the shoulder blades, then lowering under control.',
+    'SPINE (weigh most heavily): the back stays flat and braced in the hinge — rounding the lower back under the bent-over load is the main injury risk; grade by how much it rounds.',
+    'SHOULDER BLADES: the movement squeezes the blades together — if the arms just swing up with no retraction, the rear delts and rhomboids are not working.',
+    'MOMENTUM: a controlled raise, not heaving the torso up to fling the weights — jerking robs the target muscle.',
+    'ELBOWS: hold a soft fixed bend, not locking straight or bending more into a row.',
+    'SYMMETRY: both arms rise to the same height together — a lagging side reveals an imbalance.',
+  ].join('\n'),
+
   // ── Hip hinge / lower body ─────────────────────────────────────────────────
   romaniandeadlift: [
     'IDEAL: a soft-knee hip hinge pushing the hips back, a flat braced back, the weight sliding down the thighs to a hamstring stretch, then driving the hips forward to stand tall.',
@@ -561,6 +570,42 @@ export const EXERCISE_GUIDES: Record<string, string> = {
     'PACE: controlled out and back, no swinging.',
   ].join('\n'),
 
+  reverselunge: [
+    'IDEAL: stepping straight back to a soft landing, both knees bending toward 90° with the front shin vertical and the torso tall, then driving through the front heel to stand.',
+    'FRONT KNEE (weigh most heavily): stays stacked over the front ankle and tracking over the toes — caving inward (valgus) is the most serious fault here; the knee drifting well past the toes loads the kneecap. Grade each by how pronounced.',
+    'TORSO: stays upright — folding forward over the front thigh shifts strain to the hip and low back; minor if slight, a clear fault if the chest collapses toward the knee.',
+    'BACK KNEE: lowers under control toward the floor, not slamming down.',
+    'BALANCE: the step lands in a stable hip-width line, not crossing onto a tightrope that wobbles the knee.',
+    'DRIVE: stand by pushing through the front heel, not shoving off the back toes.',
+  ].join('\n'),
+
+  sumosquat: [
+    'IDEAL: a wide stance with toes turned out ~45°, knees tracking out over the toes, hips sinking to about parallel with a tall chest.',
+    'KNEE TRACKING (weigh most heavily): the knees track out in line with the angled toes — inward collapse (valgus) is the serious fault and is tempting in the wide stance; grade by how far they cave in.',
+    'DEPTH: the hips sink to about parallel — a shallow quarter-squat cuts the adductor and glute work.',
+    'TORSO: stays upright; folding forward shifts load to the lower back.',
+    'SPINE: a neutral curve held throughout — watch for the low back tucking under (butt wink) at the bottom.',
+    'HEELS: stay flat with the weight mid-foot — heels lifting or knees shooting past the toes signals the stance is off.',
+  ].join('\n'),
+
+  gobletsquat: [
+    'IDEAL: a weight held at the chest, feet about shoulder-width with toes slightly out, sinking to at least parallel with an upright chest and the elbows tracking inside the knees.',
+    'KNEE TRACKING (weigh most heavily): the knees follow the toes — a brief flicker inward at the bottom is moderate, knees clearly caving (valgus) through the rep is serious.',
+    'TORSO: the held weight should keep the chest tall — folding forward and letting the weight pull you down loads the lower back; grade by how far the chest drops.',
+    'DEPTH: the hip crease reaches at or below the top of the knee — a shallow squat cuts the work.',
+    'SPINE: a neutral curve held throughout — watch for the low back tucking under (butt wink) at the bottom.',
+    'HEELS: stay flat with the weight mid-foot, not rolling onto the toes.',
+  ].join('\n'),
+
+  nordiccurl: [
+    'IDEAL: a rigid body from knees to head, lowering slowly forward under hamstring control, catching softly with the hands, then pulling back up.',
+    'BODY LINE (weigh most heavily): the body stays one straight line from knees to shoulders — bending at the hips to "fake" the descent is the main cheat and it strips the hamstring load. A slight break is minor; folding at the hips is a clear fault.',
+    'CONTROL: the descent is slow and resisted over several seconds — dropping fast and catching late is the main hamstring-strain risk; grade by how uncontrolled.',
+    'LOWER BACK: stays neutral, not arching to lever back up.',
+    'CATCH: the hands catch softly near the bottom — crashing chest-first is a fault.',
+    'RANGE: lower as far as control allows and return — tiny partials barely train the eccentric.',
+  ].join('\n'),
+
   // ── Core ───────────────────────────────────────────────────────────────────
   plank: [
     'IDEAL: forearms or hands under the shoulders, a straight rigid line from ear to ankle, braced and held still.',
@@ -623,6 +668,50 @@ export const EXERCISE_GUIDES: Record<string, string> = {
     'BACK: stays flat against the wall, not sliding down or arching off it.',
     'WEIGHT: even on both feet with the heels down.',
     'HOLD: steady — shaking and rising up the wall signals fatigue.',
+  ].join('\n'),
+
+  bicyclecrunch: [
+    'IDEAL: lower back pressed flat, shoulder blades off the floor, rotating one elbow toward the opposite knee while the other leg extends long, alternating smoothly.',
+    'NECK (weigh most heavily): hands rest lightly behind the head and never haul it across — yanking the head toward the knee strains the cervical spine; grade by how hard the head is pulled.',
+    'ROTATION: the twist comes from the torso turning, not just the elbow swinging across or the head turning side to side.',
+    'LOWER BACK: stays pressed toward the floor — if it arches up as the leg extends, the extended leg is too low; raise it.',
+    'LEG EXTENSION: the non-working leg straightens fully rather than both knees staying bent.',
+    'PACE: slow and controlled — fast flailing loses the rotation and the tension.',
+  ].join('\n'),
+
+  legraise: [
+    'IDEAL: legs straight, lower back pressed flat to the floor, raising the legs toward vertical and lowering under control without the back arching.',
+    'LOWER BACK (weigh most heavily): the lumbar stays pressed to the floor the whole time — if it arches up as the legs lower, the hip flexors are pulling on the spine; that is the key fault and the main injury risk. Bending the knees slightly is better than letting the back arch.',
+    'CONTROL: the legs lower slowly — dropping them fast yanks the lumbar into extension.',
+    'RANGE: raise toward vertical and lower close to the floor without resting, as far as the back stays flat.',
+    'LEGS: stay relatively straight; collapsing them defeats the lower-ab work.',
+    'NECK: relaxed on the floor, not straining up.',
+  ].join('\n'),
+
+  flutterkick: [
+    'IDEAL: legs straight and lifted just off the floor, lower back pressed flat, alternating small quick up-and-down kicks.',
+    'LOWER BACK (weigh most heavily): the lumbar stays pressed to the floor throughout — if it arches up, the legs are too low or the core has lost the brace; that is the key fault and injury risk. Lift the legs higher to keep the back flat.',
+    'LEGS: stay relatively straight with small controlled kicks — large wild kicks lose the lower-ab tension.',
+    'PACE: quick but controlled, not frantic thrashing.',
+    'HEAD / SHOULDERS: if the head and shoulders strain up, support them rather than craning the neck.',
+  ].join('\n'),
+
+  vsit: [
+    'IDEAL: balanced on the tailbone with legs and torso lifted into a V, the spine tall, arms reaching forward, held steady.',
+    'SPINE (weigh most heavily): the chest stays tall and the back long — collapsing and rounding into a C-shape under the compression loads the lumbar discs and is the main fault; grade by how rounded.',
+    'LEG ANGLE: the legs hold around 45° and steady — sagging toward the floor or bending the knees (unless regressing) reduces the hold.',
+    'BALANCE: a still, controlled balance on the tailbone — propping up with the hands on the floor means it is too hard; regress by tucking the knees.',
+    'SHAKE: a steady hold; trembling and collapsing the chest marks the limit.',
+    'NECK: neutral, not jutting forward to counterbalance.',
+  ].join('\n'),
+
+  abwheel: [
+    'IDEAL: from the knees, rolling the wheel forward under control to full extension while the core holds a flat or slightly rounded-down spine, then pulling back without the hips dropping.',
+    'LOWER BACK (weigh most heavily): the lumbar must NOT arch and sag toward the floor as the wheel rolls out — losing the brace dumps the load onto the lower back and is the serious injury risk here; even a slight sag is a real fault and a deep arch is dangerous. Roll out only as far as the back stays neutral.',
+    'RANGE: extend as far as control allows and return — going past the point where the back caves is not more range, it is a failed rep.',
+    'HIPS: travel with the shoulders as one unit — piking the hips up to cheat the return offloads the core.',
+    'CONTROL: a slow resisted roll both directions — collapsing forward at the bottom is a fault and a strain risk.',
+    'NECK: neutral, gaze down, not craning up.',
   ].join('\n'),
 
   // ── Push-up variations ─────────────────────────────────────────────────────
@@ -773,6 +862,97 @@ export const EXERCISE_GUIDES: Record<string, string> = {
     'SHOULDERS: stay relaxed and down, not rising toward the ears.',
     'PACE: slow throughout, both directions.',
   ].join('\n'),
+
+  // ── Stretching / static mobility ───────────────────────────────────────────
+  catcow: [
+    'IDEAL: on all fours, slowly alternating between a full arch (cow — belly drops, chest and tailbone lift) and a full round (cat — spine domes up, chin and tailbone tuck), moving through every segment of the spine.',
+    'RANGE (weigh most heavily): each phase reaches its full end range — the more complete the arch and the round, the more of the spine is mobilized; a small wobble in only the mid-back is most of the value lost.',
+    'SEGMENTATION: the spine moves segment by segment, not just hinging at one spot like the low back.',
+    'PACE: slow and breath-paced — rushing skips range and the warm-up effect.',
+    'NECK: follows the spine naturally (lifting in cow, tucking in cat), not cranked hard at either end.',
+    'BASE: wrists under shoulders and knees under hips stay planted as the spine moves.',
+  ].join('\n'),
+
+  childpose: [
+    'IDEAL: kneeling with the hips sinking back toward the heels, arms reaching long forward, chest and forehead settling toward the floor, breathing into the back.',
+    'HIP DEPTH (weigh most heavily): the hips sink back toward the heels — staying propped high off the heels means little stretch reaches the lower back and lats; the closer to the heels (within comfort), the deeper the release.',
+    'ARM REACH: the arms extend long forward to lengthen the lats — tucked-in arms lose the upper-body stretch.',
+    'SPINE: long and relaxed, letting the back round gently — not held rigid.',
+    'NECK: relaxed with the forehead toward the floor, not craned up.',
+    'BREATHING: slow exhales soften the position deeper; the thing to flag is held breath with the shoulders hiked up.',
+  ].join('\n'),
+
+  worldsgreateststretch: [
+    'IDEAL: a deep lunge with the front foot flat, the same-side hand on the floor inside it, then the opposite arm rotating open to the sky with the gaze following the hand.',
+    'THORACIC ROTATION (weigh most heavily): the top arm opens toward the sky with the chest rotating to follow — the more the upper back opens, the better; a small half-turn is most of the value lost.',
+    'LUNGE DEPTH: the front knee bends into a deep lunge so the trailing-leg hip flexor gets a real stretch — a shallow stance shortchanges it.',
+    'TRAILING LEG: the back leg extends long with the hip sinking, rather than staying high, to load the hip flexor and groin.',
+    'SPINE: stays long as it rotates — collapsing or rounding loses the thoracic opening.',
+    'CONTROL: a smooth reach and brief hold at the top, not a quick uncontrolled twist.',
+  ].join('\n'),
+
+  hipflexorstretch: [
+    'IDEAL: a half-kneeling lunge, torso tall, gently shifting the hips forward and squeezing the rear glute to stretch the front of the rear hip.',
+    'PELVIC TILT / GLUTE (weigh most heavily): tucking the pelvis under by squeezing the rear glute is what actually lengthens the hip flexor — lunging deeper with an arched low back fakes the range and shifts strain to the lumbar; that arch is the main fault to flag.',
+    'TORSO: stays upright over the hips — leaning forward releases the very muscle being stretched.',
+    'FRONT KNEE: stays stacked over the front ankle, not collapsing inward or shooting far past the toes.',
+    'DEPTH: shift forward only until a real stretch is felt in the front of the rear hip — not forcing into pain.',
+    'BALANCE: a stable half-kneel, not wobbling side to side.',
+  ].join('\n'),
+
+  hamstringstretch: [
+    'IDEAL: hinging from the hips with a soft knee bend, letting the torso hang toward the floor so the stretch is felt behind the thighs.',
+    'HINGE vs ROUND (weigh most heavily): the fold comes from the hips with a long spine — rounding hard from the waist shifts the pull into the lower back instead of the hamstrings; a gently long back is correct, a deep lumbar round under the hang is a real concern.',
+    'KNEES: a soft bend rather than locked rigid — locking out to chase range strains the hamstring attachment and the back.',
+    'DEPTH: fold to where the hamstrings tension, not bouncing or forcing past it.',
+    'WEIGHT: stays balanced with the hips roughly over the heels, not toppling forward.',
+    'NECK: relaxed and hanging, not held up.',
+  ].join('\n'),
+
+  quadstretch: [
+    'IDEAL: balanced on one leg, the other heel drawn toward the glute with the knees together and the torso tall.',
+    'KNEE ALIGNMENT (weigh most heavily): the bent knee points down with both knees close together — letting it splay out to the side reduces the quad stretch and twists the knee; grade by how far it drifts.',
+    'PELVIS / LOW BACK: a slight glute squeeze keeps the pelvis tucked — arching the low back to pull the heel higher fakes range and stresses the lumbar.',
+    'TORSO: stays tall, not folding forward to compensate.',
+    'GRIP: hold the ankle (not the toes) and draw gently — no hard yanking on the knee.',
+    'BALANCE: steady on the standing leg (a wall or chair is fine) rather than wobbling.',
+  ].join('\n'),
+
+  pigeonpose: [
+    'IDEAL: the front shin angled across the body with the hips square to the floor, the back leg extended straight behind, settling the torso down over the front leg.',
+    'HIPS SQUARE (weigh most heavily): both hips stay level and square to the floor — letting the back-leg hip rotate open and dumping the weight to one side both reduces the glute stretch and torques the front knee.',
+    'FRONT KNEE: protected — the stretch belongs in the glute and hip, NOT inside the knee. Pain or strain at the front knee means the shin angle is too aggressive; that is a real concern to flag, not more depth.',
+    'BACK LEG: extends straight back with the kneecap and top of the foot down, not flared out.',
+    'TORSO: lowers gradually over the front leg as the hip opens — forcing it down ahead of the hip is the wrong order.',
+    'BREATHING: slow exhales ease the hip open; forcing or bouncing is the fault.',
+  ].join('\n'),
+
+  downdogstretch: [
+    'IDEAL: an inverted V — hands and feet planted, hips pushed high and back, the spine long, heels reaching toward the floor and the head hanging between the arms.',
+    'SPINE LENGTH (weigh most heavily): the priority is a long straight spine from hands to hips — rounding the upper back to force the heels down defeats the pose; bend the knees if needed to keep the back long. A rounded back is the main fault.',
+    'HIPS: pushed high and back into the peak of the V — sagging them toward a plank loses the stretch.',
+    'SHOULDERS: rotate outward and stay away from the ears with straight arms — shrugging into the neck is a fault.',
+    'HEELS: reach toward the floor for the calf and hamstring stretch, but not at the cost of spine length.',
+    'NECK: relaxed, the head hanging freely between the arms, not held up.',
+  ].join('\n'),
+
+  cobrapose: [
+    'IDEAL: lying face down, hands under the shoulders, pressing the chest up into a gentle back arch while the hips stay on the floor and the shoulders stay down.',
+    'HIPS DOWN (weigh most heavily): the hips and pelvis stay grounded — pushing them off the floor turns it into an upward dog or push-up and removes the targeted spinal extension.',
+    'SPINE: a gentle even arch through the whole back — cranking hard into a deep lumbar-only hinge is a strain risk; lift only as high as is comfortable.',
+    'SHOULDERS: pulled down and back, away from the ears — shrugging up toward the ears is the common fault.',
+    'NECK: a natural continuation of the spine with the gaze slightly up — not flinging the head all the way back.',
+    'ELBOWS: stay slightly bent and close rather than locking out and over-arching.',
+  ].join('\n'),
+
+  seatedspinaltwist: [
+    'IDEAL: seated tall, one knee crossed over the extended leg, twisting toward the bent knee with the opposite elbow bracing it and the gaze over the shoulder.',
+    'SPINE TALL (weigh most heavily): the back stays long and upright as it rotates — slumping or rounding into the twist compresses the discs and loses the mobility benefit; lengthen up first, then rotate.',
+    'ROTATION: the twist comes from the torso turning segment by segment, not just cranking the head around or levering hard with the arm.',
+    'HIPS: stay grounded and square with both sitting bones down — lifting one hip cheats the rotation.',
+    'NECK: turns with the spine to look over the shoulder, not forced past comfort.',
+    'BREATHING: slow exhales deepen the twist gently; yanking with the elbow is the fault.',
+  ].join('\n'),
 }
 
 // ── Body-part focus per exercise ───────────────────────────────────────────
@@ -847,6 +1027,26 @@ export const BODY_FOCUS: Record<string, string> = {
   wristcircle:       'wrists, forearms — isolated, NOT shoulders',
   shoulderroll:      'shoulders, shoulder blades, neck — NOT torso or lower body',
   neckroll:          'neck, cervical spine, shoulders — gentle controlled range',
+  reverselunge:      'front knee, back knee, hips, torso, balance — knee tracking and upright posture',
+  sumosquat:         'feet, ankles, knees, hips, spine, torso — wide-stance knee tracking and depth',
+  gobletsquat:       'feet, ankles, knees, hips, spine, torso',
+  nordiccurl:        'hamstrings, hips, lower back, body line — eccentric control',
+  bicyclecrunch:     'neck, core, obliques, torso rotation, legs — NOT knees or ankles loading',
+  legraise:          'lower back, core, hip flexors, legs — lumbar stays flat',
+  flutterkick:       'lower back, core, hip flexors, legs — lumbar stays flat',
+  vsit:              'spine, core, hip flexors, legs — tall spine and balance',
+  abwheel:           'lower back, core, hips, shoulders — lumbar brace through the rollout',
+  reversefly:        'spine, shoulder blades, rear shoulders, elbows — flat back and retraction',
+  catcow:            'spine, lower back, neck — full flexion and extension range',
+  childpose:         'hips, lower back, lats, shoulders — hip depth and arm reach',
+  worldsgreateststretch: 'thoracic spine, hips, hip flexors, hamstrings — rotation and lunge depth',
+  hipflexorstretch:  'hips, hip flexors, pelvis, torso, front knee — pelvic tilt and upright posture',
+  hamstringstretch:  'hips, hamstrings, lower back, knees — hip hinge vs spinal rounding',
+  quadstretch:       'quads, bent knee, pelvis, standing-leg balance — knee alignment',
+  pigeonpose:        'hips, glutes, front knee, back leg, torso — square hips and knee safety',
+  downdogstretch:    'spine, hips, shoulders, hamstrings, calves, neck — spine length',
+  cobrapose:         'spine, lower back, hips, shoulders, neck — gentle extension with hips down',
+  seatedspinaltwist: 'spine, obliques, hips, neck — tall upright rotation',
 }
 
 // ── analyzeForm ────────────────────────────────────────────────────────────
@@ -932,6 +1132,7 @@ export async function analyzeForm(params: AnalyzeParams): Promise<FormAnalysisRe
         '  61–80 = significant fault, stop and correct',
         '  81–100 = dangerous, high injury risk right now',
         '  Place the score by SEVERITY, not by counting faults: weigh how pronounced each fault is and how much injury risk it carries. A slight, occasional deviation sits low in a band; a pronounced or repeated one sits high or in the next band. Prioritize the checkpoints flagged "weigh most heavily".',
+        '  Calibrate to the movement: for low-risk mobility, stretch and light-isolation work, reserve the top bands (61+) for genuine joint strain — forcing a stretch, cranking the neck or low back, collapsing under load — otherwise the score reflects movement QUALITY (range, symmetry, control), not danger. For heavy, loaded or high-impact moves, weight injury risk more aggressively.',
         '',
         `RELEVANT BODY PARTS FOR THIS EXERCISE: ${focusNote}`,
         '- Analyze ONLY the body parts listed above. Do NOT comment on, penalize, or mention body parts not listed.',
@@ -1151,6 +1352,7 @@ export async function analyzeClip(params: {
       '  61–80 = significant fault, needs correction',
       '  81–100 = dangerous, high injury risk',
       '  Place the score by SEVERITY, not by counting faults: weigh how pronounced each fault is and how much injury risk it carries. A slight, occasional deviation sits low in a band; a pronounced or repeated one sits high or in the next band. Prioritize the checkpoints flagged "weigh most heavily".',
+      '  Calibrate to the movement: for low-risk mobility, stretch and light-isolation work, reserve the top bands (61+) for genuine joint strain — forcing a stretch, cranking the neck or low back, collapsing under load — otherwise the score reflects movement QUALITY (range, symmetry, control), not danger. For heavy, loaded or high-impact moves, weight injury risk more aggressively.',
       '',
       'IMPORTANT RULES:',
       '- These are evenly-spaced frames from a recorded clip, not live footage.',
