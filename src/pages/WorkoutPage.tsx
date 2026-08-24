@@ -7,7 +7,8 @@ import { useHoldTimer, HOLD_EXERCISES } from '../hooks/useHoldTimer'
 import { useBurpeeCounter } from '../hooks/useBurpeeCounter'
 import type { BurpeePhase } from '../hooks/useBurpeeCounter'
 import { useWorkoutStore } from '../stores/workoutStore'
-import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI, cancelTTS } from '../lib/formAnalysis'
+import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI, cancelTTS, askTrainer } from '../lib/formAnalysis'
+import { useSpeechInput } from '../hooks/useSpeechInput'
 import { getActiveProgram, advanceProgramExercise, clearActiveProgram, EXERCISE_INFO, type ActiveProgram } from '../lib/programs'
 import { EXERCISE_GIFS } from '../lib/exerciseGifs'
 import type { CooldownExercise, UserProfile } from '../types/index'
@@ -1190,6 +1191,30 @@ export function WorkoutPage() {
       void speakWithOpenAI(newest.text)
     }
   }, [suggestions, voiceMuted])
+
+  // ── Hands-free voice Q&A — ask the AI coach mid-workout ──────────────────
+  const [voiceAsking,   setVoiceAsking]   = useState(false)
+  const [voiceExchange, setVoiceExchange] = useState<{ q: string; a: string } | null>(null)
+
+  const handleVoiceQuestion = useCallback(async (text: string) => {
+    cancelTTS()
+    setVoiceAsking(true)
+    setVoiceExchange({ q: text, a: '' })
+    const ex    = exerciseRef.current
+    const reps  = useWorkoutStore.getState().repCounts[ex] ?? 0
+    const cue   = useWorkoutStore.getState().suggestions[0]?.text ?? ''
+    const ctx   = [
+      `The athlete is mid-workout doing ${EXERCISE_LABELS[ex] ?? ex} (${reps} reps so far).`,
+      cue ? `Most recent form cue: "${cue}".` : '',
+    ].filter(Boolean).join(' ')
+    const reply = await askTrainer({ messages: [{ role: 'user', content: text }], workoutContext: ctx })
+    setVoiceExchange({ q: text, a: reply })
+    setVoiceAsking(false)
+    void speakWithOpenAI(reply)   // explicit question → always answer aloud
+  }, [])
+
+  const { supported: voiceSupported, listening: voiceListening, start: startListening } =
+    useSpeechInput(handleVoiceQuestion)
 
   // ── Auto-scroll transcript to top on new suggestion ─────────────────────
   useEffect(() => {
@@ -2520,22 +2545,57 @@ export function WorkoutPage() {
           </aside>
         </div>
 
+        {/* Voice Q&A overlay */}
+        {(voiceAsking || voiceExchange) && (
+          <div className="fixed left-1/2 -translate-x-1/2 bottom-20 z-50 w-[min(92vw,560px)] rounded-2xl px-4 py-3 shadow-xl"
+            style={{ background: 'rgba(7,7,14,0.97)', border: '1px solid var(--border)', backdropFilter: 'blur(16px)' }}>
+            <div className="flex items-start gap-2.5">
+              <span className="text-[16px] leading-none mt-0.5">🎙️</span>
+              <div className="min-w-0 flex-1">
+                {voiceExchange?.q && <p className="text-[12px] text-gray-400 mb-1">“{voiceExchange.q}”</p>}
+                {voiceAsking
+                  ? <p className="text-[13px] text-blue-300">Coach is thinking…</p>
+                  : <p className="text-[13px] text-white leading-snug">{voiceExchange?.a}</p>}
+              </div>
+              <button onClick={() => setVoiceExchange(null)} className="text-gray-500 hover:text-white text-[14px] shrink-0">✕</button>
+            </div>
+          </div>
+        )}
+
         {/* ── BOTTOM BAR ──────────────────────────────────────────────── */}
         <div className="h-16 flex items-center justify-between px-6 bg-panel border-t border-subtle shrink-0">
 
-          {/* Mute toggle */}
-          <button
-            onClick={() => setVoiceMuted(m => { if (!m) cancelTTS(); return !m })}
-            className={[
-              'flex items-center gap-2 px-4 py-2 rounded-lg border text-[12px] font-bold transition-all',
-              voiceMuted
-                ? 'border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:border-blue-400'
-                : 'border-green-500/40 bg-green-500/10 text-green-400 hover:bg-green-500/20',
-            ].join(' ')}
-          >
-            {voiceMuted ? '🔇' : '🔊'}
-            <span>{voiceMuted ? 'Enable Voice' : 'Voice On'}</span>
-          </button>
+          {/* Voice controls */}
+          <div className="flex items-center gap-3">
+            {/* Mute toggle */}
+            <button
+              onClick={() => setVoiceMuted(m => { if (!m) cancelTTS(); return !m })}
+              className={[
+                'flex items-center gap-2 px-4 py-2 rounded-lg border text-[12px] font-bold transition-all',
+                voiceMuted
+                  ? 'border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:border-blue-400'
+                  : 'border-green-500/40 bg-green-500/10 text-green-400 hover:bg-green-500/20',
+              ].join(' ')}
+            >
+              {voiceMuted ? '🔇' : '🔊'}
+              <span>{voiceMuted ? 'Enable Voice' : 'Voice On'}</span>
+            </button>
+
+            {/* Ask coach — hands-free voice question */}
+            {voiceSupported && (
+              <button
+                onClick={() => { if (!voiceListening) { cancelTTS(); startListening() } }}
+                className={[
+                  'flex items-center gap-2 px-4 py-2 rounded-lg border text-[12px] font-bold transition-all',
+                  voiceListening
+                    ? 'border-red-500/50 bg-red-500/15 text-red-300 animate-pulse'
+                    : 'border-purple-500/40 text-purple-300 hover:bg-purple-500/10 hover:border-purple-400',
+                ].join(' ')}
+              >
+                🎙️ <span>{voiceListening ? 'Listening…' : 'Ask Coach'}</span>
+              </button>
+            )}
+          </div>
 
           {/* Phase CTA */}
           {phase === 'warmup' ? (

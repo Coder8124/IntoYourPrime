@@ -9,6 +9,8 @@ import OpenAI from 'openai'
 import type { FormAnalysisResult, CooldownExercise, Session, DailyLog, UserProfile } from '../types/index'
 import { isProSubscriber } from './subscriptionStatus'
 import { auth } from './firebase'
+import { EXERCISE_INFO, type WorkoutProgram } from './programs'
+import type { Readiness } from './readiness'
 
 // ── Key resolution ─────────────────────────────────────────────────────────
 
@@ -1403,5 +1405,171 @@ export async function analyzeClip(params: {
     return parsed
   } catch {
     return { ...DEFAULT_FORM_RESULT }
+  }
+}
+
+// ── askTrainer (conversational coach — powers text + hands-free voice) ───────
+
+export interface CoachMessage { role: 'user' | 'assistant'; content: string }
+
+const COACH_SYSTEM = (ctx: string): string => [
+  'You are a personal fitness trainer inside the IntoYourPrime app.',
+  'Give concise, practical, evidence-based advice in 1–3 sentences. The user may be mid-workout, so be brief and direct.',
+  'When referencing exercises use lowercase names: squat, pushup, deadlift, bicepcurl, shoulderpress, lunge, plank, etc.',
+  ctx ? `\nContext:\n${ctx}` : '',
+].filter(Boolean).join('\n')
+
+/**
+ * Ask the AI trainer a free-form question. Pro → /api/chat (GPT-4o, usage-tracked);
+ * BYO key → direct GPT-4o-mini. Returns the reply, or a helpful fallback string.
+ */
+export async function askTrainer(params: {
+  messages:        CoachMessage[]
+  workoutContext?: string
+}): Promise<string> {
+  if (isProSubscriber()) {
+    try {
+      const token = await getProToken()
+      const res   = await fetch('/api/chat', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ messages: params.messages, workoutContext: params.workoutContext ?? '' }),
+      })
+      if (res.status === 429) return "You've hit your monthly AI limit — it resets next month."
+      if (!res.ok) return 'Sorry, I could not reach the coach just now.'
+      return ((await res.json()).reply as string) ?? ''
+    } catch {
+      return 'Sorry, I could not reach the coach just now.'
+    }
+  }
+  const c = client()
+  if (!c) return 'Add an OpenAI key in Profile or go Pro to talk to your coach.'
+  try {
+    const completion = await c.chat.completions.create({
+      model:      'gpt-4o-mini',
+      max_tokens: 220,
+      messages: [
+        { role: 'system', content: COACH_SYSTEM(params.workoutContext ?? '') },
+        ...params.messages,
+      ],
+    })
+    return completion.choices[0]?.message?.content ?? ''
+  } catch {
+    return 'Sorry, something went wrong reaching the coach.'
+  }
+}
+
+// ── generateAdaptivePlan (rules gate + LLM session builder) ─────────────────
+
+// Kept in sync with api/adapt.ts ADAPT_SYSTEM (BYO-key path can't import from api/).
+const ADAPT_SYSTEM =
+  'You are a strength coach assembling ONE training session for today. ' +
+  "You are given the athlete's readiness (a recovery score and band) and guardrails. " +
+  'Honor them strictly:\n' +
+  '- band "deload": 3–4 low-intensity, low-skill exercises, lighter reps. Favor recovery/mobility and stable movements.\n' +
+  '- band "moderate": 4–5 exercises at sensible volume.\n' +
+  '- band "push": 5–6 exercises, full intensity.\n' +
+  '- Avoid (or pick an easier substitute for) any exercise in riskyExercises.\n' +
+  '- Avoid loading soreMuscles; prioritize freshMuscles.\n' +
+  '- Use ONLY exercise ids from allowedExercises. Never invent ids.\n' +
+  'Return ONLY JSON, no markdown:\n' +
+  '{"name":string,"exercises":string[],"targetReps":number,"targetHoldSecs":number,"rationale":string}\n' +
+  'name: short and motivating. targetReps: scale by band (deload ~8, moderate ~10, push ~12). ' +
+  'targetHoldSecs: 30. rationale: ONE sentence tying the choice to the readiness signals.'
+
+interface AdaptResult {
+  name:           string
+  exercises:      string[]
+  targetReps:     number
+  targetHoldSecs: number
+  rationale:      string
+}
+
+/**
+ * Build today's session from a precomputed Readiness (the rules gate) using the LLM.
+ * Pro → /api/adapt; BYO key → direct GPT-4o-mini. Returns a launchable
+ * WorkoutProgram, or null if no AI is available or the result is unusable.
+ */
+export async function generateAdaptivePlan(params: {
+  readiness:   Readiness
+  history:     string
+  userProfile: { age: number; weight: number; fitnessLevel: string }
+}): Promise<WorkoutProgram | null> {
+  const { readiness, history, userProfile } = params
+  const allowedExercises = EXERCISE_INFO.map(e => e.id)
+  const holdExercises    = EXERCISE_INFO.filter(e => e.isHold).map(e => e.id)
+
+  const payload = {
+    band:           readiness.band,
+    score:          readiness.score,
+    factors:        readiness.factors,
+    riskyExercises: readiness.riskyExercises,
+    soreMuscles:    readiness.soreMuscles,
+    freshMuscles:   readiness.freshMuscles,
+    allowedExercises,
+    holdExercises,
+    history,
+    profile:        userProfile,
+  }
+
+  let result: AdaptResult | null = null
+  if (isProSubscriber()) {
+    try {
+      const token = await getProToken()
+      const res   = await fetch('/api/adapt', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify(payload),
+      })
+      if (res.ok) result = (await res.json()) as AdaptResult
+    } catch { /* fall through to null */ }
+  } else {
+    const c = client()
+    if (!c) return null
+    try {
+      const userMsg = [
+        `READINESS: ${payload.score}/100 (band: ${payload.band}). Signals: ${payload.factors.join('; ') || 'none'}.`,
+        `ATHLETE: ${userProfile.age}yo, ${userProfile.weight}kg, ${userProfile.fitnessLevel}.`,
+        `RISKY EXERCISES (avoid/regress): ${payload.riskyExercises.join(', ') || 'none'}.`,
+        `SORE MUSCLES (ease off): ${payload.soreMuscles.join(', ') || 'none'}.`,
+        `FRESH MUSCLES (prioritize): ${payload.freshMuscles.join(', ') || 'none'}.`,
+        `HOLD-TYPE exercises (use targetHoldSecs): ${holdExercises.join(', ') || 'none'}.`,
+        `RECENT HISTORY:\n${history || 'none'}`,
+        `ALLOWED EXERCISE IDS: ${allowedExercises.join(', ')}`,
+      ].join('\n')
+      const completion = await c.chat.completions.create({
+        model:      'gpt-4o-mini',
+        max_tokens: 400,
+        messages: [
+          { role: 'system', content: ADAPT_SYSTEM },
+          { role: 'user',   content: userMsg },
+        ],
+      })
+      result = JSON.parse(stripJsonFences(completion.choices[0]?.message?.content ?? '')) as AdaptResult
+    } catch { return null }
+  }
+
+  if (!result) return null
+  const allowed   = new Set(allowedExercises)
+  const exercises = (result.exercises ?? []).filter(id => allowed.has(id))
+  if (!exercises.length) return null
+
+  const level: WorkoutProgram['level'] =
+    userProfile.fitnessLevel === 'advanced' ? 'Advanced'
+    : userProfile.fitnessLevel === 'beginner' ? 'Beginner'
+    : 'Intermediate'
+  const emoji = readiness.band === 'push' ? '🔥' : readiness.band === 'deload' ? '🌙' : '⚡'
+
+  return {
+    id:             `adaptive-${Date.now()}`,
+    name:           result.name?.trim() || "Today's Adaptive Session",
+    description:    result.rationale?.trim() || readiness.headline,
+    level,
+    duration:       `~${Math.max(10, exercises.length * 5)} min`,
+    exercises,
+    tags:           ['Adaptive', readiness.band],
+    emoji,
+    targetReps:     Number.isFinite(result.targetReps)     ? result.targetReps     : 10,
+    targetHoldSecs: Number.isFinite(result.targetHoldSecs) ? result.targetHoldSecs : 30,
   }
 }
