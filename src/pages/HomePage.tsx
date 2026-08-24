@@ -14,6 +14,7 @@ import { getActiveProgram, EXERCISE_INFO, type ActiveProgram } from '../lib/prog
 import type { ActivityFeedItem, DailyLog, Session } from '../types'
 import { ThemeSwitcher } from '../components/ThemeSwitcher'
 import { ClipCoach } from '../components/ClipCoach'
+import { TodaysPlanCard } from '../components/TodaysPlanCard'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -460,6 +461,9 @@ export function HomePage() {
             <div className="absolute top-0 right-0 w-48 h-48 rounded-full pointer-events-none"
               style={{ background: 'radial-gradient(circle, rgba(34,197,94,0.08) 0%, transparent 70%)', transform: 'translate(30%,-30%)' }} />
           </div>
+
+          {/* Adaptive readiness + session builder */}
+          <TodaysPlanCard />
 
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-4">
