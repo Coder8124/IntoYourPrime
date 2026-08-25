@@ -10,6 +10,8 @@ import { requestNotificationPermission, showNotification, scheduleStreakReminder
 import { auth } from '../lib/firebase'
 import { getOrSignInUserId } from '../lib/firestoreUser'
 import { getOrCreateLocalUserId } from '../lib/localUserId'
+import { qualityColor } from '../lib/movement/quality'
+import type { SetMetrics } from '../lib/movement/rep'
 import type { CooldownExercise } from '../types/index'
 
 const LAST_SESSION_KEY = 'formAI_lastSession'
@@ -25,6 +27,7 @@ interface SessionSnapshot {
   riskScores: number[]
   exerciseRiskLog: Record<string, number[]>
   exerciseWeights: Record<string, number>
+  exerciseSetMetrics: Record<string, SetMetrics>
   suggestions: SuggestionEntry[]
   safetyConcerns: string[]
   lastExercise: string
@@ -52,16 +55,29 @@ function fmtClock(ts: number) {
   })
 }
 
-function riskLabel(score: number): string {
-  if (score <= 30) return 'Low'
-  if (score <= 60) return 'Moderate'
-  return 'Elevated'
+/** Deviation scores are stored 0-100 higher-is-worse; quality is their inverse. */
+function toQuality(deviation: number): number {
+  return Math.max(0, Math.min(100, Math.round(100 - deviation)))
 }
 
-function riskColor(score: number): string {
-  if (score <= 30) return '#22c55e'
-  if (score <= 60) return '#f59e0b'
-  return '#ef4444'
+/**
+ * The one thing worth saying about a set, in plain language. Returns null when
+ * nothing notable happened — silence beats a manufactured observation.
+ */
+function describeSet(m: SetMetrics): string | null {
+  const notes: string[] = []
+  if (m.romTrendPct <= -8)      notes.push(`depth fell ${Math.abs(m.romTrendPct)}% across the set`)
+  if (m.velocityTrendPct <= -8) notes.push(`concentric speed fell ${Math.abs(m.velocityTrendPct)}%`)
+  if (m.partialReps > 0)        notes.push(`${m.partialReps} partial rep${m.partialReps > 1 ? 's' : ''}`)
+  if (m.avgSymmetry !== null && m.avgSymmetry < 75) notes.push(`uneven left/right travel (${m.avgSymmetry}/100)`)
+  if (!notes.length) return null
+  return `${notes[0][0].toUpperCase()}${notes[0].slice(1)}${notes.length > 1 ? `; ${notes.slice(1).join('; ')}` : ''}.`
+}
+
+function qualityLabel(score: number): string {
+  if (score >= 70) return 'Solid'
+  if (score >= 40) return 'Fair'
+  return 'Breaking down'
 }
 
 function buildSnapshot(): SessionSnapshot | null {
@@ -77,6 +93,7 @@ function buildSnapshot(): SessionSnapshot | null {
     riskScores: [...s.riskScores],
     exerciseRiskLog: Object.fromEntries(Object.entries(s.exerciseRiskLog).map(([k, v]) => [k, [...v]])),
     exerciseWeights: { ...s.exerciseWeights },
+    exerciseSetMetrics: { ...s.exerciseSetMetrics },
     suggestions: s.suggestions.map((e) => ({ ...e })),
     safetyConcerns: [...s.safetyConcerns],
     lastExercise: s.currentExercise,
@@ -102,23 +119,25 @@ function loadStoredSnapshot(): SessionSnapshot | null {
     if (p.warmupEndedAt === undefined) p.warmupEndedAt = null
     if (!p.exerciseRiskLog) p.exerciseRiskLog = {}
     if (!p.exerciseWeights) p.exerciseWeights = {}
+    if (!p.exerciseSetMetrics) p.exerciseSetMetrics = {}
     return p
   } catch {
     return null
   }
 }
 
-function RiskSparkline({ scores }: { scores: number[] }) {
+/** Plots movement quality over the session — the inverse of the stored deviation samples. */
+function QualitySparkline({ scores }: { scores: number[] }) {
   if (scores.length === 0) {
-    return <p className="text-[12px] text-gray-600">No risk samples captured this session.</p>
+    return <p className="text-[12px] text-gray-600">No movement samples captured this session.</p>
   }
   if (scores.length === 1) {
-    const v = scores[0]
+    const v = toQuality(scores[0])
     return (
       <p className="text-[12px] text-gray-400">
         Single reading:{' '}
-        <span className="font-mono font-bold" style={{ color: riskColor(v) }}>
-          {Math.round(v)}
+        <span className="font-mono font-bold" style={{ color: qualityColor(v) }}>
+          {v}
         </span>
         <span className="text-gray-600"> — keep training to see a trend line.</span>
       </p>
@@ -129,7 +148,8 @@ function RiskSparkline({ scores }: { scores: number[] }) {
   const pad = 4
   const max = 100
   const step = (w - pad * 2) / Math.max(1, scores.length - 1)
-  const pts = scores.map((v, i) => {
+  const pts = scores.map((raw, i) => {
+    const v = toQuality(raw)
     const x = pad + i * step
     const y = pad + (1 - Math.min(100, Math.max(0, v)) / max) * (h - pad * 2)
     return `${x},${y}`
@@ -668,40 +688,40 @@ export function SessionSummaryPage() {
           </p>
         </section>
 
-        {/* Risk detail */}
+        {/* Movement quality detail */}
         <section className="card-surface p-5">
-          <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">Injury risk</h2>
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">Movement quality</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="space-y-3">
               <div className="flex items-baseline justify-between gap-4">
                 <span className="text-[12px] text-gray-500">Average</span>
-                <span className="font-mono text-xl font-black" style={{ color: riskColor(avgRisk) }}>
-                  {analysisSamples ? Math.round(avgRisk) : '—'}
+                <span className="font-mono text-xl font-black" style={{ color: qualityColor(toQuality(avgRisk)) }}>
+                  {analysisSamples ? toQuality(avgRisk) : '—'}
                   <span className="ml-2 text-[11px] font-semibold text-gray-500">
-                    {analysisSamples ? riskLabel(avgRisk) : ''}
+                    {analysisSamples ? qualityLabel(toQuality(avgRisk)) : ''}
                   </span>
                 </span>
               </div>
               <div className="flex items-baseline justify-between gap-4">
-                <span className="text-[12px] text-gray-500">Peak</span>
-                <span className="font-mono text-xl font-black" style={{ color: riskColor(peakRisk) }}>
-                  {analysisSamples ? Math.round(peakRisk) : '—'}
+                <span className="text-[12px] text-gray-500">Best</span>
+                <span className="font-mono text-xl font-black" style={{ color: qualityColor(toQuality(minRisk)) }}>
+                  {analysisSamples ? toQuality(minRisk) : '—'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between gap-4">
-                <span className="text-[12px] text-gray-500">Lowest</span>
-                <span className="font-mono text-xl font-black" style={{ color: riskColor(minRisk) }}>
-                  {analysisSamples ? Math.round(minRisk) : '—'}
+                <span className="text-[12px] text-gray-500">Worst</span>
+                <span className="font-mono text-xl font-black" style={{ color: qualityColor(toQuality(peakRisk)) }}>
+                  {analysisSamples ? toQuality(peakRisk) : '—'}
                 </span>
               </div>
               <div className="flex items-baseline justify-between gap-4 border-t border-subtle pt-3">
-                <span className="text-[12px] text-gray-500">Samples over 60 (elevated)</span>
+                <span className="text-[12px] text-gray-500">Samples below 40 (breaking down)</span>
                 <span className="font-mono text-lg font-black text-amber-400">{highRiskEvents}</span>
               </div>
             </div>
             <div>
-              <p className="mb-2 text-[11px] font-semibold text-gray-500">Risk over time</p>
-              <RiskSparkline scores={snapshot.riskScores} />
+              <p className="mb-2 text-[11px] font-semibold text-gray-500">Quality over time</p>
+              <QualitySparkline scores={snapshot.riskScores} />
             </div>
           </div>
         </section>
@@ -733,6 +753,44 @@ export function SessionSummaryPage() {
             </ul>
           )}
         </section>
+
+        {/* Movement metrics — what the reps actually looked like */}
+        {Object.keys(snapshot.exerciseSetMetrics ?? {}).length > 0 && (
+          <section className="card-surface p-5">
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">Movement metrics</h2>
+            <p className="mt-1 text-[12px] text-gray-600">
+              Measured per rep from pose landmarks — no vision model involved.
+            </p>
+            <ul className="mt-4 space-y-2">
+              {Object.entries(snapshot.exerciseSetMetrics).map(([name, m]) => (
+                <li key={name} className="rounded-lg border border-subtle bg-panel px-3 py-2.5">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[13px] font-semibold text-white">{fmtExerciseName(name)}</span>
+                    <span className="text-[11px] font-mono" style={{ color: qualityColor(m.avgConfidence) }}>
+                      {m.avgConfidence}% conf
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+                    {([
+                      ['Avg ROM',     `${m.avgRomPct}%`],
+                      ['Avg tempo',   `${m.avgTempo.toFixed(1)}s`],
+                      ['Consistency', `${m.consistency}`],
+                      ['Symmetry',    m.avgSymmetry !== null ? `${m.avgSymmetry}` : '—'],
+                    ] as const).map(([label, value]) => (
+                      <div key={label} className="flex items-baseline justify-between gap-2">
+                        <span className="text-[11px] text-gray-500">{label}</span>
+                        <span className="text-[12px] font-mono text-gray-300">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {describeSet(m) && (
+                    <p className="mt-2 text-[11.5px] text-amber-400 leading-snug">{describeSet(m)}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* Progressive overload recommendations */}
         {exercisesWithReps.length > 0 && (
@@ -852,7 +910,7 @@ export function SessionSummaryPage() {
         {snapshot.riskScores.length > 0 && (
           <section className="card-surface p-5">
             <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
-              Risk samples (chronological)
+              Quality samples (chronological)
             </h2>
             <p className="mt-1 text-[12px] text-gray-600">
               Index matches analysis order during the session.
@@ -861,8 +919,8 @@ export function SessionSummaryPage() {
               {snapshot.riskScores.map((score, idx) => (
                 <li key={idx} className="mb-1 break-inside-avoid">
                   <span className="text-gray-600">#{idx + 1}</span>{' '}
-                  <span className="font-mono font-semibold" style={{ color: riskColor(score) }}>
-                    {Math.round(score)}
+                  <span className="font-mono font-semibold" style={{ color: qualityColor(toQuality(score)) }}>
+                    {toQuality(score)}
                   </span>
                 </li>
               ))}

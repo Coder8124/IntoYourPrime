@@ -1,5 +1,7 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import type { NormalizedLandmark } from '@mediapipe/pose'
+import { buildRep, summarizeSet } from '../lib/movement/rep'
+import type { Rep, SetMetrics, SignalSample } from '../lib/movement/rep'
 
 // ── MediaPipe landmark indices ─────────────────────────────────────────────
 
@@ -88,6 +90,12 @@ export interface UseRepCounterReturn {
   reset:             () => void
   /** Per-arm rep counts — only populated for bicepcurl / hammercurl, otherwise both 0. */
   armReps:           { left: number; right: number }
+  /** Structured metrics for every rep counted since the last reset. */
+  reps:              Rep[]
+  /** The most recently completed rep, for live HUD readouts. */
+  lastRep:           Rep | null
+  /** Rollup of `reps` — trends, consistency, fatigue. Null until the first rep. */
+  setMetrics:        SetMetrics | null
 }
 
 // ── Exercise config ────────────────────────────────────────────────────────
@@ -211,6 +219,16 @@ const MIN_RANGE         = 0.04  // lower = catches smaller movements (was 0.06)
 const CONFIDENCE_THRESH = 0.6
 const PAUSE_AFTER_MS    = 1000  // null-landmark gap before pausing
 const RECAL_AFTER_MS    = 2500  // if range still too small after this long, recalibrate
+const RANGE_DECAY       = 0.0006 // per-frame relaxation of the calibrated range (see below)
+const MAX_SAMPLES       = 400   // ~13 s of signal at 30 fps — caps per-rep memory
+
+/**
+ * Exercises whose driving signal is horizontal. Their left/right symmetry has to
+ * be read off the X axis; everything else moves vertically.
+ */
+const X_AXIS_SIGNALS = new Set<SupportedExercise>([
+  'chestfly', 'reverseFly', 'scapulasqueeze', 'hipcircle', 'russiantwist',
+])
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -460,6 +478,11 @@ export function useRepCounter(
   const [repLog,           setRepLog]           = useState<RepLogEntry[]>([])
   const [isCalibrating,    setIsCalibrating]    = useState(true)
   const [armReps,          setArmReps]          = useState({ left: 0, right: 0 })
+  const [reps,             setReps]             = useState<Rep[]>([])
+
+  // Signal samples for the rep currently in progress, cleared at each rep boundary.
+  const samplesRef = useRef<SignalSample[]>([])
+  const romsRef    = useRef<number[]>([])
 
   const repCountRef     = useRef(0)
   const calibrateTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -493,6 +516,9 @@ export function useRepCounter(
     setLastRepTimestamp(null)
     setRepLog([])
     setIsCalibrating(true)
+    samplesRef.current = []
+    romsRef.current    = []
+    setReps([])
     // Reset per-arm state
     leftSmoothed.current  = null
     rightSmoothed.current = null
@@ -959,8 +985,24 @@ export function useRepCounter(
     calibratedMin.current = Math.min(calibratedMin.current, y)
     calibratedMax.current = Math.max(calibratedMax.current, y)
 
-    const range = calibratedMax.current - calibratedMin.current
     const effectiveMinRange = config.minRange ?? MIN_RANGE
+
+    // ── Slowly relax the range once the user is actually repping ─────────
+    // Min/max only ever expanded, so a single outlier — a stumble, a camera
+    // bump, a landmark glitch — permanently compressed the normalised signal
+    // for the rest of the set and swallowed later reps. Real extremes get
+    // re-established on every rep, so decaying the range slightly each frame
+    // lets stale outliers age out while genuine range holds.
+    if (repCountRef.current >= 2) {
+      const span = calibratedMax.current - calibratedMin.current
+      if (span > effectiveMinRange) {
+        const shrink = (span - effectiveMinRange) * RANGE_DECAY
+        calibratedMin.current += shrink
+        calibratedMax.current -= shrink
+      }
+    }
+
+    const range = calibratedMax.current - calibratedMin.current
 
     if (range < effectiveMinRange) {
       // Still not enough movement — if this has been going on too long,
@@ -977,6 +1019,22 @@ export function useRepCounter(
 
     const normalisedRaw = (y - calibratedMin.current) / range
     const normalised    = invertSignal ? 1 - normalisedRaw : normalisedRaw
+
+    // ── Record this frame for the rep in progress ────────────────────────
+    // The driving joints double as the confidence proxy and the left/right
+    // pair used for symmetry. Exercises driven by a single landmark (neck roll)
+    // have joints[0] === joints[1] and are simply not bilateral.
+    const jA = landmarks[config.joints[0]]
+    const jB = landmarks[config.joints[1]]
+    const axis: 'x' | 'y' = X_AXIS_SIGNALS.has(exerciseKey) ? 'x' : 'y'
+    samplesRef.current.push({
+      t:     now,
+      norm:  normalised,
+      conf:  (((jA?.visibility ?? 0) + (jB?.visibility ?? 0)) / 2),
+      left:  jA ? jA[axis] : NaN,
+      right: jB ? jB[axis] : NaN,
+    })
+    if (samplesRef.current.length > MAX_SAMPLES) samplesRef.current.shift()
 
     let newPhase = phaseRef.current
     if (normalised > DOWN_THRESHOLD) newPhase = 'down'
@@ -1005,6 +1063,25 @@ export function useRepCounter(
           ...prev,
           { exercise: exerciseKey, timestamp: now, phase: newPhase },
         ])
+
+        // ── Structured rep metrics ────────────────────────────────────────
+        const rep = buildRep({
+          repId:           newCount,
+          // The caller's own exercise id, not the aliased signal key — consumers
+          // key their own state by what they passed in.
+          exercise,
+          samples:         samplesRef.current,
+          bottomThreshold: DOWN_THRESHOLD,
+          topThreshold:    UP_THRESHOLD,
+          endPhase:        newPhase === 'down' ? 'down' : 'up',
+          priorRoms:       romsRef.current,
+          bilateral:       config.joints[0] !== config.joints[1],
+        })
+        if (rep) {
+          romsRef.current = [...romsRef.current.slice(-29), rep.romPct]
+          setReps(prev => [...prev.slice(-99), rep])
+        }
+        samplesRef.current = []
 
         // ── Side detection for unilateral exercises ───────────────────────
         const SIDE_EXERCISES = new Set([
@@ -1103,5 +1180,11 @@ export function useRepCounter(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [landmarks, exerciseKey])
 
-  return { repCount, phase, lastRepTimestamp, repLog, isCalibrating, reset, armReps }
+  const setMetrics = useMemo(() => summarizeSet(reps), [reps])
+  const lastRep    = reps.length ? reps[reps.length - 1] : null
+
+  return {
+    repCount, phase, lastRepTimestamp, repLog, isCalibrating, reset, armReps,
+    reps, lastRep, setMetrics,
+  }
 }

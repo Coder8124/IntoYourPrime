@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { CooldownExercise, FormAnalysisResult } from '../types/index'
+import type { SetMetrics } from '../lib/movement/rep'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,8 @@ interface WorkoutState {
 
   exerciseRiskLog:    Record<string, number[]>
   exerciseWeights:    Record<string, number>
+  /** Structured movement metrics per exercise, from the rep counter. */
+  exerciseSetMetrics: Record<string, SetMetrics>
 
   // ── Actions ───────────────────────────────────────────────────────────
   setPhase:             (phase: WorkoutPhase) => void
@@ -37,6 +40,7 @@ interface WorkoutState {
   resetExerciseReps:    (exercise: string) => void
   updateAnalysis:       (result: FormAnalysisResult) => void
   logExerciseRisk:      (exercise: string, score: number) => void
+  logExerciseSet:       (exercise: string, metrics: SetMetrics) => void
   setWarmupScore:       (score: number) => void
   setCooldownExercises: (exercises: CooldownExercise[]) => void
   setCooldownCompleted: (completed: boolean) => void
@@ -48,7 +52,7 @@ interface WorkoutState {
 // ── Initial state ──────────────────────────────────────────────────────────
 
 const INITIAL: Omit<WorkoutState,
-  | 'setPhase' | 'setExercise' | 'addRep' | 'resetExerciseReps' | 'updateAnalysis' | 'logExerciseRisk'
+  | 'setPhase' | 'setExercise' | 'addRep' | 'resetExerciseReps' | 'updateAnalysis' | 'logExerciseRisk' | 'logExerciseSet'
   | 'setWarmupScore' | 'setCooldownExercises' | 'setCooldownCompleted' | 'setExerciseWeight' | 'endSession' | 'resetSession'
 > = {
   phase:             'warmup',
@@ -57,6 +61,7 @@ const INITIAL: Omit<WorkoutState,
   riskScores:        [],
   exerciseRiskLog:   {},
   exerciseWeights:   {},
+  exerciseSetMetrics: {},
   suggestions:       [],
   safetyConcerns:    [],
   warmupScore:       null,
@@ -114,6 +119,10 @@ export const useWorkoutStore = create<WorkoutState>()((set) => ({
       },
     }
   }),
+
+  logExerciseSet: (exercise, metrics) => set((state) => ({
+    exerciseSetMetrics: { ...state.exerciseSetMetrics, [exercise]: metrics },
+  })),
 
   setWarmupScore: (score) => set({ warmupScore: score }),
 

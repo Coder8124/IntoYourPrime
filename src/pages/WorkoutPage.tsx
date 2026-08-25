@@ -11,6 +11,8 @@ import { analyzeForm, generateCooldown, hasApiKey, speakWithOpenAI, cancelTTS, a
 import { useSpeechInput } from '../hooks/useSpeechInput'
 import { getActiveProgram, advanceProgramExercise, clearActiveProgram, EXERCISE_INFO, type ActiveProgram } from '../lib/programs'
 import { EXERCISE_GIFS } from '../lib/exerciseGifs'
+import { computeMovementQuality, qualityColor } from '../lib/movement/quality'
+import type { MovementQuality } from '../lib/movement/quality'
 import type { CooldownExercise, UserProfile } from '../types/index'
 
 // ── Alignment-based risk (landmark geometry, runs every frame) ────────────
@@ -479,21 +481,15 @@ function fmt(sec: number) {
   return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`
 }
 
-function riskColor(score: number): string {
-  if (score <= 30) return '#22c55e'
-  if (score <= 60) return '#f59e0b'
-  return '#ef4444'
-}
+// ── MovementQualityGauge ───────────────────────────────────────────────────
 
-function riskLabel(score: number): string {
-  if (score <= 30) return 'Safe'
-  if (score <= 60) return 'Watch form'
-  return 'High risk'
-}
-
-// ── RiskGauge ──────────────────────────────────────────────────────────────
-
-function RiskGauge({ score }: { score: number }) {
+/**
+ * Replaces the old injury-risk dial. Same shape, opposite polarity: the arc
+ * fills as movement quality goes UP, and the factors that produced the number
+ * are listed underneath so it is never an unexplained verdict.
+ */
+function MovementQualityGauge({ quality }: { quality: MovementQuality }) {
+  const score = quality.score
   const [display, setDisplay] = useState(score)
 
   useEffect(() => {
@@ -513,7 +509,7 @@ function RiskGauge({ score }: { score: number }) {
   const R      = 40
   const circ   = 2 * Math.PI * R
   const offset = circ * (1 - display / 100)
-  const color  = riskColor(display)
+  const color  = qualityColor(display)
 
   return (
     <div className="flex flex-col items-center gap-1">
@@ -553,15 +549,38 @@ function RiskGauge({ score }: { score: number }) {
           fontFamily="Inter,system-ui,sans-serif"
           letterSpacing={1.2}
         >
-          RISK SCORE
+          QUALITY
         </text>
       </svg>
       <span
         className="text-[11px] font-black tracking-[0.13em] uppercase"
         style={{ color, transition: 'color 0.4s ease' }}
       >
-        {riskLabel(score)}
+        {quality.label}
       </span>
+
+      {/* Factor breakdown — every point of the score traces back to one of these */}
+      {quality.factors.length > 0 && (
+        <div className="w-full mt-3 space-y-1">
+          {quality.factors.map((f) => (
+            <div key={f.key} className="flex items-center gap-2">
+              <span className="text-[9.5px] text-gray-500 flex-1 truncate">{f.label}</span>
+              <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.07)' }}>
+                <div
+                  className="h-1 rounded-full transition-all duration-500"
+                  style={{ width: `${f.score}%`, background: qualityColor(f.score) }}
+                />
+              </div>
+              <span className="text-[9.5px] font-mono text-gray-400 w-5 text-right">{f.score}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {quality.weakest && (
+        <p className="text-[10px] text-amber-400 mt-1.5 text-center leading-snug">
+          {quality.weakest.label} is limiting your score
+        </p>
+      )}
     </div>
   )
 }
@@ -764,13 +783,14 @@ export function WorkoutPage() {
   const referenceFrameRef   = useRef<string | null>(null)   // reference photo for AI person tracking
   const isTrackingRef       = useRef(false)
   const sessionRiskLog      = useRef<number[]>([])          // all blended scores this session
+  const alignEmaRef         = useRef<number | null>(null)   // smoothed landmark-geometry deviation
 
   // ── Store ──────────────────────────────────────────────────────────────
   const {
     phase, currentExercise, repCounts, exerciseWeights,
     riskScores, suggestions, safetyConcerns, warmupScore, sessionStartTime,
     cooldownExercises,
-    setPhase, setExercise, addRep, resetExerciseReps, updateAnalysis, logExerciseRisk, setWarmupScore,
+    setPhase, setExercise, addRep, resetExerciseReps, updateAnalysis, logExerciseRisk, logExerciseSet, setWarmupScore,
     setCooldownExercises, setCooldownCompleted, setExerciseWeight, endSession, resetSession,
   } = useWorkoutStore()
 
@@ -779,6 +799,9 @@ export function WorkoutPage() {
   const [showModal,     setShowModal]     = useState(false)
   const [cameraStarted, setCameraStarted] = useState(false)
   const [voiceMuted,    setVoiceMuted]    = useState(true)
+  // Movement Quality inputs — kept separate so each stays an explainable factor
+  const [alignmentDeviation, setAlignmentDeviation] = useState<number | null>(null)
+  const [coachDeviation,     setCoachDeviation]     = useState<number | null>(null)
   const [cameraZoom,       setCameraZoom]       = useState(1)
   const [wideCameraLayout, setWideCameraLayout] = useState(false)
   const [cameraFullscreen, setCameraFullscreen] = useState(false)
@@ -978,8 +1001,10 @@ export function WorkoutPage() {
   const isBurpee = currentExercise === 'burpee'
 
   // Burpee uses its own 3-phase state machine — pass null to each hook when the other is active
-  const { repCount, phase: movementPhase, lastRepTimestamp, isCalibrating, reset: resetRepCounter, armReps } =
-    useRepCounter(isBurpee ? null : landmarks, currentExercise)
+  const {
+    repCount, phase: movementPhase, lastRepTimestamp, isCalibrating,
+    reset: resetRepCounter, armReps, lastRep, setMetrics,
+  } = useRepCounter(isBurpee ? null : landmarks, currentExercise)
 
   const {
     repCount:         burpeeRepCount,
@@ -1261,6 +1286,15 @@ export function WorkoutPage() {
     const blended = aiScore !== null
       ? Math.round(aiScore * 0.6 + localScore * 0.4)
       : localScore
+
+    // Feed the alignment deviation into Movement Quality as its own factor.
+    // 0 means "no clean read" (occluded, or no rule for this exercise), not "perfect".
+    if (localScore > 0) {
+      alignEmaRef.current = alignEmaRef.current === null
+        ? localScore
+        : alignEmaRef.current * 0.9 + localScore * 0.1
+      setAlignmentDeviation(Math.round(alignEmaRef.current))
+    }
     updateAnalysis({
       riskScore:        blended,
       suggestions:      [],
@@ -1313,6 +1347,7 @@ export function WorkoutPage() {
           referenceFrame: referenceFrameRef.current,
         })
         aiRiskRef.current = result.riskScore
+        setCoachDeviation(result.riskScore)
         if (result.suggestions.length > 0) {
           updateAnalysis({
             riskScore:        result.riskScore,
@@ -1334,12 +1369,21 @@ export function WorkoutPage() {
   }, [getBestFrames])
 
   // ── Derived ────────────────────────────────────────────────────────────
-  // Smooth over last 8 frames to reduce jitter
-  const latestRisk = riskScores.length
-    ? Math.round(riskScores.slice(-8).reduce((a, b) => a + b, 0) / Math.min(riskScores.length, 8))
-    : 0
   const latestSuggestions = suggestions.slice(0, 3)
   const totalReps         = Object.values(repCounts).reduce((a, b) => a + b, 0)
+
+  const movementQuality = useMemo(
+    () => computeMovementQuality({ set: setMetrics, alignmentDeviation, coachDeviation }),
+    [setMetrics, alignmentDeviation, coachDeviation],
+  )
+
+  // Persist the rollup so the session summary can report movement, not just counts.
+  // Keyed off the rep's own exercise, not currentExercise — on the render where
+  // the user switches exercise the counter has not reset yet, and the outgoing
+  // set would otherwise be filed under the incoming exercise.
+  useEffect(() => {
+    if (setMetrics && lastRep) logExerciseSet(lastRep.exercise, setMetrics)
+  }, [setMetrics, lastRep, logExerciseSet])
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
@@ -2362,13 +2406,51 @@ export function WorkoutPage() {
             ].join(' ')}
           >
 
-            {/* Risk gauge */}
+            {/* Movement quality gauge */}
             <div className="card-surface p-5 flex flex-col items-center">
               <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500 mb-3">
-                Injury Risk
+                Movement Quality
               </span>
-              <RiskGauge score={latestRisk} />
+              <MovementQualityGauge quality={movementQuality} />
             </div>
+
+            {/* Last rep — the structured metrics behind the count */}
+            {lastRep && phase === 'main' && (
+              <div className="card-surface p-4 shrink-0">
+                <div className="flex items-baseline justify-between mb-2.5">
+                  <span className="text-[10.5px] font-bold tracking-[0.15em] uppercase text-gray-500">
+                    Rep {lastRep.repId}
+                  </span>
+                  <span className="text-[10px] font-mono" style={{ color: qualityColor(lastRep.confidence) }}>
+                    {lastRep.confidence}% conf
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                  {[
+                    ['ROM',     `${lastRep.romPct}%`],
+                    ['Tempo',   `${lastRep.tempo.toFixed(1)}s`],
+                    ['Control', `${lastRep.stability}`],
+                    ['Symmetry', lastRep.symmetry !== null ? `${lastRep.symmetry}` : '—'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex items-baseline justify-between">
+                      <span className="text-[9.5px] text-gray-500">{label}</span>
+                      <span className="text-[11px] font-mono text-gray-300">{value}</span>
+                    </div>
+                  ))}
+                </div>
+                {lastRep.partial && (
+                  <p className="text-[10px] text-amber-400 mt-2">Partial rep — short of your usual depth</p>
+                )}
+                {setMetrics && setMetrics.reps >= 4 && setMetrics.fatigue >= 20 && (
+                  <p className="text-[10px] text-amber-400 mt-2 leading-snug">
+                    {setMetrics.romTrendPct < -5 && `Depth down ${Math.abs(setMetrics.romTrendPct)}%`}
+                    {setMetrics.romTrendPct < -5 && setMetrics.velocityTrendPct < -5 && ', '}
+                    {setMetrics.velocityTrendPct < -5 && `speed down ${Math.abs(setMetrics.velocityTrendPct)}%`}
+                    {' '}across this set.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Fatigue warning banner */}
             {fatigueWarning && phase === 'main' && (
